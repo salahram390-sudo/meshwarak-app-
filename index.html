@@ -3,173 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مشوراك - طلب مشوار</title>
-
-  <!-- Leaflet + OSM -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+  <title>مشوارك</title>
   <style>
-    body{font-family:system-ui,Arial; margin:0; background:#0b0f14; color:#e8eef7;}
-    header{padding:14px 16px; background:#101825; position:sticky; top:0;}
-    h1{margin:0; font-size:18px;}
-    #map{height:55vh;}
-    .wrap{padding:14px 16px; display:grid; gap:12px;}
-    .card{background:#101825; border:1px solid #1f2a3a; border-radius:14px; padding:12px;}
-    label{display:block; font-size:13px; opacity:.9; margin-bottom:6px;}
-    input,textarea{width:100%; padding:10px; border-radius:10px; border:1px solid #273449; background:#0b0f14; color:#e8eef7;}
-    button{padding:12px; border:0; border-radius:12px; background:#2b6cff; color:white; font-weight:700; cursor:pointer;}
-    button:disabled{opacity:.5; cursor:not-allowed;}
-    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-    .hint{font-size:13px; opacity:.85; line-height:1.4}
-    .pill{display:inline-block; padding:4px 10px; border:1px solid #273449; border-radius:999px; font-size:12px; opacity:.9}
+    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;height:100vh;display:flex;align-items:center;justify-content:center}
+    .box{width:92%;max-width:420px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;text-align:center}
+    h1{margin:0 0 8px;font-size:20px}
+    p{margin:0 0 14px;opacity:.85}
+    a{display:block;text-decoration:none;padding:14px 12px;border-radius:14px;font-weight:800;margin:10px 0}
+    .p{background:#22c55e;color:#04110a}
+    .d{background:#2b6cff;color:#fff}
+    .note{font-size:12px;opacity:.75;margin-top:8px}
   </style>
 </head>
 <body>
-  <header>
-    <h1>🚖 مشوراك — طلب مشوار</h1>
-  </header>
+  <div class="box">
+    <h1>🚖 مشوارك</h1>
+    <p>اختر نوع الاستخدام</p>
 
-  <div id="map"></div>
+    <a class="p" href="passenger.html">🚕 راكب</a>
+    <a class="d" href="driver.html">🧑‍✈️ سائق</a>
 
-  <div class="wrap">
-    <div class="card">
-      <div class="hint">
-        اضغط على الخريطة لاختيار <b>نقطة الانطلاق</b> ثم اضغط مرة ثانية لاختيار <b>الوجهة</b>.
-        <br><span class="pill" id="status">في انتظار اختيار الانطلاق…</span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div>
-          <label>رقم الهاتف (اختياري)</label>
-          <input id="phone" placeholder="مثال: 010..." />
-        </div>
-        <div>
-          <label>عدد الركاب (اختياري)</label>
-          <input id="passengers" type="number" min="1" placeholder="1" />
-        </div>
-      </div>
-
-      <div style="margin-top:10px">
-        <label>ملاحظة للسائق (اختياري)</label>
-        <textarea id="note" rows="2" placeholder="مثال: معي شنطة…"></textarea>
-      </div>
-
-      <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="createBtn" disabled>إنشاء طلب مشوار</button>
-        <button id="resetBtn" style="background:#24344a;">إعادة اختيار</button>
-      </div>
-
-      <p class="hint" id="result"></p>
-      <p class="hint">صفحة السائق: <b>driver.html</b></p>
-    </div>
+    <div class="note">لو الصفحة ما اتحدثتش فورًا، استنى دقيقة.</div>
   </div>
-
-  <!-- Firebase (CDN Modules) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-    // Firebase config (بتاعك)
-    const firebaseConfig = {
-      apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
-      authDomain: "meshwark-8adf8.firebaseapp.com",
-      projectId: "meshwark-8adf8",
-      storageBucket: "meshwark-8adf8.firebasestorage.app",
-      messagingSenderId: "450060838946",
-      appId: "1:450060838946:web:963cacdd125b253fa1827b",
-      measurementId: "G-GP0JGBZTGG"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // خريطة بدون GPS
-    const map = L.map('map').setView([24.7136, 46.6753], 12); // تقدر تغيّرها لمدينتك
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-
-    let from = null, to = null;
-    let fromMarker = null, toMarker = null;
-    let line = null;
-
-    const statusEl = document.getElementById('status');
-    const createBtn = document.getElementById('createBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const resultEl = document.getElementById('result');
-
-    function updateUI(){
-      if(!from){
-        statusEl.textContent = "في انتظار اختيار الانطلاق…";
-        createBtn.disabled = true;
-      } else if(from && !to){
-        statusEl.textContent = "تم اختيار الانطلاق ✅ اختر الوجهة…";
-        createBtn.disabled = true;
-      } else {
-        statusEl.textContent = "تم اختيار الانطلاق والوجهة ✅";
-        createBtn.disabled = false;
-      }
-    }
-
-    function resetAll(){
-      from = null; to = null;
-      if(fromMarker) map.removeLayer(fromMarker);
-      if(toMarker) map.removeLayer(toMarker);
-      if(line) map.removeLayer(line);
-      fromMarker = null; toMarker = null; line = null;
-      resultEl.textContent = "";
-      updateUI();
-    }
-
-    map.on('click', (e) => {
-      if(!from){
-        from = { lat: e.latlng.lat, lng: e.latlng.lng };
-        fromMarker = L.marker(e.latlng).addTo(map).bindPopup("🚩 الانطلاق").openPopup();
-      } else if(!to){
-        to = { lat: e.latlng.lat, lng: e.latlng.lng };
-        toMarker = L.marker(e.latlng).addTo(map).bindPopup("🏁 الوجهة").openPopup();
-        line = L.polyline([from, to], { }).addTo(map);
-        map.fitBounds(line.getBounds(), { padding: [30,30] });
-      } else {
-        resetAll();
-      }
-      updateUI();
-    });
-
-    resetBtn.addEventListener('click', resetAll);
-
-    createBtn.addEventListener('click', async () => {
-      try{
-        createBtn.disabled = true;
-        resultEl.textContent = "جارٍ إنشاء الطلب…";
-
-        const phone = document.getElementById('phone').value.trim();
-        const passengers = Number(document.getElementById('passengers').value || 0);
-        const note = document.getElementById('note').value.trim();
-
-        const docRef = await addDoc(collection(db, "rides"), {
-          status: "open",
-          createdAt: serverTimestamp(),
-          from, to,
-          phone: phone || null,
-          passengers: passengers || null,
-          note: note || null
-        });
-
-        resultEl.textContent = `✅ تم إنشاء الطلب! رقم الطلب: ${docRef.id}`;
-      }catch(err){
-        console.error(err);
-        resultEl.textContent = "❌ حصل خطأ. تأكد من Firestore Rules واسم Collection rides.";
-      }finally{
-        updateUI();
-      }
-    });
-
-    updateUI();
-  </script>
 </body>
 </html>
