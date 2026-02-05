@@ -13,16 +13,21 @@
     body{font-family:system-ui,Arial; margin:0; background:#0b0f14; color:#e8eef7;}
     header{padding:14px 16px; background:#101825; position:sticky; top:0;}
     h1{margin:0; font-size:18px;}
-    #map{height:55vh;}
+    #map{height:52vh;}
     .wrap{padding:14px 16px; display:grid; gap:12px;}
     .card{background:#101825; border:1px solid #1f2a3a; border-radius:14px; padding:12px;}
     label{display:block; font-size:13px; opacity:.9; margin-bottom:6px;}
     input,textarea{width:100%; padding:10px; border-radius:10px; border:1px solid #273449; background:#0b0f14; color:#e8eef7;}
-    button{padding:12px; border:0; border-radius:12px; background:#2b6cff; color:white; font-weight:700; cursor:pointer;}
+    button{padding:12px; border:0; border-radius:12px; background:#2b6cff; color:white; font-weight:800; cursor:pointer;}
+    button.secondary{background:#24344a;}
     button:disabled{opacity:.5; cursor:not-allowed;}
     .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-    .hint{font-size:13px; opacity:.85; line-height:1.4}
+    .hint{font-size:13px; opacity:.85; line-height:1.5}
     .pill{display:inline-block; padding:4px 10px; border:1px solid #273449; border-radius:999px; font-size:12px; opacity:.9}
+    .mini{padding:10px 10px; border-radius:10px; font-weight:800}
+    .field{display:grid; gap:8px}
+    .grid3{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:end}
+    .err{color:#ffb4b4}
   </style>
 </head>
 <body>
@@ -35,13 +40,33 @@
   <div class="wrap">
     <div class="card">
       <div class="hint">
-        اضغط على الخريطة لاختيار <b>نقطة الانطلاق</b> ثم اضغط مرة ثانية لاختيار <b>الوجهة</b>.
-        <br><span class="pill" id="status">في انتظار اختيار الانطلاق…</span>
+        اكتب <b>مكان القيام</b> و<b>مكان الوصول</b> واضغط “بحث”.
+        <br><span class="pill" id="status">اختر مكان القيام…</span>
+        <div id="geoMsg" class="hint err" style="margin-top:8px;"></div>
       </div>
     </div>
 
     <div class="card">
+      <!-- حقول المكان -->
       <div class="row">
+        <div class="field">
+          <label>مكان القيام</label>
+          <div class="grid3">
+            <input id="fromText" placeholder="مثال: مدينة نصر، القاهرة" />
+            <button class="mini" id="fromSearchBtn">بحث</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>مكان الوصول</label>
+          <div class="grid3">
+            <input id="toText" placeholder="مثال: الهرم، الجيزة" />
+            <button class="mini" id="toSearchBtn">بحث</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
         <div>
           <label>رقم الهاتف (اختياري)</label>
           <input id="phone" placeholder="مثال: 010..." />
@@ -59,7 +84,7 @@
 
       <div style="display:flex; gap:10px; margin-top:12px;">
         <button id="createBtn" disabled>إنشاء طلب مشوار</button>
-        <button id="resetBtn" style="background:#24344a;">إعادة اختيار</button>
+        <button id="resetBtn" class="secondary">إعادة تعيين</button>
       </div>
 
       <p class="hint" id="result"></p>
@@ -86,8 +111,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // خريطة بدون GPS
-    const map = L.map('map').setView([24.7136, 46.6753], 12); // تقدر تغيّرها لمدينتك
+    // خريطة (مبدئيًا على القاهرة)
+    const map = L.map('map').setView([30.0444, 31.2357], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap'
@@ -101,47 +126,128 @@
     const createBtn = document.getElementById('createBtn');
     const resetBtn = document.getElementById('resetBtn');
     const resultEl = document.getElementById('result');
+    const geoMsg = document.getElementById('geoMsg');
+
+    const fromText = document.getElementById('fromText');
+    const toText = document.getElementById('toText');
+    const fromSearchBtn = document.getElementById('fromSearchBtn');
+    const toSearchBtn = document.getElementById('toSearchBtn');
 
     function updateUI(){
       if(!from){
-        statusEl.textContent = "في انتظار اختيار الانطلاق…";
+        statusEl.textContent = "اختر مكان القيام…";
         createBtn.disabled = true;
       } else if(from && !to){
-        statusEl.textContent = "تم اختيار الانطلاق ✅ اختر الوجهة…";
+        statusEl.textContent = "تم تحديد القيام ✅ اختر الوصول…";
         createBtn.disabled = true;
       } else {
-        statusEl.textContent = "تم اختيار الانطلاق والوجهة ✅";
+        statusEl.textContent = "تم تحديد القيام والوصول ✅";
         createBtn.disabled = false;
       }
     }
 
-    function resetAll(){
-      from = null; to = null;
+    function clearMap(){
       if(fromMarker) map.removeLayer(fromMarker);
       if(toMarker) map.removeLayer(toMarker);
       if(line) map.removeLayer(line);
       fromMarker = null; toMarker = null; line = null;
+    }
+
+    function resetAll(){
+      from = null; to = null;
+      fromText.value = "";
+      toText.value = "";
+      clearMap();
+      geoMsg.textContent = "";
       resultEl.textContent = "";
       updateUI();
     }
 
-    map.on('click', (e) => {
-      if(!from){
-        from = { lat: e.latlng.lat, lng: e.latlng.lng };
-        fromMarker = L.marker(e.latlng).addTo(map).bindPopup("🚩 الانطلاق").openPopup();
-      } else if(!to){
-        to = { lat: e.latlng.lat, lng: e.latlng.lng };
-        toMarker = L.marker(e.latlng).addTo(map).bindPopup("🏁 الوجهة").openPopup();
-        line = L.polyline([from, to], { }).addTo(map);
+    function drawLineIfReady(){
+      if(from && to){
+        if(line) map.removeLayer(line);
+        line = L.polyline([from, to], {}).addTo(map);
         map.fitBounds(line.getBounds(), { padding: [30,30] });
-      } else {
-        resetAll();
       }
-      updateUI();
-    });
+    }
 
+    function setFrom(lat, lng){
+      from = { lat, lng };
+      if(fromMarker) map.removeLayer(fromMarker);
+      fromMarker = L.marker([lat, lng]).addTo(map).bindPopup("🚩 القيام").openPopup();
+      map.setView([lat, lng], 14);
+      drawLineIfReady();
+      updateUI();
+    }
+
+    function setTo(lat, lng){
+      to = { lat, lng };
+      if(toMarker) map.removeLayer(toMarker);
+      toMarker = L.marker([lat, lng]).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      map.setView([lat, lng], 14);
+      drawLineIfReady();
+      updateUI();
+    }
+
+    // بحث مجاني عبر Nominatim (OSM)
+    async function geocode(q){
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, {
+        headers: {
+          // مهم علشان الخدمة ما ترفضش الطلب
+          "Accept": "application/json",
+          "User-Agent": "MeshwarakApp/1.0 (demo)"
+        }
+      });
+      if(!res.ok) throw new Error("فشل الاتصال بخدمة البحث");
+      const data = await res.json();
+      if(!data || data.length === 0) return null;
+      return { lat: Number(data[0].lat), lng: Number(data[0].lon), display: data[0].display_name };
+    }
+
+    async function handleSearch(type){
+      geoMsg.textContent = "";
+      const text = (type === "from" ? fromText.value : toText.value).trim();
+      if(!text){
+        geoMsg.textContent = "اكتب اسم المكان ثم اضغط بحث.";
+        return;
+      }
+
+      const btn = (type === "from" ? fromSearchBtn : toSearchBtn);
+      btn.disabled = true;
+      btn.textContent = "جارٍ…";
+
+      try{
+        const r = await geocode(text);
+        if(!r){
+          geoMsg.textContent = "لم يتم العثور على المكان. جرب تكتب اسم أوضح + المدينة.";
+          return;
+        }
+        geoMsg.textContent = "";
+
+        if(type === "from"){
+          setFrom(r.lat, r.lng);
+        } else {
+          setTo(r.lat, r.lng);
+        }
+      }catch(e){
+        console.error(e);
+        geoMsg.textContent = "حصل خطأ في البحث. جرّب تاني بعد ثواني.";
+      }finally{
+        btn.disabled = false;
+        btn.textContent = "بحث";
+      }
+    }
+
+    fromSearchBtn.addEventListener('click', () => handleSearch("from"));
+    toSearchBtn.addEventListener('click', () => handleSearch("to"));
     resetBtn.addEventListener('click', resetAll);
 
+    // (اختياري) ضغط Enter يعمل بحث
+    fromText.addEventListener('keydown', (e) => { if(e.key === "Enter") handleSearch("from"); });
+    toText.addEventListener('keydown', (e) => { if(e.key === "Enter") handleSearch("to"); });
+
+    // إنشاء الطلب
     createBtn.addEventListener('click', async () => {
       try{
         createBtn.disabled = true;
@@ -157,7 +263,9 @@
           from, to,
           phone: phone || null,
           passengers: passengers || null,
-          note: note || null
+          note: note || null,
+          fromText: fromText.value.trim() || null,
+          toText: toText.value.trim() || null
         });
 
         resultEl.textContent = `✅ تم إنشاء الطلب! رقم الطلب: ${docRef.id}`;
