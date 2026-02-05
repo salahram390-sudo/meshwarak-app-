@@ -54,9 +54,9 @@
     const refreshBtn = document.getElementById('refreshBtn');
 
     function rideCard(r){
-      // ✅ عرض الإحداثيات بنفس الشكل الذي ظهر عندك (lng, lat)
-      const from = r.from ? `${Number(r.from.lng).toFixed(5)}, ${Number(r.from.lat).toFixed(5)}` : "-";
-      const to   = r.to   ? `${Number(r.to.lng).toFixed(5)}, ${Number(r.to.lat).toFixed(5)}` : "-";
+      // ✅ عرض الإحداثيات بالشكل القياسي الصحيح: lat, lng
+      const from = r.from ? `${Number(r.from.lat).toFixed(5)}, ${Number(r.from.lng).toFixed(5)}` : "-";
+      const to   = r.to   ? `${Number(r.to.lat).toFixed(5)}, ${Number(r.to.lng).toFixed(5)}` : "-";
 
       const el = document.createElement('div');
       el.className = 'card';
@@ -68,9 +68,9 @@
         <div class="row">
           <button data-id="${r.id}">قبول</button>
 
-          <!-- ✅ تم تعديل الرابط ليتوافق مع العرض (lng, lat) -->
+          <!-- ✅ رابط صحيح (lat ثم lng) -->
           <a target="_blank"
-             href="https://www.openstreetmap.org/?mlat=${r.from?.lng}&mlon=${r.from?.lat}#map=16/${r.from?.lng}/${r.from?.lat}">
+             href="https://www.openstreetmap.org/?mlat=${r.from?.lat}&mlon=${r.from?.lng}#map=16/${r.from?.lat}/${r.from?.lng}">
              فتح الانطلاق
           </a>
         </div>
