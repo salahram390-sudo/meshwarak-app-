@@ -33,7 +33,9 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
@@ -52,8 +54,8 @@
     const refreshBtn = document.getElementById('refreshBtn');
 
     function rideCard(r){
-      const from = r.from ? `${r.from.lat.toFixed(5)}, ${r.from.lng.toFixed(5)}` : "-";
-      const to   = r.to   ? `${r.to.lat.toFixed(5)}, ${r.to.lng.toFixed(5)}` : "-";
+      const from = r.from ? `${Number(r.from.lat).toFixed(5)}, ${Number(r.from.lng).toFixed(5)}` : "-";
+      const to   = r.to   ? `${Number(r.to.lat).toFixed(5)}, ${Number(r.to.lng).toFixed(5)}` : "-";
 
       const el = document.createElement('div');
       el.className = 'card';
@@ -74,7 +76,7 @@
           await load();
         }catch(e){
           console.error(e);
-          alert("فشل قبول الطلب. تأكد من Firestore Rules.");
+          alert("فشل قبول الطلب. تحقق من القواعد Rules أو الاتصال.");
         }
       });
 
@@ -83,23 +85,37 @@
 
     async function load(){
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-      const q = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        orderBy("createdAt", "desc"),
-        limit(25)
-      );
-      const snap = await getDocs(q);
 
-      listEl.innerHTML = "";
-      if(snap.empty){
-        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
-        return;
+      try{
+        // ملاحظة: orderBy(createdAt) يحتاج createdAt موجود في كل المستندات + Index (والـ Index عندك Enabled)
+        const q = query(
+          collection(db, "rides"),
+          where("status", "==", "open"),
+          orderBy("createdAt", "desc"),
+          limit(25)
+        );
+
+        const snap = await getDocs(q);
+
+        listEl.innerHTML = "";
+        if(snap.empty){
+          listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
+          return;
+        }
+
+        snap.forEach(d => {
+          listEl.appendChild(rideCard({ id: d.id, ...d.data() }));
+        });
+
+      }catch(e){
+        console.error(e);
+        listEl.innerHTML = `
+          <div class="card">
+            <b>حدث خطأ أثناء جلب الطلبات</b><br>
+            <div class="muted" style="margin-top:8px; white-space:pre-wrap;">${e?.message || e}</div>
+          </div>
+        `;
       }
-
-      snap.forEach(d => {
-        listEl.appendChild(rideCard({ id: d.id, ...d.data() }));
-      });
     }
 
     refreshBtn.addEventListener('click', load);
