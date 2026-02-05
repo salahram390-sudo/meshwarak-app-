@@ -54,8 +54,9 @@
     const refreshBtn = document.getElementById('refreshBtn');
 
     function rideCard(r){
-      const from = r.from ? `${Number(r.from.lat).toFixed(5)}, ${Number(r.from.lng).toFixed(5)}` : "-";
-      const to   = r.to   ? `${Number(r.to.lat).toFixed(5)}, ${Number(r.to.lng).toFixed(5)}` : "-";
+      // ✅ عرض الإحداثيات بنفس الشكل الذي ظهر عندك (lng, lat)
+      const from = r.from ? `${Number(r.from.lng).toFixed(5)}, ${Number(r.from.lat).toFixed(5)}` : "-";
+      const to   = r.to   ? `${Number(r.to.lng).toFixed(5)}, ${Number(r.to.lat).toFixed(5)}` : "-";
 
       const el = document.createElement('div');
       el.className = 'card';
@@ -66,7 +67,12 @@
         <div class="muted">ملاحظة: ${r.note ?? "-"}</div>
         <div class="row">
           <button data-id="${r.id}">قبول</button>
-          <a target="_blank" href="https://www.openstreetmap.org/?mlat=${r.from?.lat}&mlon=${r.from?.lng}#map=16/${r.from?.lat}/${r.from?.lng}">فتح الانطلاق</a>
+
+          <!-- ✅ تم تعديل الرابط ليتوافق مع العرض (lng, lat) -->
+          <a target="_blank"
+             href="https://www.openstreetmap.org/?mlat=${r.from?.lng}&mlon=${r.from?.lat}#map=16/${r.from?.lng}/${r.from?.lat}">
+             فتح الانطلاق
+          </a>
         </div>
       `;
 
@@ -85,9 +91,7 @@
 
     async function load(){
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-
       try{
-        // ملاحظة: orderBy(createdAt) يحتاج createdAt موجود في كل المستندات + Index (والـ Index عندك Enabled)
         const q = query(
           collection(db, "rides"),
           where("status", "==", "open"),
