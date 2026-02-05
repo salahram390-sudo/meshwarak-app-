@@ -33,9 +33,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import {
-      getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
@@ -53,25 +51,39 @@
     const listEl = document.getElementById('list');
     const refreshBtn = document.getElementById('refreshBtn');
 
+    function safeNum(x){
+      const n = Number(x);
+      return Number.isFinite(n) ? n : null;
+    }
+
     function rideCard(r){
-      // ✅ عرض الإحداثيات بالشكل القياسي الصحيح: lat, lng
-      const from = r.from ? `${Number(r.from.lat).toFixed(5)}, ${Number(r.from.lng).toFixed(5)}` : "-";
-      const to   = r.to   ? `${Number(r.to.lat).toFixed(5)}, ${Number(r.to.lng).toFixed(5)}` : "-";
+      // ✅ هنا الصح: lat ثم lng
+      const fromLat = safeNum(r.from?.lat);
+      const fromLng = safeNum(r.from?.lng);
+
+      const toLat = safeNum(r.to?.lat);
+      const toLng = safeNum(r.to?.lng);
+
+      const fromText = (fromLat !== null && fromLng !== null)
+        ? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}`
+        : "-";
+
+      const toText = (toLat !== null && toLng !== null)
+        ? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}`
+        : "-";
 
       const el = document.createElement('div');
       el.className = 'card';
+
       el.innerHTML = `
         <div><b>طلب:</b> ${r.id}</div>
-        <div class="muted">من: ${from}<br>إلى: ${to}</div>
+        <div class="muted">من: ${fromText}<br>إلى: ${toText}</div>
         <div class="muted">ركاب: ${r.passengers ?? "-"} | هاتف: ${r.phone ?? "-"} </div>
         <div class="muted">ملاحظة: ${r.note ?? "-"}</div>
         <div class="row">
           <button data-id="${r.id}">قبول</button>
-
-          <!-- ✅ رابط صحيح (lat ثم lng) -->
-          <a target="_blank"
-             href="https://www.openstreetmap.org/?mlat=${r.from?.lat}&mlon=${r.from?.lng}#map=16/${r.from?.lat}/${r.from?.lng}">
-             فتح الانطلاق
+          <a target="_blank" href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
+            فتح الانطلاق
           </a>
         </div>
       `;
@@ -82,7 +94,7 @@
           await load();
         }catch(e){
           console.error(e);
-          alert("فشل قبول الطلب. تحقق من القواعد Rules أو الاتصال.");
+          alert("فشل قبول الطلب. تأكد من Firestore Rules.");
         }
       });
 
@@ -91,35 +103,26 @@
 
     async function load(){
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-      try{
-        const q = query(
-          collection(db, "rides"),
-          where("status", "==", "open"),
-          orderBy("createdAt", "desc"),
-          limit(25)
-        );
 
-        const snap = await getDocs(q);
+      const q = query(
+        collection(db, "rides"),
+        where("status", "==", "open"),
+        orderBy("createdAt", "desc"),
+        limit(25)
+      );
 
-        listEl.innerHTML = "";
-        if(snap.empty){
-          listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
-          return;
-        }
+      const snap = await getDocs(q);
 
-        snap.forEach(d => {
-          listEl.appendChild(rideCard({ id: d.id, ...d.data() }));
-        });
+      listEl.innerHTML = "";
 
-      }catch(e){
-        console.error(e);
-        listEl.innerHTML = `
-          <div class="card">
-            <b>حدث خطأ أثناء جلب الطلبات</b><br>
-            <div class="muted" style="margin-top:8px; white-space:pre-wrap;">${e?.message || e}</div>
-          </div>
-        `;
+      if(snap.empty){
+        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
+        return;
       }
+
+      snap.forEach(d => {
+        listEl.appendChild(rideCard({ id: d.id, ...d.data() }));
+      });
     }
 
     refreshBtn.addEventListener('click', load);
