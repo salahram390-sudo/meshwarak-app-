@@ -95,7 +95,6 @@
 
     onAuthStateChanged(auth, async (user) => {
       if(user){
-        // لو مسجل قبل كده يروح للصفحة الرئيسية
         const data = await getUserDoc(user.uid);
         if(data?.role === "passenger") location.href = "passenger.html";
         else if(data?.role === "driver") location.href = "driver.html";
@@ -151,7 +150,6 @@
 
         msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
 
-        // توجيه حسب الدور
         if(selectedRole === "passenger") location.href = "passenger.html";
         else location.href = "driver.html";
 
