@@ -145,17 +145,20 @@
       try{
         const res = await signInWithEmailAndPassword(auth, email, pass);
 
-        // لو المستخدم سجل قبل كده بدون role، خليه يختار
         const data = await getUserDoc(res.user.uid);
-        if(!data?.role){
+
+        // ✅ لو مفيش role محفوظ: لازم يختار ونحفظه
+        let finalRole = data?.role || null;
+
+        if(!finalRole){
           if(!selectedRole){
             msg.innerHTML = `<span class="bad">❌ اختر راكب أو سائق أولاً.</span>`;
             return;
           }
           await saveUserRole(res.user.uid, selectedRole);
+          finalRole = selectedRole; // ✅ دي كانت المشكلة
         }
 
-        const finalRole = (data?.role) || selectedRole;
         msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
         location.href = (finalRole === "passenger") ? "passenger.html" : "driver.html";
       }catch(e){
