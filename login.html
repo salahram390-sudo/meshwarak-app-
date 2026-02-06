@@ -66,6 +66,7 @@
     const roleDriver = document.getElementById("roleDriver");
 
     let selectedRole = null;
+    let redirecting = false;
 
     function setRole(role){
       selectedRole = role;
@@ -79,13 +80,20 @@
       return /@gmail\.com$/i.test(email.trim());
     }
 
+    // ✅ مهم: ما ترجعش المستخدم للرئيسية لو role مش موجود
     onAuthStateChanged(auth, async (user) => {
-      if(user){
-        const data = await getUserDoc(user.uid);
-        if(data?.role === "passenger") location.href = "passenger.html";
-        else if(data?.role === "driver") location.href = "driver.html";
-        else location.href = "index.html";
+      if(!user) return;
+      if(redirecting) return;
+
+      const data = await getUserDoc(user.uid);
+
+      if(!data?.role){
+        msg.innerHTML = `<span class="bad">⚠️ اختر راكب أو سائق ثم اضغط (تسجيل دخول) مرة أخرى.</span>`;
+        return;
       }
+
+      redirecting = true;
+      location.href = (data.role === "passenger") ? "passenger.html" : "driver.html";
     });
 
     async function handleSignup(){
@@ -113,8 +121,14 @@
       try{
         const res = await createUserWithEmailAndPassword(auth, email, pass);
         await saveUserRole(res.user.uid, selectedRole);
+
+        // ✅ أعد القراءة للتأكيد
+        const data = await getUserDoc(res.user.uid);
+        const finalRole = data?.role || selectedRole;
+
         msg.innerHTML = `<span class="ok">✅ تم إنشاء الحساب!</span>`;
-        location.href = (selectedRole === "passenger") ? "passenger.html" : "driver.html";
+        redirecting = true;
+        location.href = (finalRole === "passenger") ? "passenger.html" : "driver.html";
       }catch(e){
         console.error(e);
         msg.innerHTML = `<span class="bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
@@ -145,21 +159,24 @@
       try{
         const res = await signInWithEmailAndPassword(auth, email, pass);
 
-        const data = await getUserDoc(res.user.uid);
-
-        // ✅ لو مفيش role محفوظ: لازم يختار ونحفظه
+        let data = await getUserDoc(res.user.uid);
         let finalRole = data?.role || null;
 
+        // ✅ لو مفيش role محفوظ: لازم يختار ونحفظه ثم نقرأ من جديد
         if(!finalRole){
           if(!selectedRole){
             msg.innerHTML = `<span class="bad">❌ اختر راكب أو سائق أولاً.</span>`;
             return;
           }
           await saveUserRole(res.user.uid, selectedRole);
-          finalRole = selectedRole; // ✅ دي كانت المشكلة
+
+          // 🔥 مهم جدًا: إعادة القراءة بعد الحفظ
+          data = await getUserDoc(res.user.uid);
+          finalRole = data?.role || selectedRole;
         }
 
         msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
+        redirecting = true;
         location.href = (finalRole === "passenger") ? "passenger.html" : "driver.html";
       }catch(e){
         console.error(e);
