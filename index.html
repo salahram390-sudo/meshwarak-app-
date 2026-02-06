@@ -5,55 +5,50 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك</title>
 
-  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#101825">
-
-  <style>
-    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;height:100vh;display:flex;align-items:center;justify-content:center}
-    .box{width:92%;max-width:420px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;text-align:center}
-    h1{margin:0 0 8px;font-size:20px}
-    p{margin:0 0 14px;opacity:.85}
-    a{display:block;text-decoration:none;padding:14px 12px;border-radius:14px;font-weight:800;margin:10px 0}
-    .p{background:#22c55e;color:#04110a}
-    .d{background:#2b6cff;color:#fff}
-    .note{font-size:12px;opacity:.75;margin-top:8px}
-  </style>
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="box">
-    <h1>🚖 مشوارك</h1>
-    <p>اختر نوع الاستخدام</p>
 
-    <!-- ✅ دلوقتي الاختيار يتم داخل login.html -->
-    <a class="p" href="login.html">🚕 راكب</a>
-    <a class="d" href="login.html">🧑‍✈️ سائق</a>
-
-    <!-- زر الحساب -->
-    <a class="d" href="profile.html" style="background:#24344a">👤 حسابي</a>
-
-    <div class="note">لو الصفحة ما اتحدثتش فورًا، استنى دقيقة.</div>
+  <div class="appbar">
+    <div class="row">
+      <div class="brand">
+        <img src="./icon-192.png" alt="logo">
+        <div>
+          <div class="title">مشوارك</div>
+          <div class="sub">اختر نوع الاستخدام</div>
+        </div>
+      </div>
+      <a class="btn secondary" href="login.html" style="text-decoration:none">تسجيل الدخول</a>
+    </div>
   </div>
 
-  <!-- Service Worker -->
+  <div class="container">
+    <div class="card pad">
+      <h2 class="sectionTitle" style="margin-top:0">ابدأ بسرعة</h2>
+      <div class="hint">اختار “راكب” لطلب مشوار، أو “سائق” لمتابعة الطلبات.</div>
+
+      <div style="height:12px"></div>
+
+      <div class="grid2">
+        <a class="btn success" href="passenger.html" style="text-decoration:none;text-align:center">
+          🚕 راكب
+        </a>
+        <a class="btn" href="driver.html" style="text-decoration:none;text-align:center">
+          🧑‍✈️ سائق
+        </a>
+      </div>
+
+      <div style="height:10px"></div>
+      <div class="pill">💡 لو الصفحة ما اتحدثتش فورًا، استنى دقيقة أو اعمل Refresh.</div>
+    </div>
+  </div>
+
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js");
     }
-  </script>
-
-  <!-- ✅ لو المستخدم مسجل دخول بالفعل، حوّله لصفحة دوره -->
-  <script type="module">
-    import { auth, getUserDoc } from "./app.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-    onAuthStateChanged(auth, async (user) => {
-      if(!user) return;
-
-      const data = await getUserDoc(user.uid);
-      if(data?.role === "passenger") location.href = "passenger.html";
-      else if(data?.role === "driver") location.href = "driver.html";
-    });
   </script>
 </body>
 </html>
