@@ -5,50 +5,86 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك</title>
 
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#101825">
-  <link rel="stylesheet" href="./styles.css">
-</head>
-<body>
+  <!-- مهم جدًا مع GitHub Pages -->
+  <base href="./">
 
-  <div class="appbar">
-    <div class="row">
+  <meta name="theme-color" content="#101825">
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;min-height:100vh;display:flex;align-items:flex-start;justify-content:center}
+    .wrap{width:92%;max-width:520px;padding:16px 0}
+    .top{display:flex;align-items:center;justify-content:space-between;margin:10px 0 14px}
+    .brand{display:flex;align-items:center;gap:10px}
+    .logo{width:44px;height:44px;border-radius:12px;background:#101825;border:1px solid #1f2a3a;display:grid;place-items:center}
+    .title{font-weight:900}
+    .sub{opacity:.75;font-size:13px;margin-top:2px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;
+         padding:12px 14px;border-radius:14px;font-weight:900;border:1px solid #1f2a3a;background:#101825;color:#e8eef7}
+    .card{background:#101825;border:1px solid #1f2a3a;border-radius:18px;padding:16px;margin-top:12px}
+    .h1{font-size:20px;font-weight:900;margin:0 0 6px}
+    .p{opacity:.8;margin:0 0 14px;line-height:1.6}
+    .big{width:100%;padding:14px 12px;border-radius:16px;font-weight:1000;border:0;cursor:pointer;text-decoration:none;display:flex;justify-content:center;align-items:center}
+    .pass{background:#22c55e;color:#04110a}
+    .drv{background:#2b6cff;color:#fff;margin-top:10px}
+    .note{margin-top:12px;opacity:.75;font-size:13px;line-height:1.6;border:1px dashed #273449;border-radius:14px;padding:10px}
+    .hide{display:none}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="top">
       <div class="brand">
-        <img src="./icon-192.png" alt="logo">
+        <div class="logo">🚖</div>
         <div>
           <div class="title">مشوارك</div>
           <div class="sub">اختر نوع الاستخدام</div>
         </div>
       </div>
-      <a class="btn secondary" href="login.html" style="text-decoration:none">تسجيل الدخول</a>
+
+      <a id="loginBtn" class="btn" href="login.html">تسجيل الدخول</a>
+      <a id="logoutBtn" class="btn hide" href="#" style="background:#24344a;">تسجيل خروج</a>
+    </div>
+
+    <div class="card">
+      <div class="h1">ابدأ بسرعة</div>
+      <p class="p">اختار “راكب” لطلب مشوار، أو “سائق” لمتابعة الطلبات.</p>
+
+      <a class="big pass" href="passenger.html">🚕 راكب</a>
+      <a class="big drv" href="driver.html">🧑‍✈️ سائق</a>
+
+      <div class="note">💡 لو عندك نسخة قديمة متخزنة، اقفل الصفحة وافتحها تاني أو امسح بيانات الموقع (هقولك تحت).</div>
     </div>
   </div>
 
-  <div class="container">
-    <div class="card pad">
-      <h2 class="sectionTitle" style="margin-top:0">ابدأ بسرعة</h2>
-      <div class="hint">اختار “راكب” لطلب مشوار، أو “سائق” لمتابعة الطلبات.</div>
+  <script type="module">
+    import { auth, getUserDoc, doLogout } from "./app.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-      <div style="height:12px"></div>
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
 
-      <div class="grid2">
-        <a class="btn success" href="passenger.html" style="text-decoration:none;text-align:center">
-          🚕 راكب
-        </a>
-        <a class="btn" href="driver.html" style="text-decoration:none;text-align:center">
-          🧑‍✈️ سائق
-        </a>
-      </div>
+    logoutBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await doLogout();
+    });
 
-      <div style="height:10px"></div>
-      <div class="pill">💡 لو الصفحة ما اتحدثتش فورًا، استنى دقيقة أو اعمل Refresh.</div>
-    </div>
-  </div>
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        loginBtn.classList.remove("hide");
+        logoutBtn.classList.add("hide");
+        return;
+      }
 
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js");
-    }
+      loginBtn.classList.add("hide");
+      logoutBtn.classList.remove("hide");
+
+      // لو المستخدم عامل تسجيل دخول و role موجود: ودّيه مباشرة
+      const data = await getUserDoc(user.uid);
+      if (data?.role === "passenger") location.href = "passenger.html";
+      if (data?.role === "driver") location.href = "driver.html";
+    });
   </script>
 </body>
 </html>
