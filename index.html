@@ -25,8 +25,9 @@
     <h1>🚖 مشوارك</h1>
     <p>اختر نوع الاستخدام</p>
 
-    <a class="p" href="passenger.html">🚕 راكب</a>
-    <a class="d" href="driver.html">🧑‍✈️ سائق</a>
+    <!-- ✅ دلوقتي الاختيار يتم داخل login.html -->
+    <a class="p" href="login.html">🚕 راكب</a>
+    <a class="d" href="login.html">🧑‍✈️ سائق</a>
 
     <!-- زر الحساب -->
     <a class="d" href="profile.html" style="background:#24344a">👤 حسابي</a>
@@ -41,10 +42,18 @@
     }
   </script>
 
-  <!-- ✅ حارس تسجيل الدخول -->
+  <!-- ✅ لو المستخدم مسجل دخول بالفعل، حوّله لصفحة دوره -->
   <script type="module">
-    import { requireAuthAndRole } from "./app.js";
-    await requireAuthAndRole(null);
+    import { auth, getUserDoc } from "./app.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    onAuthStateChanged(auth, async (user) => {
+      if(!user) return;
+
+      const data = await getUserDoc(user.uid);
+      if(data?.role === "passenger") location.href = "passenger.html";
+      else if(data?.role === "driver") location.href = "driver.html";
+    });
   </script>
 </body>
 </html>
