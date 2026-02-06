@@ -3,301 +3,110 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>مشوارك - السائق</title>
+  <title>مشوارك - سائق</title>
 
   <style>
     :root{
-      --bg:#070A10;
-      --card:#0E1624;
-      --card2:#0B111C;
-      --stroke:#1E2A3C;
-      --text:#EAF1FF;
-      --muted:#A9B7D0;
-      --primary:#6D5BFF;     /* بنفسجي */
-      --primary2:#2B6CFF;    /* أزرق */
-      --good:#22C55E;
-      --bad:#FF6B6B;
-      --shadow: 0 16px 40px rgba(0,0,0,.45);
-      --r16:16px;
-      --r18:18px;
-      --r22:22px;
+      --bg:#0b0f14; --card:#101825; --stroke:#1f2a3a; --stroke2:#273449;
+      --text:#e8eef7; --muted:rgba(232,238,247,.78);
+      --brand:#7c3aed; --brand2:#2b6cff; --ok:#22c55e; --bad:#ff6b6b;
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --radius:18px;
     }
-
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-      background:
-        radial-gradient(900px 500px at 20% -10%, rgba(109,91,255,.22), transparent 60%),
-        radial-gradient(900px 500px at 80% 110%, rgba(43,108,255,.16), transparent 55%),
-        var(--bg);
-      color:var(--text);
-      min-height:100vh;
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Arial;background:var(--bg);color:var(--text)}
+    .top{
+      position:sticky; top:0; z-index:10;
+      background:rgba(16,24,37,.92);
+      border-bottom:1px solid rgba(31,42,58,.95);
+      backdrop-filter: blur(10px);
+      padding:12px 12px calc(12px + env(safe-area-inset-top));
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
     }
+    .brand{display:flex; align-items:center; gap:10px}
+    .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand2))}
+    .title{font-weight:1000}
+    .sub{font-size:12px;color:var(--muted);margin-top:2px}
 
-    /* AppBar */
-    .appbar{
-      position:sticky; top:0; z-index:1000;
-      padding: env(safe-area-inset-top) 12px 10px 12px;
-      background: rgba(7,10,16,.78);
-      border-bottom: 1px solid rgba(30,42,60,.65);
-      backdrop-filter: blur(12px);
-    }
-    .barrow{
-      display:flex; align-items:center; justify-content:space-between;
-      gap:10px;
-      max-width: 980px;
-      margin:0 auto;
-    }
-    .brand{
-      display:flex; align-items:center; gap:10px;
-      padding:10px 12px;
-      border-radius:999px;
-      background: rgba(14,22,36,.55);
-      border:1px solid rgba(30,42,60,.55);
-      box-shadow: 0 10px 22px rgba(0,0,0,.18);
-      min-width:0;
-    }
-    .logo{
-      width:34px;height:34px;border-radius:12px;
-      display:grid;place-items:center;
-      background: radial-gradient(circle at 30% 20%, rgba(109,91,255,.75), rgba(43,108,255,.25));
-      border:1px solid rgba(255,255,255,.08);
-      flex:0 0 auto;
-    }
-    .brand b{
-      display:block;
-      font-size:14px;
-      line-height:1.15;
-      letter-spacing:.2px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .brand small{
-      display:block;
-      color:var(--muted);
-      font-weight:700;
-      font-size:11px;
-      margin-top:2px;
-    }
-
-    .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .btn{
-      border:0;
-      border-radius:999px;
+      border:0; cursor:pointer;
       padding:10px 12px;
+      border-radius:14px;
       font-weight:900;
-      cursor:pointer;
       color:white;
-      background: linear-gradient(135deg, rgba(109,91,255,.95), rgba(43,108,255,.9));
-      box-shadow: 0 12px 22px rgba(43,108,255,.12);
-      user-select:none;
+      background:linear-gradient(135deg,var(--brand),var(--brand2));
     }
-    .btn:active{transform:scale(.98)}
     .btn.secondary{
-      background: rgba(36,52,74,.88);
-      border:1px solid rgba(255,255,255,.08);
-      box-shadow:none;
+      background:rgba(36,52,74,.95);
+      border:1px solid rgba(39,52,73,.95);
+      color:var(--text);
     }
+    .btn:disabled{opacity:.55; cursor:not-allowed}
 
-    /* Layout */
-    .container{
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 12px;
-    }
-
-    .info{
-      background: rgba(14,22,36,.65);
-      border:1px solid rgba(30,42,60,.65);
-      border-radius: var(--r22);
-      padding: 12px;
-      box-shadow: var(--shadow);
-    }
-    .info .muted{
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.6;
-      font-weight:700;
-      margin:0;
-    }
-
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:12px;
-      margin-top:12px;
-    }
-
+    .wrap{max-width:720px; margin:0 auto; padding:12px 12px calc(18px + env(safe-area-inset-bottom))}
     .card{
-      background: rgba(14,22,36,.88);
-      border:1px solid rgba(30,42,60,.75);
-      border-radius: var(--r22);
-      padding: 12px;
+      background:rgba(16,24,37,.92);
+      border:1px solid rgba(31,42,58,.95);
+      border-radius:20px;
       box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-
-    .topline{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .rid{
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-      font-weight:1000;
-    }
-    .tag{
-      font-size:11px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(11,17,28,.85);
-      color:var(--muted);
-      font-weight:900;
-    }
-
-    .row2{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
+      padding:12px;
       margin-top:10px;
     }
-    @media (max-width:560px){
-      .row2{grid-template-columns:1fr}
-    }
-
-    .box{
-      background: rgba(11,17,28,.78);
-      border:1px solid rgba(30,42,60,.65);
-      border-radius: 18px;
-      padding: 10px;
-    }
-    .box b{
-      display:block;
+    .muted{color:var(--muted);font-size:13px;line-height:1.5}
+    .badge{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid rgba(39,52,73,.9);
       font-size:12px;
       color:var(--muted);
-      margin-bottom:6px;
-      font-weight:900;
     }
-    .box div{
-      font-weight:900;
-      letter-spacing:.2px;
-    }
-    .small{
-      font-size:12px;
-      color:var(--muted);
-      font-weight:700;
-      line-height:1.5;
-      margin-top:8px;
-    }
+    .row{display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; align-items:center}
+    .kvs{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px}
+    .kv{background:rgba(11,15,20,.65); border:1px solid rgba(39,52,73,.9); border-radius:16px; padding:10px}
+    .kv .k{font-size:12px;color:var(--muted)}
+    .kv .v{margin-top:4px;font-weight:900}
 
-    .actions{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:12px;
-      align-items:center;
-    }
-    .accept{
-      border:0;
-      border-radius: 16px;
-      padding:12px 14px;
-      font-weight:1000;
-      cursor:pointer;
-      color:#06140b;
-      background: linear-gradient(135deg, rgba(34,197,94,.98), rgba(43,108,255,.65));
-      box-shadow: 0 12px 26px rgba(34,197,94,.12);
-    }
-    .link{
-      text-decoration:none;
-      border-radius: 16px;
-      padding:12px 14px;
-      font-weight:1000;
-      color:var(--text);
-      background: rgba(36,52,74,.88);
-      border:1px solid rgba(255,255,255,.08);
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-    }
-
-    /* Toast */
-    .toast{
-      position:fixed;
-      right:12px;
-      top: 76px;
-      z-index:2000;
-      max-width: 92vw;
-      background: rgba(14,22,36,.92);
-      border:1px solid rgba(30,42,60,.7);
-      border-radius: 16px;
-      padding: 10px 12px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
-      display:none;
-    }
-    .toast.show{display:block}
-    .toast b{display:block; font-size:13px}
-    .toast span{display:block; font-size:12px; color:var(--muted); margin-top:3px}
+    a{color:#9ec1ff; text-decoration:none; font-weight:800}
+    .sep{height:1px;background:rgba(39,52,73,.7);margin:10px 0}
+    .empty{padding:14px;text-align:center;color:var(--muted)}
   </style>
 </head>
 
 <body>
-
-  <!-- Toast -->
-  <div class="toast" id="toast">
-    <b id="toastTitle">...</b>
-    <span id="toastDesc">...</span>
-  </div>
-
-  <!-- AppBar -->
-  <div class="appbar">
-    <div class="barrow">
-      <div class="brand">
-        <div class="logo">🧑‍✈️</div>
-        <div>
-          <b>مشوارك — لوحة السائق</b>
-          <small>يعرض الطلبات المفتوحة من Firestore</small>
-        </div>
+  <div class="top">
+    <div class="brand">
+      <span class="dot"></span>
+      <div>
+        <div class="title">مشوارك — سائق</div>
+        <div class="sub" id="liveText">Live: تحميل الطلبات…</div>
       </div>
-
-      <div class="btns">
-        <button class="btn secondary" id="refreshBtn">تحديث</button>
-        <button class="btn secondary" id="logoutBtn">خروج</button>
-      </div>
+    </div>
+    <div class="row" style="margin:0">
+      <button class="btn secondary" id="logoutBtn">⎋ خروج</button>
     </div>
   </div>
 
-  <div class="container">
-    <div class="info">
-      <p class="muted">
-        👇 الطلبات اللي تحت هي الطلبات المفتوحة (Open). اضغط <b>قبول</b> علشان تغيّر الحالة إلى <b>accepted</b>.
-      </p>
+  <div class="wrap">
+    <div class="card">
+      <div class="muted">
+        دي لوحة السائق بشكل احترافي: الطلبات بتظهر تلقائي (Live).<br>
+        اضغط “قبول” لتأكيد الطلب وتحويله accepted.
+      </div>
     </div>
 
-    <div class="grid" id="list"></div>
+    <div id="list"></div>
   </div>
 
   <script type="module">
     // ✅ حارس تسجيل الدخول + التأكد أنه "سائق"
     import { requireAuthAndRole, doLogout } from "./app.js";
-    await requireAuthAndRole("driver");
+    const { user } = await requireAuthAndRole("driver");
+    document.getElementById('logoutBtn').addEventListener('click', doLogout);
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
-      getFirestore,
-      collection,
-      query,
-      where,
-      orderBy,
-      limit,
-      getDocs,
-      doc,
-      updateDoc
+      getFirestore, collection, query, where, orderBy, limit,
+      onSnapshot, doc, updateDoc, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -314,152 +123,129 @@
     const db = getFirestore(app);
 
     const listEl = document.getElementById('list');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const logoutBtn = document.getElementById("logoutBtn");
-    logoutBtn.addEventListener("click", doLogout);
-
-    // Toast
-    const toast = document.getElementById("toast");
-    const toastTitle = document.getElementById("toastTitle");
-    const toastDesc = document.getElementById("toastDesc");
-    let toastTimer = null;
-    function showToast(title, desc=""){
-      toastTitle.textContent = title;
-      toastDesc.textContent = desc;
-      toast.classList.add("show");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(()=>toast.classList.remove("show"), 2800);
-    }
+    const liveText = document.getElementById('liveText');
 
     function safeNum(x){
       const n = Number(x);
       return Number.isFinite(n) ? n : null;
     }
 
-    function mapLink(lat, lng, zoom=16){
-      if(lat === null || lng === null) return "#";
-      return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`;
+    function vehicleLabel(v){
+      if(v === "tuktuk") return "🛺 توكتوك";
+      if(v === "microbus") return "🚐 ميكروباص";
+      return "🚗 ملاكي";
+    }
+
+    function googleMapsDirLink(from, to){
+      if(!from?.lat || !from?.lng || !to?.lat || !to?.lng) return null;
+      const o = `${from.lat},${from.lng}`;
+      const d = `${to.lat},${to.lng}`;
+      return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o)}&destination=${encodeURIComponent(d)}`;
     }
 
     function rideCard(r){
-      const fromLat = safeNum(r.from?.lat);
-      const fromLng = safeNum(r.from?.lng);
+      const fromLat = safeNum(r.from?.lat), fromLng = safeNum(r.from?.lng);
+      const toLat = safeNum(r.to?.lat), toLng = safeNum(r.to?.lng);
 
-      const toLat = safeNum(r.to?.lat);
-      const toLng = safeNum(r.to?.lng);
+      const fromText = r.fromText || (fromLat!==null && fromLng!==null ? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}` : "-");
+      const toText = r.toText || (toLat!==null && toLng!==null ? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}` : "-");
 
-      const fromText = (fromLat !== null && fromLng !== null)
-        ? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}`
-        : "-";
-
-      const toText = (toLat !== null && toLng !== null)
-        ? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}`
-        : "-";
+      const dir = googleMapsDirLink(r.from, r.to);
 
       const el = document.createElement('div');
       el.className = 'card';
 
+      const offer = (r.offerPrice != null) ? `${r.offerPrice} جنيه` : "-";
+      const km = (r.distanceKm != null) ? `${Number(r.distanceKm).toFixed(1)} كم` : "-";
+      const veh = vehicleLabel(r.vehicle);
+
       el.innerHTML = `
-        <div class="topline">
-          <div class="rid">
-            <span class="tag">طلب</span>
-            <span>${r.id}</span>
-          </div>
-          <span class="tag">OPEN</span>
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+          <div style="font-weight:1000">طلب: ${r.id}</div>
+          <span class="badge">Live</span>
         </div>
 
-        <div class="row2">
-          <div class="box">
-            <b>🚩 القيام</b>
-            <div>${r.fromText ?? fromText}</div>
-            <div class="small">${fromText}</div>
+        <div class="kvs">
+          <div class="kv">
+            <div class="k">من</div>
+            <div class="v">${fromText}</div>
           </div>
-
-          <div class="box">
-            <b>🏁 الوصول</b>
-            <div>${r.toText ?? toText}</div>
-            <div class="small">${toText}</div>
+          <div class="kv">
+            <div class="k">إلى</div>
+            <div class="v">${toText}</div>
           </div>
         </div>
 
-        <div class="row2" style="margin-top:10px">
-          <div class="box">
-            <b>📞 الهاتف</b>
-            <div>${r.phone ?? "-"}</div>
-          </div>
+        <div class="sep"></div>
 
-          <div class="box">
-            <b>👥 الركاب</b>
-            <div>${r.passengers ?? "-"}</div>
-          </div>
+        <div class="row">
+          <span class="badge">${veh}</span>
+          <span class="badge">📏 ${km}</span>
+          <span class="badge">💰 ${offer}</span>
+          <span class="badge">👥 ${r.passengers ?? "-"}</span>
+          <span class="badge">📞 ${r.phone ?? "-"}</span>
         </div>
 
-        <div class="box" style="margin-top:10px">
-          <b>📝 ملاحظة</b>
-          <div style="color:var(--muted); font-weight:800">${r.note ?? "-"}</div>
+        <div class="muted" style="margin-top:10px">
+          ملاحظة: ${r.note ?? "-"}
         </div>
 
-        <div class="actions">
-          <button class="accept" data-id="${r.id}">قبول الطلب</button>
-
-          <a class="link" target="_blank" href="${mapLink(fromLat, fromLng)}">📍 فتح القيام</a>
-          <a class="link" target="_blank" href="${mapLink(toLat, toLng)}">🏁 فتح الوصول</a>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" data-id="${r.id}">قبول</button>
+          ${dir ? `<a target="_blank" href="${dir}">🧭 فتح الاتجاهات</a>` : ``}
+          ${(fromLat!==null && fromLng!==null) ? `<a target="_blank" href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">📍 الانطلاق</a>` : ``}
         </div>
       `;
 
       el.querySelector('button').addEventListener('click', async () => {
+        const btn = el.querySelector('button');
+        btn.disabled = true;
+        btn.textContent = "جارٍ…";
         try{
-          await updateDoc(doc(db, "rides", r.id), { status: "accepted" });
-          showToast("تم قبول الطلب ✅", `رقم الطلب: ${r.id}`);
-          await load();
+          await updateDoc(doc(db, "rides", r.id), {
+            status: "accepted",
+            driverUid: user.uid,
+            acceptedAt: serverTimestamp()
+          });
         }catch(e){
           console.error(e);
-          showToast("فشل قبول الطلب ❌", "تأكد من Firestore Rules.");
+          alert("فشل قبول الطلب. تأكد من Firestore Rules.");
+        }finally{
+          btn.disabled = false;
+          btn.textContent = "قبول";
         }
       });
 
       return el;
     }
 
-    async function load(){
-      listEl.innerHTML = `
-        <div class="card">
-          <div style="font-weight:1000">جارٍ تحميل الطلبات…</div>
-          <div class="small">لحظات...</div>
-        </div>
-      `;
+    // ✅ Live listener
+    const q = query(
+      collection(db, "rides"),
+      where("status", "==", "open"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
 
-      const q = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        orderBy("createdAt", "desc"),
-        limit(25)
-      );
+    listEl.innerHTML = `<div class="card"><div class="muted">جارٍ التحميل…</div></div>`;
 
-      const snap = await getDocs(q);
-
+    onSnapshot(q, (snap) => {
       listEl.innerHTML = "";
+      liveText.textContent = `Live: ${snap.size} طلب مفتوح`;
 
       if(snap.empty){
-        listEl.innerHTML = `
-          <div class="info">
-            <p class="muted">لا توجد طلبات مفتوحة حالياً.</p>
-          </div>
-        `;
+        listEl.innerHTML = `<div class="card"><div class="empty">لا توجد طلبات مفتوحة حالياً.</div></div>`;
         return;
       }
 
       snap.forEach(d => {
         listEl.appendChild(rideCard({ id: d.id, ...d.data() }));
       });
-    }
-
-    refreshBtn.addEventListener('click', () => {
-      showToast("تحديث", "جارٍ تحميل الطلبات...");
-      load();
+    }, (err) => {
+      console.error(err);
+      listEl.innerHTML = `<div class="card"><div class="muted" style="color:#ffb4b4">حصل خطأ في التحميل. راجع Firestore Rules.</div></div>`;
+      liveText.textContent = "Live: خطأ";
     });
-
-    load();
   </script>
 </body>
 </html>
