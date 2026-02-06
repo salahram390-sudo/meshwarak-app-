@@ -32,6 +32,10 @@
   </div>
 
   <script type="module">
+    // ✅ حارس تسجيل الدخول + التأكد أنه "سائق"
+    import { requireAuthAndRole } from "./app.js";
+    await requireAuthAndRole("driver");
+
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
