@@ -4,74 +4,39 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك</title>
+
+  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#070A10">
-  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#101825">
+
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;height:100vh;display:flex;align-items:center;justify-content:center}
+    .box{width:92%;max-width:420px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;text-align:center}
+    h1{margin:0 0 8px;font-size:20px}
+    p{margin:0 0 14px;opacity:.85}
+    a{display:block;text-decoration:none;padding:14px 12px;border-radius:14px;font-weight:800;margin:10px 0}
+    .p{background:#22c55e;color:#04110a}
+    .d{background:#2b6cff;color:#fff}
+    .note{font-size:12px;opacity:.75;margin-top:8px}
+  </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <div class="logo">🚖</div>
-        <div>
-          <h1>مشوارك</h1>
-          <p id="sub">اختَر نوع الاستخدام</p>
-        </div>
-      </div>
-      <button class="btn" id="authBtn">تسجيل الدخول</button>
-    </div>
+  <div class="box">
+    <h1>🚖 مشوارك</h1>
+    <p>اختر نوع الاستخدام</p>
+
+    <!-- ✅ بدل ما يفتح passenger/driver مباشرة: نوديه login ومعاه الدور -->
+    <a class="p" href="login.html?role=passenger">🚕 راكب</a>
+    <a class="d" href="login.html?role=driver">🧑‍✈️ سائق</a>
+
+    <div class="note">لو الصفحة ما اتحدثتش فورًا، استنى دقيقة.</div>
   </div>
 
-  <div class="container">
-    <div class="card">
-      <h2 class="title">ابدأ بسرعة</h2>
-      <div class="hint">
-        اختر <b>راكب</b> لطلب مشوار، أو <b>سائق</b> لاستقبال الطلبات.
-      </div>
-
-      <div class="actions" style="margin-top:14px">
-        <a class="btn success" href="passenger.html">🚕 راكب</a>
-        <a class="btn primary" href="driver.html">🧑‍✈️ سائق</a>
-      </div>
-
-      <div class="pills" style="margin-top:12px">
-        <span class="pill" id="statePill">جارٍ التحقق…</span>
-      </div>
-
-      <div class="hr"></div>
-      <div class="small">لو الصفحة ما اتحدّثتش فورًا: اعمل Refresh مرة.</div>
-    </div>
-  </div>
-
-  <script type="module">
-    import { auth, doLogout, getUserDoc } from "./app.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-    const authBtn = document.getElementById("authBtn");
-    const statePill = document.getElementById("statePill");
-    const sub = document.getElementById("sub");
-
-    onAuthStateChanged(auth, async (user)=>{
-      if(!user){
-        authBtn.textContent = "تسجيل الدخول";
-        authBtn.onclick = ()=> location.href = "login.html";
-        statePill.textContent = "غير مسجل دخول";
-        statePill.className = "pill bad";
-        sub.textContent = "اختَر نوع الاستخدام";
-        return;
-      }
-
-      const data = await getUserDoc(user.uid);
-      authBtn.textContent = "تسجيل خروج";
-      authBtn.onclick = doLogout;
-
-      const role = data?.role || "غير محدد";
-      statePill.textContent = `✅ مسجل دخول (${role})`;
-      statePill.className = "pill ok";
-      sub.textContent = "جاهز للاستخدام";
-    });
-
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
+  <!-- Service Worker -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js");
+    }
   </script>
 </body>
 </html>
