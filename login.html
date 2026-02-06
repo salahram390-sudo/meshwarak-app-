@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - تسجيل الدخول</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .box{width:92%;max-width:460px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px}
+    h1{margin:0 0 10px;font-size:18px;text-align:center}
+    p{margin:0 0 12px;opacity:.85;text-align:center}
+    label{display:block;font-size:13px;opacity:.9;margin:10px 0 6px}
+    input{width:100%;padding:12px;border-radius:12px;border:1px solid #273449;background:#0b0f14;color:#e8eef7}
+    button{width:100%;padding:12px;border:0;border-radius:12px;background:#2b6cff;color:white;font-weight:800;cursor:pointer;margin-top:10px}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .roleBtn{background:#24344a}
+    .roleBtn.active{background:#22c55e;color:#04110a}
+    .hint{font-size:13px;opacity:.85;line-height:1.5;margin-top:10px}
+    .ok{color:#7CFFB2}
+    .bad{color:#ff9b9b}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>🔐 مشوارك — تسجيل الدخول</h1>
+    <p>ادخل رقم هاتفك ثم اختر (راكب / سائق)</p>
+
+    <label>رقم الهاتف (مصر)</label>
+    <input id="phone" placeholder="مثال: 01012345678" inputmode="numeric"/>
+
+    <div class="hint">
+      الرقم هيبقى بالشكل: <span class="ok">+2010xxxxxxx</span>
+    </div>
+
+    <div style="margin-top:14px">
+      <label>اختر نوع الحساب</label>
+      <div class="row">
+        <button class="roleBtn" id="rolePassenger">🚕 راكب</button>
+        <button class="roleBtn" id="roleDriver">🧑‍✈️ سائق</button>
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <div id="recaptcha-container"></div>
+    </div>
+
+    <button id="sendBtn">إرسال كود OTP</button>
+
+    <div id="otpBox" style="display:none;margin-top:12px">
+      <label>اكتب كود OTP</label>
+      <input id="otp" placeholder="123456" inputmode="numeric"/>
+      <button id="verifyBtn" style="background:#22c55e;color:#04110a">تأكيد</button>
+    </div>
+
+    <div class="hint" id="msg"></div>
+  </div>
+
+  <script type="module">
+    import {
+      auth,
+      setupRecaptcha,
+      sendOTP,
+      normalizeEgyptPhone,
+      saveUserRole,
+      getUserDoc
+    } from "./app.js";
+
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const phoneEl = document.getElementById("phone");
+    const sendBtn = document.getElementById("sendBtn");
+    const verifyBtn = document.getElementById("verifyBtn");
+    const otpBox = document.getElementById("otpBox");
+    const otpEl = document.getElementById("otp");
+    const msg = document.getElementById("msg");
+
+    const rolePassenger = document.getElementById("rolePassenger");
+    const roleDriver = document.getElementById("roleDriver");
+
+    let selectedRole = null;
+    let confirmationResult = null;
+
+    function setRole(role){
+      selectedRole = role;
+      rolePassenger.classList.toggle("active", role === "passenger");
+      roleDriver.classList.toggle("active", role === "driver");
+    }
+
+    rolePassenger.addEventListener("click", (e)=>{ e.preventDefault(); setRole("passenger"); });
+    roleDriver.addEventListener("click", (e)=>{ e.preventDefault(); setRole("driver"); });
+
+    // Recaptcha
+    setupRecaptcha("recaptcha-container");
+
+    onAuthStateChanged(auth, async (user) => {
+      if(user){
+        // لو مسجل قبل كده يروح للصفحة الرئيسية
+        const data = await getUserDoc(user.uid);
+        if(data?.role === "passenger") location.href = "passenger.html";
+        else if(data?.role === "driver") location.href = "driver.html";
+        else location.href = "index.html";
+      }
+    });
+
+    sendBtn.addEventListener("click", async () => {
+      try{
+        msg.textContent = "";
+        const raw = phoneEl.value.trim();
+        const phone = normalizeEgyptPhone(raw);
+
+        if(!phone || phone.length < 10){
+          msg.innerHTML = `<span class="bad">❌ اكتب رقم صحيح.</span>`;
+          return;
+        }
+
+        if(!selectedRole){
+          msg.innerHTML = `<span class="bad">❌ لازم تختار راكب أو سائق.</span>`;
+          return;
+        }
+
+        sendBtn.disabled = true;
+        msg.textContent = "جارٍ إرسال OTP…";
+
+        confirmationResult = await sendOTP(phone);
+
+        otpBox.style.display = "block";
+        msg.innerHTML = `<span class="ok">✅ تم إرسال الكود. اكتبه هنا.</span>`;
+      }catch(err){
+        console.error(err);
+        msg.innerHTML = `<span class="bad">❌ فشل إرسال OTP. جرّب تاني.</span>`;
+        sendBtn.disabled = false;
+      }
+    });
+
+    verifyBtn.addEventListener("click", async () => {
+      try{
+        const code = otpEl.value.trim();
+        if(code.length < 6){
+          msg.innerHTML = `<span class="bad">❌ اكتب الكود كامل.</span>`;
+          return;
+        }
+
+        verifyBtn.disabled = true;
+        msg.textContent = "جارٍ التحقق…";
+
+        const res = await confirmationResult.confirm(code);
+        const user = res.user;
+
+        await saveUserRole(user.uid, selectedRole);
+
+        msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
+
+        // توجيه حسب الدور
+        if(selectedRole === "passenger") location.href = "passenger.html";
+        else location.href = "driver.html";
+
+      }catch(err){
+        console.error(err);
+        msg.innerHTML = `<span class="bad">❌ كود غلط أو انتهت صلاحيته.</span>`;
+        verifyBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
