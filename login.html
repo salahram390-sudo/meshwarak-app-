@@ -87,13 +87,13 @@
     function isGmail(email){ return /@gmail\.com$/i.test(email.trim()); }
 
     onAuthStateChanged(auth, async (user) => {
-      if(user){
-        const data = await getUserDoc(user.uid);
-        if(data?.role === "passenger") location.href = "passenger.html";
-        else if(data?.role === "driver") location.href = "driver.html";
-      }
-    });
-
+  if(user){
+    const data = await getUserDoc(user.uid);
+    if(data?.role === "passenger") location.href = "passenger.html";
+    else if(data?.role === "driver") location.href = "driver.html";
+    else location.href = "index.html";
+  }
+});
     function lock(v){
       signupBtn.disabled = v;
       loginBtn.disabled = v;
