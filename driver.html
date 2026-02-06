@@ -1,150 +1,83 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مشوارك - السائق</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <div class="logo">🧑‍✈️</div>
-        <div>
-          <h1>لوحة السائق</h1>
-          <p class="small">الطلبات المفتوحة</p>
-        </div>
-      </div>
+<script type="module">
+  import { requireAuthAndRole, db } from "./app.js";
+  await requireAuthAndRole("driver");
+
+  import {
+    collection, query, where, orderBy, limit, getDocs, doc, updateDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const listEl = document.getElementById('list');
+  const refreshBtn = document.getElementById('refreshBtn');
+
+  function safeNum(x){
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function rideCard(r){
+    const fromLat = safeNum(r.from?.lat);
+    const fromLng = safeNum(r.from?.lng);
+
+    const toLat = safeNum(r.to?.lat);
+    const toLng = safeNum(r.to?.lng);
+
+    const fromText = (fromLat !== null && fromLng !== null) ? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}` : "-";
+    const toText   = (toLat !== null && toLng !== null) ? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}` : "-";
+
+    const el = document.createElement('div');
+    el.className = 'card';
+
+    el.innerHTML = `
+      <div><b>طلب:</b> ${r.id}</div>
+      <div class="muted">من: ${fromText}<br>إلى: ${toText}</div>
+      <div class="muted">ركاب: ${r.passengers ?? "-"} | هاتف: ${r.phone ?? "-"} </div>
+      <div class="muted">ملاحظة: ${r.note ?? "-"}</div>
       <div class="row">
-        <button class="btn" id="refreshBtn">تحديث</button>
-        <a class="btn" href="index.html">الرئيسية</a>
+        <button data-id="${r.id}">قبول</button>
+        ${fromLat !== null && fromLng !== null ? `
+          <a target="_blank" href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
+            فتح الانطلاق
+          </a>` : ""}
       </div>
-    </div>
-  </div>
+    `;
 
-  <div class="container">
-    <div class="card">
-      <div class="hint">اضغط <b>قبول</b> لتغيير حالة الطلب إلى <b>accepted</b>.</div>
-    </div>
-
-    <div class="list" id="list" style="margin-top:12px"></div>
-  </div>
-
-  <script type="module">
-    import { requireAuthAndRole } from "./app.js";
-    await requireAuthAndRole("driver");
-
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc }
-      from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
-      authDomain: "meshwark-8adf8.firebaseapp.com",
-      projectId: "meshwark-8adf8",
-      storageBucket: "meshwark-8adf8.firebasestorage.app",
-      messagingSenderId: "450060838946",
-      appId: "1:450060838946:web:963cacdd125b253fa1827b",
-      measurementId: "G-GP0JGBZTGG"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const listEl = document.getElementById("list");
-    const refreshBtn = document.getElementById("refreshBtn");
-
-    function safeNum(x){ const n=Number(x); return Number.isFinite(n)?n:null; }
-
-    function vehicleName(v){
-      if(v==="tuktuk") return "🛺 توكتوك";
-      if(v==="microbus") return "🚐 ميكروباص";
-      return "🚗 ملاكي";
-    }
-
-    function mapsLink(lat,lng){
-      // يفتح Google Maps لو موجود
-      return `https://www.google.com/maps?q=${lat},${lng}`;
-    }
-
-    function rideCard(r){
-      const fromLat = safeNum(r.from?.lat), fromLng=safeNum(r.from?.lng);
-      const toLat = safeNum(r.to?.lat), toLng=safeNum(r.to?.lng);
-
-      const el = document.createElement("div");
-      el.className = "card ride";
-
-      el.innerHTML = `
-        <div class="kv">
-          <b>طلب #${r.id}</b>
-          <span>${vehicleName(r.vehicle)} • السعر: <b>${r.price ?? "-"} جنيه</b></span>
-        </div>
-
-        <div class="hr"></div>
-
-        <div class="kv">
-          <b>من</b>
-          <span>${r.fromText || (fromLat?`${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}`:"-")}</span>
-        </div>
-
-        <div class="kv">
-          <b>إلى</b>
-          <span>${r.toText || (toLat?`${toLat.toFixed(5)}, ${toLng.toFixed(5)}`:"-")}</span>
-        </div>
-
-        <div class="row">
-          <span class="pill">ركاب: ${r.passengers ?? "-"}</span>
-          <span class="pill">هاتف: ${r.phone ?? "-"}</span>
-        </div>
-
-        <div class="hint">ملاحظة: ${r.note ?? "-"}</div>
-
-        <div class="actions">
-          <button class="btn primary" data-accept="${r.id}">قبول</button>
-          ${fromLat && fromLng ? `<a class="btn" target="_blank" href="${mapsLink(fromLat,fromLng)}">فتح القيام</a>` : ""}
-          ${toLat && toLng ? `<a class="btn" target="_blank" href="${mapsLink(toLat,toLng)}">فتح الوصول</a>` : ""}
-        </div>
-      `;
-
-      el.querySelector('[data-accept]')?.addEventListener("click", async ()=>{
-        try{
-          await updateDoc(doc(db,"rides",r.id), { status:"accepted" });
-          await load();
-        }catch(e){
-          console.error(e);
-          alert("فشل قبول الطلب. راجع Firestore Rules.");
-        }
-      });
-
-      return el;
-    }
-
-    async function load(){
-      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-
-      const q = query(
-        collection(db,"rides"),
-        where("status","==","open"),
-        orderBy("createdAt","desc"),
-        limit(30)
-      );
-
-      const snap = await getDocs(q);
-      listEl.innerHTML = "";
-
-      if(snap.empty){
-        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
-        return;
+    el.querySelector('button').addEventListener('click', async () => {
+      try{
+        await updateDoc(doc(db, "rides", r.id), { status: "accepted" });
+        await load();
+      }catch(e){
+        console.error(e);
+        alert("فشل قبول الطلب. تأكد من Firestore Rules.");
       }
+    });
 
-      snap.forEach(d=>{
-        listEl.appendChild(rideCard({ id:d.id, ...d.data() }));
-      });
+    return el;
+  }
+
+  async function load(){
+    listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
+
+    const q = query(
+      collection(db, "rides"),
+      where("status", "==", "open"),
+      orderBy("createdAt", "desc"),
+      limit(25)
+    );
+
+    const snap = await getDocs(q);
+
+    listEl.innerHTML = "";
+
+    if(snap.empty){
+      listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
+      return;
     }
 
-    refreshBtn.addEventListener("click", load);
-    load();
-  </script>
-</body>
-</html>
+    snap.forEach(d => {
+      listEl.appendChild(rideCard({ id: d.id, ...d.data() }));
+    });
+  }
+
+  refreshBtn.addEventListener('click', load);
+  load();
+</script>
