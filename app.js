@@ -57,9 +57,17 @@ export async function getUserDoc(uid) {
   return snap.exists() ? snap.data() : null;
 }
 
+// ✅ مساعد: انتظار بسيط
+function sleep(ms){
+  return new Promise(r => setTimeout(r, ms));
+}
+
 /**
  * يمنع فتح أي صفحة محمية لو المستخدم مش عامل Login
  * ولو requiredRole متحدد: يمنع راكب يفتح السائق والعكس
+ *
+ * ✅ تعديل مهم: لو role مش ظاهر بسبب تأخير Firestore
+ * هنحاول نقرأه كذا مرة لمدة قصيرة بدل ما نعمل Redirect فورًا
  */
 export function requireAuthAndRole(requiredRole = null) {
   return new Promise((resolve) => {
@@ -69,9 +77,15 @@ export function requireAuthAndRole(requiredRole = null) {
         return;
       }
 
-      const data = await getUserDoc(user.uid);
+      // 🔥 نجرب نقرأ user doc أكتر من مرة (إجمالي ~2 ثانية)
+      let data = null;
+      for(let i=0; i<5; i++){
+        data = await getUserDoc(user.uid);
+        if(data?.role) break;
+        await sleep(400);
+      }
 
-      // لو مفيش role محفوظ
+      // لو مفيش role محفوظ بعد المحاولات
       if (!data?.role) {
         location.href = "login.html";
         return;
