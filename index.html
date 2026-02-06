@@ -28,6 +28,9 @@
     <a class="p" href="passenger.html">🚕 راكب</a>
     <a class="d" href="driver.html">🧑‍✈️ سائق</a>
 
+    <!-- زر الحساب -->
+    <a class="d" href="profile.html" style="background:#24344a">👤 حسابي</a>
+
     <div class="note">لو الصفحة ما اتحدثتش فورًا، استنى دقيقة.</div>
   </div>
 
@@ -36,6 +39,12 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js");
     }
+  </script>
+
+  <!-- ✅ حارس تسجيل الدخول -->
+  <script type="module">
+    import { requireAuthAndRole } from "./app.js";
+    await requireAuthAndRole(null);
   </script>
 </body>
 </html>
