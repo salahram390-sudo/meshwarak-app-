@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - حسابي</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7}
+    header{padding:14px 16px;background:#101825;position:sticky;top:0;display:flex;justify-content:space-between;align-items:center}
+    h1{margin:0;font-size:16px}
+    .wrap{padding:14px 16px;display:grid;gap:12px;max-width:700px;margin:auto}
+    .card{background:#101825;border:1px solid #1f2a3a;border-radius:14px;padding:12px}
+    label{display:block;font-size:13px;opacity:.9;margin:10px 0 6px}
+    input,select{width:100%;padding:12px;border-radius:12px;border:1px solid #273449;background:#0b0f14;color:#e8eef7}
+    button{padding:12px;border:0;border-radius:12px;background:#2b6cff;color:white;font-weight:800;cursor:pointer;width:100%}
+    .muted{opacity:.85;font-size:13px;line-height:1.5}
+    a{color:#9ec1ff}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>👤 حسابي</h1>
+    <a href="index.html">رجوع</a>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="muted" id="info">جارٍ التحميل…</div>
+    </div>
+
+    <div class="card">
+      <label>الاسم</label>
+      <input id="name" placeholder="اسمك" />
+
+      <label>المحافظة</label>
+      <input id="gov" placeholder="مثال: القاهرة" />
+
+      <div id="driverOnly" style="display:none">
+        <label>نوع المركبة</label>
+        <select id="vehicle">
+          <option value="tuktuk">توكتوك</option>
+          <option value="car">سيارة ملاكي</option>
+          <option value="microbus">ميكروباص</option>
+        </select>
+
+        <label>موديل / سنة الصنع</label>
+        <input id="model" placeholder="مثال: 2020" />
+
+        <label>رقم اللوحة / كود التوكتوك</label>
+        <input id="plate" placeholder="مثال: ب س 1234" />
+      </div>
+
+      <div style="margin-top:12px">
+        <button id="saveBtn">💾 حفظ</button>
+      </div>
+
+      <div class="muted" id="msg" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <button id="logoutBtn" style="background:#24344a">🚪 تسجيل خروج</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuthAndRole, getUserDoc, saveUserProfile, doLogout } from "./app.js";
+
+    const info = document.getElementById("info");
+    const nameEl = document.getElementById("name");
+    const govEl = document.getElementById("gov");
+    const driverOnly = document.getElementById("driverOnly");
+    const vehicleEl = document.getElementById("vehicle");
+    const modelEl = document.getElementById("model");
+    const plateEl = document.getElementById("plate");
+    const saveBtn = document.getElementById("saveBtn");
+    const msg = document.getElementById("msg");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    let currentUser = null;
+    let role = null;
+
+    const { user, data } = await requireAuthAndRole(null);
+    currentUser = user;
+    role = data.role;
+
+    info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;
+
+    if(role === "driver") driverOnly.style.display = "block";
+
+    // load existing
+    const u = await getUserDoc(user.uid);
+    nameEl.value = u?.name || "";
+    govEl.value = u?.gov || "";
+    vehicleEl.value = u?.vehicle || "tuktuk";
+    modelEl.value = u?.model || "";
+    plateEl.value = u?.plate || "";
+
+    saveBtn.addEventListener("click", async () => {
+      try{
+        msg.textContent = "جارٍ الحفظ…";
+        await saveUserProfile(user.uid, {
+          name: nameEl.value.trim() || null,
+          gov: govEl.value.trim() || null,
+          vehicle: role === "driver" ? (vehicleEl.value || null) : null,
+          model: role === "driver" ? (modelEl.value.trim() || null) : null,
+          plate: role === "driver" ? (plateEl.value.trim() || null) : null,
+        });
+        msg.textContent = "✅ تم الحفظ.";
+      }catch(e){
+        console.error(e);
+        msg.textContent = "❌ فشل الحفظ.";
+      }
+    });
+
+    logoutBtn.addEventListener("click", doLogout);
+  </script>
+</body>
+</html>
