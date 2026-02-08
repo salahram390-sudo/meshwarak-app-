@@ -4,8 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - السائق</title>
-
-  <!-- ✅ اسم ملف الستايل الصحيح -->
   <link rel="stylesheet" href="./styles.css">
 </head>
 
@@ -21,7 +19,7 @@
       </div>
       <div style="display:flex;gap:8px">
         <a class="btn" href="./index.html">الرئيسية</a>
-        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
+        <button class="btn danger" id="logoutBtn">خروج</button>
       </div>
     </div>
   </div>
@@ -29,20 +27,18 @@
   <div class="container" style="padding-top:14px">
     <div class="card">
       <div class="pills" style="margin-top:0">
-        <span class="pill bad" id="onlinePill">Offline</span>
+        <span class="pill" id="onlinePill">Offline</span>
         <span class="pill" id="gpsPill">GPS: غير معروف</span>
         <span class="pill" id="areaPill">منطقة: -</span>
       </div>
 
       <div class="actions" style="margin-top:12px">
-        <button class="btn primary" id="onlineBtn" type="button">Go Online</button>
-        <button class="btn" id="refreshBtn" type="button">تحديث الطلبات</button>
+        <button class="btn primary" id="onlineBtn">Go Online</button>
+        <button class="btn" id="refreshBtn">تحديث الطلبات</button>
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
-      <div class="hint" style="margin-top:10px">
-        يعرض الطلبات المفتوحة (open). القبول Transaction لمنع القبول المزدوج ✅
-      </div>
+      <div class="hint" style="margin-top:10px">القبول Transaction لمنع القبول المزدوج ✅</div>
     </div>
 
     <div id="list" class="list" style="margin-top:12px"></div>
@@ -57,7 +53,7 @@
     import {
       collection, query, where, orderBy, limit,
       getDocs, doc, runTransaction, serverTimestamp,
-      setDoc
+      setDoc, getDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const listEl = document.getElementById("list");
@@ -74,14 +70,25 @@
     let isOnline = false;
     let watchId = null;
     let pushTimer = null;
+    let lastPos = null;
 
-    let lastPos = null; // {lat,lng,heading,speed}
-    let driverProfile = null; // from users/{uid}
+    // ✅ نجيب المنطقة من driver_profiles أولاً (حسب الاسكيما اللي انت محددها)
+    async function loadDriverArea(){
+      const profRef = doc(db, "driver_profiles", user.uid);
+      const profSnap = await getDoc(profRef);
+      if(profSnap.exists()){
+        const p = profSnap.data();
+        return { governorate: p.governorate || null, center: p.center || null };
+      }
+      // fallback: users/{uid}
+      const u = await getUserDoc(user.uid);
+      return { governorate: u?.governorate || null, center: u?.center || null };
+    }
 
     function setOnlineUI(on){
       isOnline = on;
-
       onlinePill.classList.remove("ok","bad");
+
       if(on){
         onlinePill.textContent = "Online ✅";
         onlinePill.classList.add("ok");
@@ -115,6 +122,142 @@
       return Number.isFinite(n) ? n : null;
     }
 
+    async function pushStatus(extra = {}){
+      const payload = {
+        online: isOnline,
+        available: isOnline,
+        lastSeenAt: serverTimestamp(),
+        ...extra
+      };
+
+      if(lastPos){
+        payload.lat = lastPos.lat;
+        payload.lng = lastPos.lng;
+        payload.heading = lastPos.heading ?? null;
+        payload.speed = lastPos.speed ?? null;
+      }
+
+      await setDoc(statusRef, payload, { merge:true });
+    }
+
+    function startGPS(){
+      if(!navigator.geolocation){
+        setGpsUI("denied");
+        msg.textContent = "❌ جهازك لا يدعم GPS.";
+        return false;
+      }
+
+      watchId = navigator.geolocation.watchPosition((pos)=>{
+        setGpsUI("ok");
+        lastPos = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          heading: (pos.coords.heading ?? null),
+          speed: (pos.coords.speed ?? null),
+        };
+      }, (err)=>{
+        console.error(err);
+        if(err?.code === 1){
+          setGpsUI("denied");
+          msg.innerHTML = "❌ فعل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
+        }else{
+          setGpsUI("unknown");
+          msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
+        }
+      }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
+
+      pushTimer = setInterval(async ()=>{
+        try{
+          if(!isOnline) return;
+          await pushStatus();
+        }catch(e){
+          console.error(e);
+        }
+      }, 3000);
+
+      return true;
+    }
+
+    function stopGPS(){
+      if(watchId !== null){
+        try{ navigator.geolocation.clearWatch(watchId); }catch{}
+        watchId = null;
+      }
+      if(pushTimer){
+        clearInterval(pushTimer);
+        pushTimer = null;
+      }
+      lastPos = null;
+      setGpsUI("unknown");
+    }
+
+    async function goOnline(){
+      onlineBtn.disabled = true;
+      msg.textContent = "جارٍ التشغيل Online…";
+
+      const area = await loadDriverArea();
+      if(!area.governorate || !area.center){
+        msg.textContent = "❌ لازم تضيف governorate + center داخل driver_profiles/{uid}.";
+        onlineBtn.disabled = false;
+        return;
+      }
+
+      areaPill.textContent = `منطقة: ${area.governorate} / ${area.center}`;
+
+      setOnlineUI(true);
+
+      const ok = startGPS();
+      if(ok){
+        try{
+          await pushStatus({
+            online:true,
+            available:true,
+            currentTripId: null,
+            governorate: area.governorate,
+            center: area.center
+          });
+          msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
+        }catch(e){
+          console.error(e);
+          msg.textContent = "⚠️ Online اشتغل لكن في مشكلة كتابة driver_status. راجع Rules.";
+        }
+      }
+
+      onlineBtn.disabled = false;
+    }
+
+    async function goOffline(){
+      onlineBtn.disabled = true;
+      msg.textContent = "جارٍ الإيقاف Offline…";
+
+      setOnlineUI(false);
+      stopGPS();
+
+      try{
+        await setDoc(statusRef, {
+          online: false,
+          available: false,
+          currentTripId: null,
+          lastSeenAt: serverTimestamp()
+        }, { merge:true });
+
+        msg.textContent = "✅ تم الإيقاف Offline.";
+      }catch(e){
+        console.error(e);
+        msg.textContent = "⚠️ Offline اتعمل لكن في مشكلة كتابة driver_status. راجع Rules.";
+      }
+
+      onlineBtn.disabled = false;
+    }
+
+    onlineBtn.addEventListener("click", async ()=>{
+      if(isOnline) await goOffline();
+      else await goOnline();
+    });
+
+    // =========================
+    // Requests list + Accept Transaction
+    // =========================
     function rideCard(r){
       const fromLat = safeNum(r.from?.lat);
       const fromLng = safeNum(r.from?.lng);
@@ -135,7 +278,7 @@
         </div>
 
         <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn primary" data-accept="${r.id}" type="button">قبول</button>
+          <button class="btn primary" data-accept="${r.id}">قبول</button>
           ${fromLat !== null && fromLng !== null ? `
             <a class="btn" target="_blank"
               href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
@@ -152,8 +295,7 @@
         try{
           m.textContent = "جارٍ القبول…";
 
-          // بيانات السائق من users/{uid}
-          const d = driverProfile || await getUserDoc(user.uid);
+          const d = await getUserDoc(user.uid).catch(()=>null);
           const driverName  = d?.name || "سائق";
           const driverPhone = d?.phone || null;
 
@@ -162,7 +304,6 @@
             if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
 
             const cur = snap.data();
-
             if(cur.status !== "open" || cur.driverUid){
               return { ok:false, msg:"الطلب اتقبل بالفعل." };
             }
@@ -221,143 +362,6 @@
     }
 
     refreshBtn.addEventListener("click", load);
-
-    async function pushStatus(extra = {}){
-      const gov = driverProfile?.governorate || null;
-      const cen = driverProfile?.center || null;
-
-      const payload = {
-        online: isOnline,
-        available: isOnline, // طالما Online ولسه مفيش Trip
-        governorate: gov,
-        center: cen,
-        lastSeenAt: serverTimestamp(),
-        ...extra
-      };
-
-      if(lastPos){
-        payload.lat = lastPos.lat;
-        payload.lng = lastPos.lng;
-        payload.heading = lastPos.heading ?? null;
-        payload.speed = lastPos.speed ?? null;
-      }
-
-      await setDoc(statusRef, payload, { merge:true });
-    }
-
-    function startGPS(){
-      msg.textContent = "";
-      if(!navigator.geolocation){
-        setGpsUI("denied");
-        msg.textContent = "❌ جهازك لا يدعم GPS.";
-        return false;
-      }
-
-      watchId = navigator.geolocation.watchPosition((pos)=>{
-        setGpsUI("ok");
-        lastPos = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          heading: (pos.coords.heading ?? null),
-          speed: (pos.coords.speed ?? null),
-        };
-      }, (err)=>{
-        console.error(err);
-        if(err?.code === 1){
-          setGpsUI("denied");
-          msg.innerHTML = "❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
-        }else{
-          setGpsUI("unknown");
-          msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
-        }
-      }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
-
-      pushTimer = setInterval(async ()=>{
-        try{
-          if(!isOnline) return;
-          await pushStatus();
-        }catch(e){
-          console.error(e);
-        }
-      }, 3000);
-
-      return true;
-    }
-
-    function stopGPS(){
-      if(watchId !== null){
-        try{ navigator.geolocation.clearWatch(watchId); }catch{}
-        watchId = null;
-      }
-      if(pushTimer){
-        clearInterval(pushTimer);
-        pushTimer = null;
-      }
-      lastPos = null;
-      setGpsUI("unknown");
-    }
-
-    async function goOnline(){
-      onlineBtn.disabled = true;
-      msg.textContent = "جارٍ التشغيل Online…";
-
-      driverProfile = await getUserDoc(user.uid);
-
-      const gov = driverProfile?.governorate;
-      const cen = driverProfile?.center;
-
-      if(!gov || !cen){
-        msg.textContent = "❌ لازم تضيف governorate + center داخل users/{uid} للسائق.";
-        onlineBtn.disabled = false;
-        return;
-      }
-
-      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
-
-      setOnlineUI(true);
-
-      const ok = startGPS();
-      if(ok){
-        try{
-          await pushStatus({ online:true, available:true, currentTripId: null });
-          msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
-        }catch(e){
-          console.error(e);
-          msg.textContent = "⚠️ Online اشتغل لكن في مشكلة كتابة driver_status. راجع Rules.";
-        }
-      }
-
-      onlineBtn.disabled = false;
-    }
-
-    async function goOffline(){
-      onlineBtn.disabled = true;
-      msg.textContent = "جارٍ الإيقاف Offline…";
-
-      setOnlineUI(false);
-      stopGPS();
-
-      try{
-        await setDoc(statusRef, {
-          online: false,
-          available: false,
-          currentTripId: null,
-          lastSeenAt: serverTimestamp()
-        }, { merge:true });
-
-        msg.textContent = "✅ تم الإيقاف Offline.";
-      }catch(e){
-        console.error(e);
-        msg.textContent = "⚠️ Offline اتعمل لكن في مشكلة كتابة driver_status. راجع Rules.";
-      }
-
-      onlineBtn.disabled = false;
-    }
-
-    onlineBtn.addEventListener("click", async ()=>{
-      if(isOnline) await goOffline();
-      else await goOnline();
-    });
 
     window.addEventListener("beforeunload", ()=>{
       try{ stopGPS(); }catch{}
