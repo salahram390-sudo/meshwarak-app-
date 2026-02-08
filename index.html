@@ -7,29 +7,31 @@
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#101825">
+  <meta name="theme-color" content="#050B16">
 
-  <style>
-    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;height:100vh;display:flex;align-items:center;justify-content:center}
-    .box{width:92%;max-width:420px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;text-align:center}
-    h1{margin:0 0 8px;font-size:20px}
-    p{margin:0 0 14px;opacity:.85}
-    a{display:block;text-decoration:none;padding:14px 12px;border-radius:14px;font-weight:800;margin:10px 0}
-    .p{background:#22c55e;color:#04110a}
-    .d{background:#2b6cff;color:#fff}
-    .note{font-size:12px;opacity:.75;margin-top:8px}
-  </style>
+  <!-- ✅ UI الموحد -->
+  <link rel="stylesheet" href="./styles.css">
 </head>
+
 <body>
-  <div class="box">
-    <h1>🚖 مشوارك</h1>
-    <p>اختر نوع الاستخدام</p>
+  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
+    <div class="card" style="width:min(520px, 100%); text-align:center">
+      <div style="display:flex;justify-content:center;margin-bottom:12px">
+        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
+      </div>
 
-    <!-- ✅ بدل ما يفتح passenger/driver مباشرة: نوديه login ومعاه الدور -->
-    <a class="p" href="login.html?role=passenger">🚕 راكب</a>
-    <a class="d" href="login.html?role=driver">🧑‍✈️ سائق</a>
+      <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
+      <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
 
-    <div class="note">لو الصفحة ما اتحدثتش فورًا، استنى دقيقة.</div>
+      <div class="actions" style="justify-content:center">
+        <a class="btn success" href="login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
+        <a class="btn primary" href="login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
+      </div>
+
+      <p class="hint" style="margin:14px 0 0">
+        لو الصفحة ما اتحدثتش فورًا، جرّب تعمل Refresh.
+      </p>
+    </div>
   </div>
 
   <!-- Service Worker -->
