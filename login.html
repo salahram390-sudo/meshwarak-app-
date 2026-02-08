@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - إنشاء حساب</title>
 
-  <!-- مهم: خلي الاسم زي باقي الصفحات -->
-  <link rel="stylesheet" href="./style.css" />
+  <!-- ✅ الاسم الصحيح -->
+  <link rel="stylesheet" href="./styles.css" />
 
   <style>
-    /* بس ترتيب بسيط فوق style.css */
     .box{width:92%;max-width:460px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;margin:18px auto}
     h1{margin:0 0 10px;font-size:18px;text-align:center}
     p{margin:0 0 12px;opacity:.85;text-align:center}
@@ -18,6 +17,7 @@
     .hint{font-size:13px;opacity:.85;line-height:1.5;margin-top:10px}
     .ok{color:#7CFFB2}
     .bad{color:#ff9b9b}
+    .btns{display:grid;gap:10px;margin-top:10px}
   </style>
 </head>
 <body>
@@ -42,14 +42,15 @@
       </div>
     </div>
 
-    <button id="signupBtn" type="button">إنشاء حساب</button>
-    <button id="loginBtn" class="secondary" type="button">تسجيل دخول</button>
+    <div class="btns">
+      <button id="signupBtn" type="button">إنشاء حساب</button>
+      <button id="loginBtn" class="secondary" type="button">تسجيل دخول</button>
+    </div>
 
     <div class="hint" id="msg"></div>
   </div>
 
   <script type="module">
-    // ✅ ملاحظة: هنا بنستورد auth/db فقط
     import { auth, db } from "./app.js";
 
     import {
@@ -65,7 +66,6 @@
       serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ✅ بديل qs داخل الملف (بدون الاعتماد على app.js)
     const qs = (k) => new URLSearchParams(location.search).get(k);
 
     const nameEl  = document.getElementById("name");
@@ -91,8 +91,15 @@
       roleDriver.classList.toggle("active", role === "driver");
     }
 
+    function lockUI(locked){
+      signupBtn.disabled = locked;
+      loginBtn.disabled  = locked;
+      rolePassenger.disabled = locked;
+      roleDriver.disabled = locked;
+    }
+
     function goAfterLogin(role){
-      const returnTo = qs("returnTo"); // passenger.html / driver.html
+      const returnTo = qs("returnTo");
       if(returnTo){
         location.href = returnTo;
         return;
@@ -111,16 +118,16 @@
       await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
     }
 
-    rolePassenger.addEventListener("click", ()=> setRole("passenger"));
-    roleDriver.addEventListener("click", ()=> setRole("driver"));
+    rolePassenger.addEventListener("click", (e)=>{ e.preventDefault(); setRole("passenger"); });
+    roleDriver.addEventListener("click", (e)=>{ e.preventDefault(); setRole("driver"); });
 
-    // ✅ اقرأ الدور اللي جاي من index.html?role=...
+    // ✅ role من URL
     const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver"){
       setRole(roleFromUrl);
     }
 
-    // ✅ لو المستخدم عامل login بالفعل: ودّيه حسب role
+    // ✅ لو عامل login بالفعل
     onAuthStateChanged(auth, async (user) => {
       if(!user) return;
       try{
@@ -157,8 +164,7 @@
         return;
       }
 
-      signupBtn.disabled = true;
-      loginBtn.disabled = true;
+      lockUI(true);
       msg.textContent = "جارٍ إنشاء الحساب…";
 
       try{
@@ -177,15 +183,14 @@
         console.error(e);
         msg.innerHTML = `<span class="bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
       }finally{
-        signupBtn.disabled = false;
-        loginBtn.disabled = false;
+        lockUI(false);
       }
     }
 
     async function handleLogin(){
       msg.textContent = "";
 
-      const name  = nameEl.value.trim(); // اختياري عند تسجيل الدخول
+      const name  = nameEl.value.trim();
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
 
@@ -198,8 +203,7 @@
         return;
       }
 
-      signupBtn.disabled = true;
-      loginBtn.disabled = true;
+      lockUI(true);
       msg.textContent = "جارٍ تسجيل الدخول…";
 
       try{
@@ -227,8 +231,7 @@
         console.error(e);
         msg.innerHTML = `<span class="bad">❌ الإيميل أو الباسورد غلط.</span>`;
       }finally{
-        signupBtn.disabled = false;
-        loginBtn.disabled = false;
+        lockUI(false);
       }
     }
 
