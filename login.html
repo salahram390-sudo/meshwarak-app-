@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - إنشاء حساب</title>
 
-  <link rel="stylesheet" href="./styles.css" />
+  <!-- مهم: خلي الاسم زي باقي الصفحات -->
+  <link rel="stylesheet" href="./style.css" />
 
   <style>
-    /* بس ترتيب بسيط فوق styles.css */
+    /* بس ترتيب بسيط فوق style.css */
     .box{width:92%;max-width:460px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;margin:18px auto}
     h1{margin:0 0 10px;font-size:18px;text-align:center}
     p{margin:0 0 12px;opacity:.85;text-align:center}
@@ -36,19 +37,21 @@
     <div style="margin-top:14px">
       <label>اختر نوع الحساب</label>
       <div class="row">
-        <button class="roleBtn" id="rolePassenger">🚕 راكب</button>
-        <button class="roleBtn" id="roleDriver">🧑‍✈️ سائق</button>
+        <button class="roleBtn" id="rolePassenger" type="button">🚕 راكب</button>
+        <button class="roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
       </div>
     </div>
 
-    <button id="signupBtn">إنشاء حساب</button>
-    <button id="loginBtn" class="secondary">تسجيل دخول</button>
+    <button id="signupBtn" type="button">إنشاء حساب</button>
+    <button id="loginBtn" class="secondary" type="button">تسجيل دخول</button>
 
     <div class="hint" id="msg"></div>
   </div>
 
   <script type="module">
-    import { auth, db, qs } from "./app.js";
+    // ✅ ملاحظة: هنا بنستورد auth/db فقط
+    import { auth, db } from "./app.js";
+
     import {
       createUserWithEmailAndPassword,
       signInWithEmailAndPassword,
@@ -61,6 +64,9 @@
       setDoc,
       serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    // ✅ بديل qs داخل الملف (بدون الاعتماد على app.js)
+    const qs = (k) => new URLSearchParams(location.search).get(k);
 
     const nameEl  = document.getElementById("name");
     const emailEl = document.getElementById("email");
@@ -86,13 +92,11 @@
     }
 
     function goAfterLogin(role){
-      // ✅ يرجع لنفس الصفحة لو returnTo موجود
-      const returnTo = qs("returnTo"); // مثال: passenger.html / driver.html
+      const returnTo = qs("returnTo"); // passenger.html / driver.html
       if(returnTo){
         location.href = returnTo;
         return;
       }
-      // ✅ افتراضي حسب الدور
       location.href = (role === "passenger") ? "passenger.html" : "driver.html";
     }
 
@@ -107,10 +111,10 @@
       await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
     }
 
-    rolePassenger.addEventListener("click", (e)=>{ e.preventDefault(); setRole("passenger"); });
-    roleDriver.addEventListener("click", (e)=>{ e.preventDefault(); setRole("driver"); });
+    rolePassenger.addEventListener("click", ()=> setRole("passenger"));
+    roleDriver.addEventListener("click", ()=> setRole("driver"));
 
-    // ✅ اقرأ الدور اللي جاي من index.html
+    // ✅ اقرأ الدور اللي جاي من index.html?role=...
     const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver"){
       setRole(roleFromUrl);
@@ -160,7 +164,6 @@
       try{
         const res = await createUserWithEmailAndPassword(auth, email, pass);
 
-        // ✅ users/{uid}
         await upsertUser(res.user.uid, {
           name,
           email,
@@ -205,7 +208,6 @@
         const data = await getUserDoc(res.user.uid);
         let finalRole = data?.role || null;
 
-        // ✅ لو مفيش role محفوظ: لازم يختار ونحفظه
         if(!finalRole){
           if(!selectedRole){
             msg.innerHTML = `<span class="bad">❌ اختر راكب أو سائق أولاً.</span>`;
@@ -214,12 +216,9 @@
           finalRole = selectedRole;
         }
 
-        // ✅ حدّث users doc (اسم/دور لو ناقص)
-        const patch = {
-          email,
-          role: finalRole
-        };
+        const patch = { email, role: finalRole };
         if(name && name.length >= 2) patch.name = name;
+
         await upsertUser(res.user.uid, patch);
 
         msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
