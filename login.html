@@ -4,17 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - إنشاء حساب</title>
+
+  <link rel="stylesheet" href="./styles.css" />
+
   <style>
-    body{font-family:system-ui,Arial;margin:0;background:#0b0f14;color:#e8eef7;min-height:100vh;display:flex;align-items:center;justify-content:center}
-    .box{width:92%;max-width:460px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px}
+    /* بس ترتيب بسيط فوق styles.css */
+    .box{width:92%;max-width:460px;background:#101825;border:1px solid #1f2a3a;border-radius:16px;padding:18px;margin:18px auto}
     h1{margin:0 0 10px;font-size:18px;text-align:center}
     p{margin:0 0 12px;opacity:.85;text-align:center}
-    label{display:block;font-size:13px;opacity:.9;margin:10px 0 6px}
-    input{width:100%;padding:12px;border-radius:12px;border:1px solid #273449;background:#0b0f14;color:#e8eef7}
-    button{width:100%;padding:12px;border:0;border-radius:12px;background:#2b6cff;color:white;font-weight:800;cursor:pointer;margin-top:10px}
-    button.secondary{background:#24344a}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .roleBtn{background:#24344a}
     .roleBtn.active{background:#22c55e;color:#04110a}
     .hint{font-size:13px;opacity:.85;line-height:1.5;margin-top:10px}
@@ -25,7 +22,10 @@
 <body>
   <div class="box">
     <h1>🔐 مشوارك — إنشاء حساب / تسجيل دخول</h1>
-    <p>اكتب إيميل Gmail + باسورد، ثم اختر (راكب/سائق)</p>
+    <p>اكتب Gmail + باسورد + اسمك، ثم اختر (راكب/سائق)</p>
+
+    <label>الاسم</label>
+    <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
 
     <label>الإيميل (لازم ينتهي بـ @gmail.com)</label>
     <input id="email" placeholder="example@gmail.com" autocomplete="email"/>
@@ -48,13 +48,21 @@
   </div>
 
   <script type="module">
-    import { auth, saveUserRole, getUserDoc } from "./app.js";
+    import { auth, db, qs } from "./app.js";
     import {
       createUserWithEmailAndPassword,
       signInWithEmailAndPassword,
       onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
+    import {
+      doc,
+      getDoc,
+      setDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const nameEl  = document.getElementById("name");
     const emailEl = document.getElementById("email");
     const passEl  = document.getElementById("pass");
     const msg     = document.getElementById("msg");
@@ -67,46 +75,71 @@
 
     let selectedRole = null;
 
+    function isGmail(email){
+      return /@gmail\.com$/i.test(email.trim());
+    }
+
     function setRole(role){
       selectedRole = role;
       rolePassenger.classList.toggle("active", role === "passenger");
       roleDriver.classList.toggle("active", role === "driver");
     }
 
+    function goAfterLogin(role){
+      // ✅ يرجع لنفس الصفحة لو returnTo موجود
+      const returnTo = qs("returnTo"); // مثال: passenger.html / driver.html
+      if(returnTo){
+        location.href = returnTo;
+        return;
+      }
+      // ✅ افتراضي حسب الدور
+      location.href = (role === "passenger") ? "passenger.html" : "driver.html";
+    }
+
+    async function getUserDoc(uid){
+      const ref = doc(db, "users", uid);
+      const snap = await getDoc(ref);
+      return snap.exists() ? snap.data() : null;
+    }
+
+    async function upsertUser(uid, payload){
+      const ref = doc(db, "users", uid);
+      await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+    }
+
     rolePassenger.addEventListener("click", (e)=>{ e.preventDefault(); setRole("passenger"); });
     roleDriver.addEventListener("click", (e)=>{ e.preventDefault(); setRole("driver"); });
 
     // ✅ اقرأ الدور اللي جاي من index.html
-    const roleFromUrl = new URLSearchParams(location.search).get("role");
+    const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver"){
       setRole(roleFromUrl);
     }
 
-    function isGmail(email){
-      return /@gmail\.com$/i.test(email.trim());
-    }
-
-    // ✅ مهم: لو المستخدم عامل login، دخّله على صفحته ONLY لو role موجود
-    // ✅ لو role مش موجود، سيبه في login عشان يختار الدور (بدون ما يرجعه للـ index)
+    // ✅ لو المستخدم عامل login بالفعل: ودّيه حسب role
     onAuthStateChanged(auth, async (user) => {
       if(!user) return;
-
       try{
         const data = await getUserDoc(user.uid);
-        if(data?.role === "passenger") location.href = "passenger.html";
-        else if(data?.role === "driver") location.href = "driver.html";
-        // لو مفيش role: هنفضل هنا
+        if(data?.role === "passenger" || data?.role === "driver"){
+          goAfterLogin(data.role);
+        }
       }catch(e){
         console.error(e);
-        // هنفضل هنا
       }
     });
 
     async function handleSignup(){
       msg.textContent = "";
+
+      const name  = nameEl.value.trim();
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
 
+      if(!name || name.length < 2){
+        msg.innerHTML = `<span class="bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
+        return;
+      }
       if(!isGmail(email)){
         msg.innerHTML = `<span class="bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
         return;
@@ -126,9 +159,17 @@
 
       try{
         const res = await createUserWithEmailAndPassword(auth, email, pass);
-        await saveUserRole(res.user.uid, selectedRole);
+
+        // ✅ users/{uid}
+        await upsertUser(res.user.uid, {
+          name,
+          email,
+          role: selectedRole,
+          createdAt: serverTimestamp()
+        });
+
         msg.innerHTML = `<span class="ok">✅ تم إنشاء الحساب!</span>`;
-        location.href = (selectedRole === "passenger") ? "passenger.html" : "driver.html";
+        goAfterLogin(selectedRole);
       }catch(e){
         console.error(e);
         msg.innerHTML = `<span class="bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
@@ -140,6 +181,8 @@
 
     async function handleLogin(){
       msg.textContent = "";
+
+      const name  = nameEl.value.trim(); // اختياري عند تسجيل الدخول
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
 
@@ -168,12 +211,19 @@
             msg.innerHTML = `<span class="bad">❌ اختر راكب أو سائق أولاً.</span>`;
             return;
           }
-          await saveUserRole(res.user.uid, selectedRole);
           finalRole = selectedRole;
         }
 
+        // ✅ حدّث users doc (اسم/دور لو ناقص)
+        const patch = {
+          email,
+          role: finalRole
+        };
+        if(name && name.length >= 2) patch.name = name;
+        await upsertUser(res.user.uid, patch);
+
         msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
-        location.href = (finalRole === "passenger") ? "passenger.html" : "driver.html";
+        goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
         msg.innerHTML = `<span class="bad">❌ الإيميل أو الباسورد غلط.</span>`;
