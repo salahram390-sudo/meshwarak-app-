@@ -3,191 +3,128 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مشوراك - السائق</title>
-  <style>
-    body{font-family:system-ui,Arial; margin:0; background:#0b0f14; color:#e8eef7;}
-    header{padding:14px 16px; background:#101825; position:sticky; top:0; display:flex; justify-content:space-between; align-items:center; gap:10px;}
-    h1{margin:0; font-size:16px;}
-    .wrap{padding:14px 16px; display:grid; gap:12px;}
-    .card{background:#101825; border:1px solid #1f2a3a; border-radius:14px; padding:12px;}
-    button{padding:10px 12px; border:0; border-radius:12px; background:#2b6cff; color:white; font-weight:800; cursor:pointer;}
-    button.secondary{background:#24344a;}
-    button.danger{background:#ff5c7a;}
-    button:disabled{opacity:.55; cursor:not-allowed;}
-    .muted{opacity:.85; font-size:13px; line-height:1.5}
-    .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; align-items:center;}
-    a{color:#9ec1ff}
-    .pill{display:inline-block; padding:4px 10px; border:1px solid #273449; border-radius:999px; font-size:12px; opacity:.9}
-    .ok{border-color:rgba(34,197,94,.35); color:#bfffe0}
-    .bad{border-color:rgba(255,92,122,.35); color:#ffd0d8}
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-    @media (max-width:520px){ .grid2{grid-template-columns:1fr} }
-  </style>
+  <title>مشوارك - السائق</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
-  <header>
-    <h1>🧑‍✈️ مشوراك — لوحة السائق</h1>
-    <div class="row" style="margin:0">
-      <span class="pill" id="mePill">جارٍ التحميل…</span>
-      <button id="refreshBtn" class="secondary">تحديث</button>
-    </div>
-  </header>
-
-  <div class="wrap">
-    <div class="card">
-      <div class="muted">
-        يعرض الطلبات المفتوحة من <b>rides</b>. اضغط “قبول” وسيتم تثبيت الطلب عليك (Transaction) لمنع قبول مزدوج.
+  <div class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand">
+        <div class="logo">م</div>
+        <div>
+          <h1>سائق</h1>
+          <p id="who">جارٍ التحميل…</p>
+        </div>
       </div>
-      <div class="muted" id="hint" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px">
+        <a class="btn" href="./index.html">الرئيسية</a>
+        <button class="btn danger" id="logoutBtn">خروج</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="padding-top:14px">
+    <div class="card">
+      <div class="hint">يعرض الطلبات المفتوحة (open). اضغط “قبول” لتثبيت السائق على الطلب.</div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn" id="refreshBtn">تحديث</button>
+      </div>
     </div>
 
-    <div id="list"></div>
+    <div id="list" class="list" style="margin-top:12px"></div>
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, db, auth } from "./app.js";
+    import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
     const { user } = await requireAuthAndRole("driver");
+    document.getElementById("who").textContent = user.email;
+    document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     import {
-      collection,
-      query,
-      where,
-      orderBy,
-      limit,
-      getDocs,
-      doc,
-      runTransaction,
-      serverTimestamp,
-      onSnapshot
+      collection, query, where, orderBy, limit,
+      getDocs, doc, updateDoc, getDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    const listEl = document.getElementById('list');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const mePill = document.getElementById('mePill');
-    const hint = document.getElementById('hint');
-
-    mePill.textContent = user?.email || "سائق";
-    mePill.classList.add("ok");
+    const listEl = document.getElementById("list");
+    const refreshBtn = document.getElementById("refreshBtn");
 
     function safeNum(x){
       const n = Number(x);
       return Number.isFinite(n) ? n : null;
     }
 
-    function esc(s){
-      return String(s ?? "").replace(/[&<>"']/g, m => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-      }[m]));
-    }
-
     function rideCard(r){
       const fromLat = safeNum(r.from?.lat);
       const fromLng = safeNum(r.from?.lng);
-      const toLat = safeNum(r.to?.lat);
-      const toLng = safeNum(r.to?.lng);
 
-      const fromText = r.fromText ? esc(r.fromText) :
-        (fromLat !== null && fromLng !== null ? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}` : "-");
-
-      const toText = r.toText ? esc(r.toText) :
-        (toLat !== null && toLng !== null ? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}` : "-");
-
-      const riderName = esc(r.name || "راكب");
-      const riderEmail = esc(r.passengerEmail || "-");
-
-      const el = document.createElement('div');
-      el.className = 'card';
+      const el = document.createElement("div");
+      el.className = "card";
 
       el.innerHTML = `
-        <div class="row" style="justify-content:space-between">
-          <div><b>طلب:</b> ${esc(r.id)}</div>
-          <span class="pill">${esc(r.status || "-")}</span>
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div><b>طلب:</b> ${r.id}</div>
+          <div class="pill">${r.createdAt ? "جديد" : ""}</div>
         </div>
 
-        <div class="grid2" style="margin-top:10px">
-          <div class="muted">
-            <b>👤 الراكب:</b> ${riderName}<br>
-            <b>📧</b> ${riderEmail}<br>
-            <b>📞</b> ${esc(r.phone ?? "-")} | <b>ركاب:</b> ${esc(r.passengers ?? "-")}
-          </div>
-
-          <div class="muted">
-            <b>🚩 من:</b> ${fromText}<br>
-            <b>🏁 إلى:</b> ${toText}<br>
-            <b>📝 ملاحظة:</b> ${esc(r.note ?? "-")}
-          </div>
+        <div class="hint" style="margin-top:8px">
+          <b>الراكب:</b> ${r.passengerName ?? "-"} (${r.passengerEmail ?? "-"})
+          <br><b>من:</b> ${r.fromText ?? "-"}
+          <br><b>إلى:</b> ${r.toText ?? "-"}
         </div>
 
-        <div class="row">
-          <button class="acceptBtn" data-id="${esc(r.id)}">قبول</button>
-          ${(fromLat !== null && fromLng !== null) ? `
-            <a target="_blank" href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" data-accept="${r.id}">قبول</button>
+          ${fromLat && fromLng ? `
+            <a class="btn" target="_blank"
+              href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
               فتح الانطلاق
             </a>` : ``}
         </div>
-        <div class="muted" style="margin-top:8px" id="msg-${esc(r.id)}"></div>
+        <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
       `;
 
-      const btn = el.querySelector('.acceptBtn');
-      btn.addEventListener('click', async () => {
-        const rideId = btn.dataset.id;
-        const msgEl = el.querySelector(`#msg-${CSS.escape(rideId)}`);
-        btn.disabled = true;
-        msgEl.textContent = "جارٍ القبول…";
-
+      el.querySelector(`[data-accept="${r.id}"]`).addEventListener("click", async ()=>{
+        const m = el.querySelector(`#m_${r.id}`);
         try{
-          await acceptRide(rideId);
-          msgEl.textContent = "✅ تم قبول الطلب.";
+          m.textContent = "جارٍ القبول…";
+
+          // بيانات السائق من users/{uid}
+          const d = await getUserDoc(user.uid);
+          const driverName = d?.name || "سائق";
+          const driverPhone = d?.phone || null;
+
+          // تأكد الطلب لسه open
+          const rideRef = doc(db, "rides", r.id);
+          const snap = await getDoc(rideRef);
+          if(!snap.exists()){
+            m.textContent = "الطلب اختفى.";
+            return;
+          }
+          const cur = snap.data();
+          if(cur.status !== "open"){
+            m.textContent = "الطلب اتقبل بالفعل.";
+            return;
+          }
+
+          await updateDoc(rideRef, {
+            status: "accepted",
+            driverUid: user.uid,
+            driverEmail: user.email,
+            driverName,
+            driverPhone
+          });
+
+          m.textContent = "✅ تم قبول الطلب.";
+          await load();
         }catch(e){
           console.error(e);
-          msgEl.textContent = e?.message || "❌ فشل قبول الطلب. راجع Firestore Rules.";
-          btn.disabled = false;
+          m.textContent = "❌ فشل القبول. راجع Firestore Rules.";
         }
       });
 
       return el;
     }
-
-    async function acceptRide(rideId){
-      const uid = auth.currentUser?.uid;
-      if(!uid) throw new Error("❌ لازم تكون مسجل كسائق.");
-
-      const rideRef = doc(db, "rides", rideId);
-      const userRef = doc(db, "users", uid); // هنجيب اسم/هاتف السائق إن وجد
-
-      await runTransaction(db, async (tx) => {
-        const rideSnap = await tx.get(rideRef);
-        if(!rideSnap.exists()) throw new Error("❌ الطلب لم يعد موجود.");
-
-        const r = rideSnap.data() || {};
-        if(r.status !== "open") throw new Error("❌ الطلب تم قبوله/تغييره بالفعل.");
-        if(r.driverId) throw new Error("❌ تم تثبيت سائق بالفعل على الطلب.");
-
-        let driverName = auth.currentUser?.displayName || auth.currentUser?.email || "سائق";
-        let driverPhone = null;
-
-        try{
-          const uSnap = await tx.get(userRef);
-          if(uSnap.exists()){
-            const u = uSnap.data() || {};
-            const n = (u.name || u.fullName || u.username || u.displayName || "").toString().trim();
-            if(n) driverName = n;
-            if(u.phone) driverPhone = String(u.phone).trim();
-          }
-        }catch(_){}
-
-        tx.update(rideRef, {
-          status: "accepted",
-          driverId: uid,
-          driverName,
-          driverPhone: driverPhone || null,
-          acceptedAt: serverTimestamp()
-        });
-      });
-    }
-
-    // ✅ تحميل + Realtime (أخف من الضغط على تحديث كل مرة)
-    let unsub = null;
 
     async function load(){
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
@@ -199,53 +136,21 @@
         limit(25)
       );
 
-      // جرب realtime؛ لو حصل error في index هنرجع للتحميل العادي
-      try{
-        if(unsub) unsub();
-        unsub = onSnapshot(q, (snap)=>{
-          listEl.innerHTML = "";
-          hint.textContent = "";
-          if(snap.empty){
-            listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
-            return;
-          }
-          snap.forEach(d => listEl.appendChild(rideCard({ id: d.id, ...d.data() })));
-        }, (err)=>{
-          console.error(err);
-          hint.textContent = "⚠️ فيه مشكلة في الاستعلام (ممكن يحتاج Composite Index). اضغط تحديث.";
-          hint.className = "muted";
-          // fallback تحميل عادي
-          loadOnce();
-        });
-      }catch(e){
-        console.error(e);
-        loadOnce();
-      }
-    }
-
-    async function loadOnce(){
-      const q = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        orderBy("createdAt", "desc"),
-        limit(25)
-      );
-
       const snap = await getDocs(q);
-      listEl.innerHTML = "";
 
+      listEl.innerHTML = "";
       if(snap.empty){
         listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
         return;
       }
 
-      snap.forEach(d => listEl.appendChild(rideCard({ id: d.id, ...d.data() })));
+      snap.forEach(d=>{
+        listEl.appendChild(rideCard({ id:d.id, ...d.data() }));
+      });
     }
 
-    refreshBtn.addEventListener('click', loadOnce);
-
+    refreshBtn.addEventListener("click", load);
     load();
   </script>
 </body>
 </html>
-```0
