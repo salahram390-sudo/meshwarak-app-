@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>مشوارك - راكب</title>
 
-  <link rel="stylesheet" href="./style.css">
+  <!-- ✅ صحح اسم ملف الستايل -->
+  <link rel="stylesheet" href="./styles.css">
+
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#050B16" />
 
@@ -76,16 +78,42 @@
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
+
     const { user } = await requireAuthAndRole("passenger");
-    document.getElementById("who").textContent = user.email;
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     import {
       collection, addDoc, serverTimestamp,
-      doc, onSnapshot
+      doc, onSnapshot, setDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const msg = document.getElementById("msg");
+    const whoEl = document.getElementById("who");
+
+    // ✅ حمل بروفايل الراكب مرة واحدة (name/phone) + fallback لو الاسم ناقص
+    let passengerProfile = await getUserDoc(user.uid).catch(()=>null);
+
+    const fallbackNameFromEmail = (email) => {
+      const x = (email || "").split("@")[0] || "مستخدم";
+      return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
+    };
+
+    // لو الاسم مش موجود في users، نعمل له قيمة افتراضية ونكتبها (عشان كل الطلبات بعدها يبقى فيها اسم)
+    let passengerName = passengerProfile?.name?.trim() || fallbackNameFromEmail(user.email);
+    let passengerPhone = passengerProfile?.phone?.trim() || null;
+
+    whoEl.textContent = `${passengerName} • ${user.email}`;
+
+    if(!passengerProfile?.name){
+      // حفظ الاسم الافتراضي مرة واحدة (merge)
+      try{
+        await setDoc(doc(db, "users", user.uid), {
+          name: passengerName,
+          email: user.email,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }catch{}
+    }
 
     // ✅ خريطة OSM ثابتة
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
@@ -233,7 +261,6 @@
         const lat=pos.coords.latitude, lng=pos.coords.longitude;
         if(myMarker) map.removeLayer(myMarker);
 
-        // ✅ دائرة بدل Marker Images
         myMarker = L.circleMarker([lat,lng], {
           radius: 9,
           weight: 2,
@@ -321,15 +348,11 @@
     const lastRideId = localStorage.getItem("lastRideId");
     if(lastRideId) watchRide(lastRideId);
 
-    // ✅ إنشاء طلب: يضيف بيانات الراكب (name/email/phone/uid)
+    // ✅ إنشاء طلب: يضيف بيانات الراكب (name/email/uid) + الحقول اللي عندنا
     createBtn.addEventListener("click", async ()=>{
       try{
         createBtn.disabled = true;
         msg.textContent="جارٍ إنشاء الطلب…";
-
-        const u = await getUserDoc(user.uid);
-        const passengerName = u?.name || null;
-        const passengerPhone = u?.phone || null;
 
         const docRef = await addDoc(collection(db, "rides"), {
           status: "open",
@@ -341,8 +364,8 @@
 
           passengerUid: user.uid,
           passengerEmail: user.email,
-          passengerName,
-          passengerPhone,
+          passengerName: passengerName || null,
+          passengerPhone: passengerPhone || null,
 
           paymentMethod: "cash"
         });
@@ -372,7 +395,7 @@
     const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
     const getPoints = () => {
       const vh = window.innerHeight;
-      const collapsed = Math.max(140, Math.round(vh * 0.22)); // علشان الأزرار ما تختفيش
+      const collapsed = Math.max(140, Math.round(vh * 0.22));
       const mid       = Math.round(vh * 0.46);
       const expanded  = Math.round(vh * 0.82);
       return { collapsed, mid, expanded };
