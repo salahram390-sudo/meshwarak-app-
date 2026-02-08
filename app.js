@@ -31,6 +31,15 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 // =========================
+// Helpers
+// =========================
+
+// ✅ قراءة query string بسهولة
+export function qs(key) {
+  return new URLSearchParams(location.search).get(key);
+}
+
+// =========================
 // Users
 // =========================
 export async function saveUserRole(uid, role) {
@@ -57,17 +66,19 @@ export function requireAuthAndRole(requiredRole = null) {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        location.href = "login.html";
+        location.href = "login.html?returnTo=" + encodeURIComponent(location.pathname.split("/").pop());
         return;
       }
 
       const data = await getUserDoc(user.uid);
 
+      // لو مفيش role محفوظ
       if (!data?.role) {
-        location.href = "login.html";
+        location.href = "login.html?returnTo=" + encodeURIComponent(location.pathname.split("/").pop());
         return;
       }
 
+      // لو الصفحة بتطلب role معين
       if (requiredRole && data.role !== requiredRole) {
         location.href = "index.html";
         return;
