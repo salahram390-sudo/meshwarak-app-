@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - السائق</title>
-  <link rel="stylesheet" href="./style.css">
+
+  <!-- ✅ اسم ملف الستايل الصحيح -->
+  <link rel="stylesheet" href="./styles.css">
 </head>
 
 <body>
@@ -19,7 +21,7 @@
       </div>
       <div style="display:flex;gap:8px">
         <a class="btn" href="./index.html">الرئيسية</a>
-        <button class="btn danger" id="logoutBtn">خروج</button>
+        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
       </div>
     </div>
   </div>
@@ -27,18 +29,20 @@
   <div class="container" style="padding-top:14px">
     <div class="card">
       <div class="pills" style="margin-top:0">
-        <span class="pill" id="onlinePill">Offline</span>
+        <span class="pill bad" id="onlinePill">Offline</span>
         <span class="pill" id="gpsPill">GPS: غير معروف</span>
         <span class="pill" id="areaPill">منطقة: -</span>
       </div>
 
       <div class="actions" style="margin-top:12px">
-        <button class="btn primary" id="onlineBtn">Go Online</button>
-        <button class="btn" id="refreshBtn">تحديث الطلبات</button>
+        <button class="btn primary" id="onlineBtn" type="button">Go Online</button>
+        <button class="btn" id="refreshBtn" type="button">تحديث الطلبات</button>
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
-      <div class="hint" style="margin-top:10px">يعرض الطلبات المفتوحة (open). القبول Transaction لمنع القبول المزدوج ✅</div>
+      <div class="hint" style="margin-top:10px">
+        يعرض الطلبات المفتوحة (open). القبول Transaction لمنع القبول المزدوج ✅
+      </div>
     </div>
 
     <div id="list" class="list" style="margin-top:12px"></div>
@@ -131,7 +135,7 @@
         </div>
 
         <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn primary" data-accept="${r.id}">قبول</button>
+          <button class="btn primary" data-accept="${r.id}" type="button">قبول</button>
           ${fromLat !== null && fromLng !== null ? `
             <a class="btn" target="_blank"
               href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
@@ -153,7 +157,6 @@
           const driverName  = d?.name || "سائق";
           const driverPhone = d?.phone || null;
 
-          // ✅ Transaction: تثبيت القبول + تحديث driver_status (available=false)
           const res = await runTransaction(db, async (tx)=>{
             const snap = await tx.get(rideRef);
             if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
@@ -219,9 +222,6 @@
 
     refreshBtn.addEventListener("click", load);
 
-    // =========================
-    // Online / Offline + GPS Push
-    // =========================
     async function pushStatus(extra = {}){
       const gov = driverProfile?.governorate || null;
       const cen = driverProfile?.center || null;
@@ -253,7 +253,6 @@
         return false;
       }
 
-      // Watch GPS
       watchId = navigator.geolocation.watchPosition((pos)=>{
         setGpsUI("ok");
         lastPos = {
@@ -273,7 +272,6 @@
         }
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
 
-      // Push every 3s
       pushTimer = setInterval(async ()=>{
         try{
           if(!isOnline) return;
@@ -303,7 +301,6 @@
       onlineBtn.disabled = true;
       msg.textContent = "جارٍ التشغيل Online…";
 
-      // Load driver profile once
       driverProfile = await getUserDoc(user.uid);
 
       const gov = driverProfile?.governorate;
@@ -319,7 +316,6 @@
 
       setOnlineUI(true);
 
-      // Start GPS + first push
       const ok = startGPS();
       if(ok){
         try{
@@ -363,12 +359,10 @@
       else await goOnline();
     });
 
-    // Clean up on close/refresh
     window.addEventListener("beforeunload", ()=>{
       try{ stopGPS(); }catch{}
     });
 
-    // init
     setOnlineUI(false);
     setGpsUI("unknown");
     areaPill.textContent = "منطقة: -";
