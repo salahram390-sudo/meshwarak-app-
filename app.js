@@ -1,22 +1,10 @@
-// app.js (Email/Password only) - SINGLE Firebase init
+// app.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-import {
-  getAuth,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-// 🔥 Firebase config (بتاعك)
-export const firebaseConfig = {
+// ✅ Firebase Config (من عندك)
+const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
@@ -26,60 +14,38 @@ export const firebaseConfig = {
   measurementId: "G-GP0JGBZTGG"
 };
 
-export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// ✅ Init
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 
-// =========================
-// Users / Roles
-// =========================
-export async function saveUserRole(uid, role) {
-  const ref = doc(db, "users", uid);
-  await setDoc(ref, { role, updatedAt: serverTimestamp() }, { merge: true });
-}
-
-export async function saveUserProfile(uid, data) {
-  const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
-}
-
-export async function getUserDoc(uid) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
-}
-
-/**
- * يمنع فتح أي صفحة محمية لو المستخدم مش عامل Login
- * ولو requiredRole متحدد: يمنع راكب يفتح السائق والعكس
- */
-export function requireAuthAndRole(requiredRole = null) {
+// ✅ يضمن إن المستخدم مسجل دخول + دوره صحيح من users/{uid}.role
+export async function requireAuthAndRole(requiredRole) {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        location.href = "login.html";
+        // لو مش مسجل دخول، ودّيه لصفحة تسجيل الدخول عندك (غير الاسم لو مختلف)
+        window.location.href = "./login.html";
         return;
       }
 
-      const data = await getUserDoc(user.uid);
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        const data = snap.exists() ? snap.data() : null;
+        const role = data?.role || null;
 
-      // لو مفيش role محفوظ
-      if (!data?.role) {
-        location.href = "login.html";
-        return;
+        if (requiredRole && role !== requiredRole) {
+          alert("❌ ليس لديك صلاحية لفتح الصفحة.");
+          window.location.href = "./";
+          return;
+        }
+
+        resolve({ user, userData: data });
+      } catch (e) {
+        console.error(e);
+        alert("❌ خطأ في قراءة بيانات المستخدم من Firestore.");
+        window.location.href = "./login.html";
       }
-
-      if (requiredRole && data.role !== requiredRole) {
-        location.href = "index.html";
-        return;
-      }
-
-      resolve({ user, data });
     });
   });
-}
-
-export async function doLogout() {
-  await signOut(auth);
-  location.href = "login.html";
 }
