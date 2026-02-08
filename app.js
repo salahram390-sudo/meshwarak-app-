@@ -1,4 +1,4 @@
-// app.js - SINGLE Firebase init + helpers
+// app.js - SINGLE Firebase init + helpers (Email/Password)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 
 import {
@@ -10,8 +10,8 @@ import {
 import {
   getFirestore,
   doc,
-  setDoc,
   getDoc,
+  setDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -33,24 +33,7 @@ export const auth = getAuth(app);
 // =========================
 // Helpers
 // =========================
-
-// ✅ قراءة query string بسهولة
-export function qs(key) {
-  return new URLSearchParams(location.search).get(key);
-}
-
-// =========================
-// Users
-// =========================
-export async function saveUserRole(uid, role) {
-  const ref = doc(db, "users", uid);
-  await setDoc(ref, { role, updatedAt: serverTimestamp() }, { merge: true });
-}
-
-export async function saveUserProfile(uid, data) {
-  const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
-}
+export const qs = (k) => new URLSearchParams(location.search).get(k);
 
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
@@ -58,27 +41,35 @@ export async function getUserDoc(uid) {
   return snap.exists() ? snap.data() : null;
 }
 
-/**
- * يمنع فتح أي صفحة محمية لو المستخدم مش عامل Login
- * ولو requiredRole متحدد: يمنع راكب يفتح السائق والعكس
- */
+export async function upsertUser(uid, payload) {
+  const ref = doc(db, "users", uid);
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// =========================
+// Auth Guard
+// =========================
 export function requireAuthAndRole(requiredRole = null) {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        location.href = "login.html?returnTo=" + encodeURIComponent(location.pathname.split("/").pop());
+        const returnTo = encodeURIComponent(location.pathname.split("/").pop() || "index.html");
+        const roleQ = requiredRole ? `&role=${encodeURIComponent(requiredRole)}` : "";
+        location.href = `login.html?returnTo=${returnTo}${roleQ}`;
         return;
       }
 
-      const data = await getUserDoc(user.uid);
+      const data = await getUserDoc(user.uid).catch(() => null);
 
-      // لو مفيش role محفوظ
+      // لازم role
       if (!data?.role) {
-        location.href = "login.html?returnTo=" + encodeURIComponent(location.pathname.split("/").pop());
+        const returnTo = encodeURIComponent(location.pathname.split("/").pop() || "index.html");
+        const roleQ = requiredRole ? `&role=${encodeURIComponent(requiredRole)}` : "";
+        location.href = `login.html?returnTo=${returnTo}${roleQ}`;
         return;
       }
 
-      // لو الصفحة بتطلب role معين
+      // منع راكب يفتح السائق والعكس
       if (requiredRole && data.role !== requiredRole) {
         location.href = "index.html";
         return;
