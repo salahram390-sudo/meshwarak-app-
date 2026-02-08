@@ -95,10 +95,38 @@
 
   <script type="module">
     // ✅ حارس تسجيل الدخول + التأكد أنه "راكب"
-    import { requireAuthAndRole, db } from "./app.js";
+    import { requireAuthAndRole, db, auth } from "./app.js";
     await requireAuthAndRole("passenger");
 
-    import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      collection, addDoc, serverTimestamp,
+      doc, getDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    // ✅ جلب اسم الراكب مرة واحدة
+    async function getPassengerName(){
+      const u = auth.currentUser;
+      if(!u) return "راكب";
+
+      // 1) حاول من users/{uid} (لو انت عامل users collection)
+      try{
+        const snap = await getDoc(doc(db, "users", u.uid));
+        if(snap.exists()){
+          const d = snap.data() || {};
+          const n = (d.name || d.fullName || d.username || d.displayName || "").toString().trim();
+          if(n) return n;
+        }
+      }catch(e){
+        // لو مفيش صلاحية قراءة users أو مش موجود، هنكمل عادي
+        console.warn("users/{uid} read skipped:", e?.message || e);
+      }
+
+      // 2) fallback من Auth
+      return (u.displayName || u.email || "راكب");
+    }
+
+    let passengerName = "راكب";
+    passengerName = await getPassengerName();
 
     // خريطة (مبدئيًا على القاهرة)
     const map = L.map('map').setView([30.0444, 31.2357], 12);
@@ -281,15 +309,27 @@
         const passengers = Number(document.getElementById('passengers').value || 0);
         const note = document.getElementById('note').value.trim();
 
+        const u = auth.currentUser;
+
         const docRef = await addDoc(collection(db, "rides"), {
+          // ✅ حالة الطلب
           status: "open",
           createdAt: serverTimestamp(),
+
+          // ✅ بيانات الراكب
+          passengerId: u?.uid || null,
+          passengerEmail: u?.email || null,
+          name: passengerName || "راكب",   // ✅ اسم الراكب (ده اللي طلبته)
+
+          // ✅ الرحلة
           from, to,
+          fromText: fromText.value.trim() || null,
+          toText: toText.value.trim() || null,
+
+          // ✅ إضافي
           phone: phone || null,
           passengers: passengers || null,
-          note: note || null,
-          fromText: fromText.value.trim() || null,
-          toText: toText.value.trim() || null
+          note: note || null
         });
 
         resultEl.textContent = `✅ تم إنشاء الطلب! رقم الطلب: ${docRef.id}`;
