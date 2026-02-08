@@ -1,9 +1,19 @@
-// app.js
+// app.js - Firebase (CDN) + Auth Guards + Helpers
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ Firebase Config (من عندك)
+// ✅ Firebase Config (بتاعك)
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -14,38 +24,67 @@ const firebaseConfig = {
   measurementId: "G-GP0JGBZTGG"
 };
 
-// ✅ Init
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ يضمن إن المستخدم مسجل دخول + دوره صحيح من users/{uid}.role
-export async function requireAuthAndRole(requiredRole) {
+// =========================
+// Users Helpers
+// =========================
+export async function getUserDoc(uid) {
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function ensureUserDoc(uid, patch = {}) {
+  // ينشئ/يكمّل users/{uid} بدون ما يكسر الموجود
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+
+  const base = { updatedAt: serverTimestamp(), ...patch };
+
+  if (!snap.exists()) {
+    await setDoc(ref, { createdAt: serverTimestamp(), ...base }, { merge: true });
+    return;
+  }
+  await setDoc(ref, base, { merge: true });
+}
+
+export async function getMe() {
+  const u = auth.currentUser;
+  if (!u) return null;
+  const data = (await getUserDoc(u.uid)) || {};
+  return { uid: u.uid, email: u.email || null, ...data };
+}
+
+// =========================
+// Auth Guard
+// =========================
+export function requireAuthAndRole(requiredRole = null) {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        // لو مش مسجل دخول، ودّيه لصفحة تسجيل الدخول عندك (غير الاسم لو مختلف)
-        window.location.href = "./login.html";
+        location.href = "login.html";
         return;
       }
 
-      try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        const data = snap.exists() ? snap.data() : null;
-        const role = data?.role || null;
-
-        if (requiredRole && role !== requiredRole) {
-          alert("❌ ليس لديك صلاحية لفتح الصفحة.");
-          window.location.href = "./";
-          return;
-        }
-
-        resolve({ user, userData: data });
-      } catch (e) {
-        console.error(e);
-        alert("❌ خطأ في قراءة بيانات المستخدم من Firestore.");
-        window.location.href = "./login.html";
+      const data = await getUserDoc(user.uid);
+      if (!data?.role) {
+        location.href = "login.html";
+        return;
       }
+
+      if (requiredRole && data.role !== requiredRole) {
+        location.href = "index.html";
+        return;
+      }
+
+      resolve({ user, data });
     });
   });
+}
+
+export async function doLogout() {
+  await signOut(auth);
+  location.href = "login.html";
 }
