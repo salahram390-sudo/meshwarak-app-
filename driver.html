@@ -2,63 +2,9 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - السائق</title>
-
   <link rel="stylesheet" href="./style.css">
-  <meta name="theme-color" content="#050B16" />
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <style>
-    /* Modal Trip Request */
-    .modal{
-      position:fixed; inset:0; z-index:5000;
-      background:rgba(0,0,0,.55);
-      display:none;
-      align-items:flex-end;
-      justify-content:center;
-      padding:14px;
-    }
-    .modal.show{display:flex}
-    .modal-card{
-      width:min(720px, 100%);
-      border-radius:22px;
-      border:1px solid var(--stroke);
-      background: linear-gradient(180deg, rgba(12,18,32,.96), rgba(10,18,34,.86));
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .modal-top{
-      padding:12px 14px;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      border-bottom:1px solid var(--stroke);
-    }
-    .timer{
-      font-weight:900;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06);
-      font-size:13px;
-    }
-    .modal-body{padding:14px}
-    .trip-kv{display:grid; gap:6px}
-    .trip-kv b{font-size:14px}
-    .trip-kv span{font-size:12px;color:var(--muted)}
-    .modal-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
-    .modal-actions .btn{flex:1; min-width:140px}
-    .miniMapWrap{
-      height:220px;
-      border-radius:18px;
-      overflow:hidden;
-      border:1px solid var(--stroke);
-      background:#0a0f16;
-      margin-top:12px;
-    }
-    #miniMap{height:100%; width:100%}
-  </style>
 </head>
 
 <body>
@@ -78,65 +24,15 @@
     </div>
   </div>
 
-  <div class="map-wrap">
-    <div id="map"></div>
-
-    <div class="sheet" id="sheet">
-      <div class="sheet-handle" id="sheetHandle"></div>
-
-      <div class="sheet-content" id="sheetContent">
-        <div class="card" style="margin-top:0">
-          <div class="hint" id="profileHint">جارٍ تحميل بيانات السائق…</div>
-
-          <div class="pills" style="margin-top:10px">
-            <span class="pill" id="onlinePill">Offline</span>
-            <span class="pill" id="availPill">Available: -</span>
-            <span class="pill" id="permPill">الموقع: غير معروف</span>
-          </div>
-
-          <div class="actions" style="margin-top:12px">
-            <button class="btn success" id="onlineBtn">تشغيل Online</button>
-            <button class="btn" id="myLocBtn">📍 موقعي</button>
-            <button class="btn" id="refreshBtn">تحديث</button>
-          </div>
-
-          <div id="msg" class="hint" style="margin-top:10px"></div>
-        </div>
-
-        <div class="card" style="margin-top:12px">
-          <div class="hint">الطلبات اللي اتعرضت عليك (Offers).</div>
-          <div id="offersList" class="list" style="margin-top:12px"></div>
-        </div>
+  <div class="container" style="padding-top:14px">
+    <div class="card">
+      <div class="hint">يعرض الطلبات المفتوحة (open). القبول الآن Transaction لمنع القبول المزدوج ✅</div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn" id="refreshBtn">تحديث</button>
       </div>
     </div>
-  </div>
 
-  <!-- Trip Request Modal -->
-  <div class="modal" id="offerModal">
-    <div class="modal-card">
-      <div class="modal-top">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="pill ok">🔥 Trip Request</div>
-          <div class="timer" id="timerTxt">15s</div>
-        </div>
-        <button class="btn" id="closeModalBtn">إخفاء</button>
-      </div>
-      <div class="modal-body">
-        <div class="trip-kv">
-          <b id="t_title">طلب جديد</b>
-          <span id="t_sub">جارٍ التحميل…</span>
-        </div>
-
-        <div class="miniMapWrap"><div id="miniMap"></div></div>
-
-        <div class="modal-actions">
-          <button class="btn primary" id="acceptBtn">قبول</button>
-          <button class="btn danger" id="rejectBtn">رفض</button>
-        </div>
-
-        <div class="hint" id="modalMsg" style="margin-top:10px"></div>
-      </div>
-    </div>
+    <div id="list" class="list" style="margin-top:12px"></div>
   </div>
 
   <script type="module">
@@ -146,598 +42,121 @@
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     import {
-      doc, getDoc, setDoc, updateDoc, serverTimestamp,
-      onSnapshot, query, collectionGroup, where, orderBy,
-      getDocs, runTransaction
+      collection, query, where, orderBy, limit,
+      getDocs, doc, runTransaction, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ===== UI refs
-    const msg = document.getElementById("msg");
-    const profileHint = document.getElementById("profileHint");
-    const onlinePill = document.getElementById("onlinePill");
-    const availPill  = document.getElementById("availPill");
-    const permPill   = document.getElementById("permPill");
-
-    const onlineBtn  = document.getElementById("onlineBtn");
-    const myLocBtn   = document.getElementById("myLocBtn");
+    const listEl = document.getElementById("list");
     const refreshBtn = document.getElementById("refreshBtn");
-    const offersList = document.getElementById("offersList");
 
-    // ===== Map (main)
-    const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19, attribution: "&copy; OpenStreetMap"
-    }).addTo(map);
-
-    const fixMap = () => {
-      try { map.invalidateSize(true); } catch {}
-      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 250);
-    };
-    setTimeout(fixMap, 450);
-    window.addEventListener("load", ()=> setTimeout(fixMap, 250));
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
-
-    let myMarker = null;
-
-    // ===== Permission pill
-    function setPermPill(state){
-      permPill.classList.remove("ok","bad");
-      if(state === "granted"){
-        permPill.textContent = "الموقع: مسموح ✅";
-        permPill.classList.add("ok");
-      }else if(state === "denied"){
-        permPill.textContent = "الموقع: مرفوض ❌";
-        permPill.classList.add("bad");
-      }else{
-        permPill.textContent = "الموقع: غير معروف";
-      }
+    function safeNum(x){
+      const n = Number(x);
+      return Number.isFinite(n) ? n : null;
     }
 
-    async function refreshPermissionState(){
-      try{
-        if(!navigator.permissions?.query) return setPermPill("unknown");
-        const p = await navigator.permissions.query({ name: "geolocation" });
-        setPermPill(p.state);
-        p.onchange = () => setPermPill(p.state);
-      }catch{
-        setPermPill("unknown");
-      }
-    }
-    refreshPermissionState();
+    function rideCard(r){
+      const fromLat = safeNum(r.from?.lat);
+      const fromLng = safeNum(r.from?.lng);
 
-    // ===== Driver profile (governorate/center) + approval
-    const profRef = doc(db, "driver_profiles", user.uid);
-    let driverProfile = null;
-
-    async function loadDriverProfile(){
-      const snap = await getDoc(profRef);
-      if(!snap.exists()){
-        driverProfile = null;
-        profileHint.innerHTML = "❌ لا يوجد driver_profiles لهذا الحساب. اعمل إعدادات السائق أولاً.";
-        return;
-      }
-      driverProfile = snap.data();
-      const st = driverProfile.status || "pending";
-      const gov = driverProfile.governorate || "-";
-      const cen = driverProfile.center || "-";
-
-      if(st !== "approved"){
-        profileHint.innerHTML = `⏳ حساب السائق: <b>${st}</b> — لا يمكن تشغيل Online قبل الموافقة.`;
-        return;
-      }
-
-      profileHint.innerHTML = `✅ المنطقة: <b>${gov}</b> — <b>${cen}</b>`;
-    }
-
-    await loadDriverProfile();
-
-    // ===== driver_status realtime writing
-    const statusRef = doc(db, "driver_status", user.uid);
-    let isOnline = false;
-    let isAvailable = false;
-    let watchId = null;
-    let lastSentAt = 0;
-
-    function setOnlineUI(){
-      onlinePill.textContent = isOnline ? "Online ✅" : "Offline";
-      onlinePill.classList.toggle("ok", isOnline);
-      availPill.textContent = `Available: ${isOnline ? (isAvailable ? "Yes" : "No") : "-"}`;
-      availPill.classList.toggle("ok", isOnline && isAvailable);
-      onlineBtn.textContent = isOnline ? "إيقاف Offline" : "تشغيل Online";
-      onlineBtn.classList.toggle("danger", isOnline);
-      onlineBtn.classList.toggle("success", !isOnline);
-    }
-
-    async function writeStatus(payload){
-      try{
-        await setDoc(statusRef, {
-          online: isOnline,
-          available: isAvailable,
-          governorate: driverProfile?.governorate || null,
-          center: driverProfile?.center || null,
-          lastSeenAt: serverTimestamp(),
-          ...payload
-        }, { merge:true });
-      }catch(e){
-        console.error(e);
-      }
-    }
-
-    function startGps(){
-      if(!navigator.geolocation){
-        msg.textContent = "❌ جهازك لا يدعم تحديد الموقع.";
-        return;
-      }
-      if(watchId) return;
-
-      watchId = navigator.geolocation.watchPosition((pos)=>{
-        setPermPill("granted");
-
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        // marker on map
-        if(myMarker) map.removeLayer(myMarker);
-        myMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 })
-          .addTo(map).bindPopup("📍 موقعك").openPopup();
-        map.setView([lat,lng], 16, { animate:false });
-        fixMap();
-
-        // throttle send to Firestore (every ~3s)
-        const now = Date.now();
-        if(now - lastSentAt < 3000) return;
-        lastSentAt = now;
-
-        if(isOnline){
-          writeStatus({
-            lat, lng,
-            heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
-            speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null
-          });
-        }
-      }, (err)=>{
-        console.error(err);
-        if(err?.code === 1){
-          setPermPill("denied");
-          msg.innerHTML = "❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
-        }else{
-          msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
-        }
-      }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
-    }
-
-    function stopGps(){
-      if(watchId){
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-      }
-    }
-
-    // Online toggle
-    onlineBtn.addEventListener("click", async ()=>{
-      msg.textContent = "";
-
-      if(!driverProfile){
-        msg.textContent = "لازم تعمل driver_profiles الأول.";
-        return;
-      }
-      if((driverProfile.status || "pending") !== "approved"){
-        msg.textContent = "لا يمكن تشغيل Online قبل الموافقة (approved).";
-        return;
-      }
-
-      isOnline = !isOnline;
-      isAvailable = isOnline; // أول ما Online يبقى Available
-      setOnlineUI();
-
-      if(isOnline){
-        startGps();
-        await writeStatus({});
-        msg.textContent = "✅ تم تشغيل Online.";
-      }else{
-        await writeStatus({ online:false, available:false });
-        msg.textContent = "✅ تم إيقاف Online.";
-      }
-    });
-
-    myLocBtn.addEventListener("click", ()=>{
-      msg.textContent = "جارٍ تحديد الموقع…";
-      startGps();
-      setTimeout(()=>{ msg.textContent = ""; }, 700);
-    });
-
-    // ===== Offers (collectionGroup: offers)
-    // offers docs path: rides/{rideId}/offers/{driverId}
-    // fields: status, sentAt, expiresAt
-    let unsubOffers = null;
-
-    function offerCard(o){
       const el = document.createElement("div");
       el.className = "card";
 
-      const title = o.rideId ? `عرض على طلب: ${o.rideId}` : "عرض جديد";
-      const exp = o.expiresAt?.toDate ? o.expiresAt.toDate() : null;
-      const expTxt = exp ? exp.toLocaleTimeString("ar-EG") : "-";
-
       el.innerHTML = `
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <b>${title}</b>
-          <span class="pill ok">sent</span>
+          <div><b>طلب:</b> ${r.id}</div>
+          <div class="pill">${r.status || "-"}</div>
         </div>
-        <div class="hint" style="margin-top:6px">
-          ينتهي: ${expTxt}
+
+        <div class="hint" style="margin-top:8px">
+          <b>الراكب:</b> ${r.passengerName ?? "-"} (${r.passengerEmail ?? "-"})
+          <br><b>من:</b> ${r.fromText ?? "-"}
+          <br><b>إلى:</b> ${r.toText ?? "-"}
         </div>
-        <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn primary" data-open="${o.id}">فتح الطلب</button>
+
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" data-accept="${r.id}">قبول</button>
+          ${fromLat !== null && fromLng !== null ? `
+            <a class="btn" target="_blank"
+              href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
+              فتح الانطلاق
+            </a>` : ``}
         </div>
+        <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
       `;
 
-      el.querySelector(`[data-open="${o.id}"]`).addEventListener("click", ()=>{
-        openOfferModal(o);
+      el.querySelector(`[data-accept="${r.id}"]`).addEventListener("click", async ()=>{
+        const m = el.querySelector(`#m_${r.id}`);
+        const rideRef = doc(db, "rides", r.id);
+
+        try{
+          m.textContent = "جارٍ القبول…";
+
+          // بيانات السائق من users/{uid}
+          const d = await getUserDoc(user.uid);
+          const driverName  = d?.name || "سائق";
+          const driverPhone = d?.phone || null;
+
+          // ✅ Transaction: أول سائق يثبت نفسه فقط
+          const ok = await runTransaction(db, async (tx)=>{
+            const snap = await tx.get(rideRef);
+            if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
+
+            const cur = snap.data();
+
+            // لو اتقبل بالفعل
+            if(cur.status !== "open" || cur.driverUid){
+              return { ok:false, msg:"الطلب اتقبل بالفعل." };
+            }
+
+            tx.update(rideRef, {
+              status: "accepted",
+              acceptedAt: serverTimestamp(),
+
+              driverUid: user.uid,
+              driverEmail: user.email,
+              driverName,
+              driverPhone
+            });
+
+            return { ok:true, msg:"✅ تم قبول الطلب." };
+          });
+
+          m.textContent = ok.msg;
+          await load();
+        }catch(e){
+          console.error(e);
+          m.textContent = "❌ فشل القبول. راجع Firestore Rules.";
+        }
       });
 
       return el;
     }
 
-    // ===== Modal + mini map
-    const offerModal = document.getElementById("offerModal");
-    const closeModalBtn = document.getElementById("closeModalBtn");
-    const acceptBtn = document.getElementById("acceptBtn");
-    const rejectBtn = document.getElementById("rejectBtn");
-    const timerTxt = document.getElementById("timerTxt");
-    const t_title = document.getElementById("t_title");
-    const t_sub = document.getElementById("t_sub");
-    const modalMsg = document.getElementById("modalMsg");
+    async function load(){
+      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
-    let miniMap = null;
-    let miniLine = null;
-    let miniPickup = null;
-    let currentOffer = null;
-    let timerInt = null;
+      const q = query(
+        collection(db, "rides"),
+        where("status", "==", "open"),
+        orderBy("createdAt", "desc"),
+        limit(25)
+      );
 
-    function ensureMiniMap(){
-      if(miniMap) return;
-      miniMap = L.map("miniMap", { zoomControl:false, dragging:true, scrollWheelZoom:false }).setView([30.0444, 31.2357], 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, attribution: "&copy; OpenStreetMap"
-      }).addTo(miniMap);
-      setTimeout(()=>{ try{ miniMap.invalidateSize(true); }catch{} }, 200);
-    }
+      const snap = await getDocs(q);
 
-    function closeModal(){
-      offerModal.classList.remove("show");
-      currentOffer = null;
-      modalMsg.textContent = "";
-      if(timerInt){ clearInterval(timerInt); timerInt = null; }
-    }
-
-    closeModalBtn.addEventListener("click", closeModal);
-    offerModal.addEventListener("click", (e)=>{ if(e.target === offerModal) closeModal(); });
-
-    async function openOfferModal(o){
-      currentOffer = o;
-      modalMsg.textContent = "";
-      offerModal.classList.add("show");
-
-      ensureMiniMap();
-
-      // load ride
-      const rideRef = doc(db, "rides", o.rideId);
-      const rideSnap = await getDoc(rideRef);
-
-      if(!rideSnap.exists()){
-        t_title.textContent = "الطلب غير موجود";
-        t_sub.textContent = "";
-        modalMsg.textContent = "تم حذف الطلب.";
+      listEl.innerHTML = "";
+      if(snap.empty){
+        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
         return;
       }
 
-      const r = rideSnap.data();
-      const riderName = r.passengerName || "راكب";
-      const fromText = r.fromText || "مكان القيام";
-      const toText   = r.toText || "مكان الوصول";
-
-      t_title.textContent = `👤 ${riderName}`;
-      t_sub.textContent = `🚩 ${fromText} → 🏁 ${toText}`;
-
-      // mini map view
-      const pLat = r.from?.lat;
-      const pLng = r.from?.lng;
-
-      if(miniPickup){ miniMap.removeLayer(miniPickup); miniPickup = null; }
-      if(miniLine){ miniMap.removeLayer(miniLine); miniLine = null; }
-
-      if(pLat && pLng){
-        miniPickup = L.circleMarker([pLat,pLng], { radius:9, weight:2, fillOpacity:.85 }).addTo(miniMap);
-        miniMap.setView([pLat,pLng], 15, { animate:false });
-      }
-
-      setTimeout(()=>{ try{ miniMap.invalidateSize(true); }catch{} }, 250);
-
-      // timer
-      const exp = o.expiresAt?.toDate ? o.expiresAt.toDate().getTime() : (Date.now()+15000);
-      if(timerInt) clearInterval(timerInt);
-
-      timerInt = setInterval(()=>{
-        const left = Math.max(0, Math.ceil((exp - Date.now())/1000));
-        timerTxt.textContent = `${left}s`;
-        if(left <= 0){
-          clearInterval(timerInt);
-          timerInt = null;
-          modalMsg.textContent = "⏳ انتهى الوقت.";
-        }
-      }, 250);
+      snap.forEach(d=>{
+        listEl.appendChild(rideCard({ id:d.id, ...d.data() }));
+      });
     }
 
-    // Accept / Reject actions
-    async function markOfferStatus(rideId, status){
-      const offRef = doc(db, "rides", rideId, "offers", user.uid);
-      await updateDoc(offRef, { status, respondedAt: serverTimestamp() });
-    }
-
-    acceptBtn.addEventListener("click", async ()=>{
-      if(!currentOffer) return;
-      modalMsg.textContent = "جارٍ القبول…";
-      acceptBtn.disabled = true;
-      rejectBtn.disabled = true;
-
-      try{
-        const d = await getUserDoc(user.uid);
-        const driverName = d?.name || "سائق";
-        const driverPhone = d?.phone || null;
-
-        const rideId = currentOffer.rideId;
-        const rideRef = doc(db, "rides", rideId);
-
-        await runTransaction(db, async (tx)=>{
-          const rideSnap = await tx.get(rideRef);
-          if(!rideSnap.exists()) throw new Error("ride_missing");
-
-          const r = rideSnap.data();
-          const status = r.status || "open";
-
-          // لو اتقبل قبل كده
-          if(r.driverUid && r.status === "accepted") throw new Error("already_accepted");
-
-          // مسموح قبول من searching/offered/open
-          if(!["searching","offered","open"].includes(status)) throw new Error("bad_state");
-
-          // ثبت السائق
-          tx.update(rideRef, {
-            status: "accepted",
-            acceptedAt: serverTimestamp(),
-            driverUid: user.uid,
-            driverEmail: user.email,
-            driverName,
-            driverPhone
-          });
-
-          // حدّث offer بتاعي
-          const offRef = doc(db, "rides", rideId, "offers", user.uid);
-          tx.set(offRef, {
-            driverId: user.uid,
-            status: "accepted",
-            respondedAt: serverTimestamp()
-          }, { merge:true });
-
-          // خلي السائق غير متاح (Available=false)
-          tx.set(statusRef, {
-            online: true,
-            available: false,
-            lastSeenAt: serverTimestamp()
-          }, { merge:true });
-        });
-
-        isOnline = true;
-        isAvailable = false;
-        setOnlineUI();
-
-        modalMsg.textContent = "✅ تم قبول الطلب.";
-        setTimeout(closeModal, 650);
-        await loadOffers(); // refresh list
-      }catch(e){
-        console.error(e);
-        if(String(e?.message || "").includes("already_accepted")){
-          modalMsg.textContent = "الطلب اتقبل بالفعل بواسطة سائق آخر.";
-        }else{
-          modalMsg.textContent = "❌ فشل القبول. راجع Firestore Rules.";
-        }
-      }finally{
-        acceptBtn.disabled = false;
-        rejectBtn.disabled = false;
-      }
-    });
-
-    rejectBtn.addEventListener("click", async ()=>{
-      if(!currentOffer) return;
-      modalMsg.textContent = "جارٍ الرفض…";
-      acceptBtn.disabled = true;
-      rejectBtn.disabled = true;
-
-      try{
-        await markOfferStatus(currentOffer.rideId, "rejected");
-        modalMsg.textContent = "✅ تم الرفض.";
-        setTimeout(closeModal, 450);
-        await loadOffers();
-      }catch(e){
-        console.error(e);
-        modalMsg.textContent = "❌ فشل الرفض.";
-      }finally{
-        acceptBtn.disabled = false;
-        rejectBtn.disabled = false;
-      }
-    });
-
-    // ===== Load offers list (manual)
-    async function loadOffers(){
-      offersList.innerHTML = `<div class="card">جارٍ تحميل العروض…</div>`;
-
-      // collectionGroup offers where driverId == uid AND status == sent
-      // NOTE: requires index for collectionGroup offers on (driverId, status, expiresAt)
-      try{
-        const q = query(
-          collectionGroup(db, "offers"),
-          where("driverId", "==", user.uid),
-          where("status", "==", "sent"),
-          orderBy("expiresAt", "desc")
-        );
-
-        const snap = await getDocs(q);
-
-        offersList.innerHTML = "";
-        if(snap.empty){
-          offersList.innerHTML = `<div class="card">لا يوجد عروض حالياً.</div>`;
-          return;
-        }
-
-        const now = Date.now();
-
-        snap.forEach(d=>{
-          const data = d.data();
-          const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate().getTime() : 0;
-
-          // تجاهل المنتهي
-          if(expiresAt && expiresAt < now) return;
-
-          // استخراج rideId من path: rides/{rideId}/offers/{driverId}
-          const parts = d.ref.path.split("/");
-          const rideId = parts[1];
-
-          offersList.appendChild(offerCard({
-            id: d.id,
-            rideId,
-            ...data
-          }));
-        });
-
-        if(!offersList.children.length){
-          offersList.innerHTML = `<div class="card">لا يوجد عروض صالحة حالياً.</div>`;
-        }
-      }catch(e){
-        console.error(e);
-        offersList.innerHTML = `<div class="card">❌ فشل تحميل العروض. (ممكن تحتاج Index للـ offers collectionGroup)</div>`;
-      }
-    }
-
-    refreshBtn.addEventListener("click", async ()=>{
-      msg.textContent = "";
-      await loadDriverProfile();
-      await loadOffers();
-      fixMap();
-    });
-
-    // ===== realtime listening (optional)
-    function startOffersListener(){
-      if(unsubOffers) unsubOffers();
-      try{
-        const q = query(
-          collectionGroup(db, "offers"),
-          where("driverId", "==", user.uid),
-          where("status", "==", "sent"),
-          orderBy("expiresAt", "desc")
-        );
-
-        unsubOffers = onSnapshot(q, (snap)=>{
-          // لو ظهر Offer جديد افتحه تلقائيًا
-          let newest = null;
-          snap.docChanges().forEach(ch=>{
-            if(ch.type === "added"){
-              const d = ch.doc;
-              const parts = d.ref.path.split("/");
-              const rideId = parts[1];
-              newest = { id:d.id, rideId, ...d.data() };
-            }
-          });
-
-          loadOffers();
-
-          if(newest){
-            const exp = newest.expiresAt?.toDate ? newest.expiresAt.toDate().getTime() : 0;
-            if(!exp || exp > Date.now()){
-              openOfferModal(newest);
-            }
-          }
-        });
-      }catch(e){
-        console.error(e);
-      }
-    }
-
-    // ===== Sheet drag (handle only)
-    const sheet   = document.getElementById("sheet");
-    const handle  = document.getElementById("sheetHandle");
-    const content = document.getElementById("sheetContent");
-
-    const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
-    const getPoints = () => {
-      const vh = window.innerHeight;
-      const collapsed = Math.max(160, Math.round(vh * 0.26));
-      const mid       = Math.round(vh * 0.50);
-      const expanded  = Math.round(vh * 0.86);
-      return { collapsed, mid, expanded };
-    };
-
-    let points = getPoints();
-    let current = points.mid;
-    let startY = 0, startCurrent = 0, dragging = false;
-
-    function render(y, animate=true){
-      current = clamp(y, points.collapsed, points.expanded);
-      sheet.style.transition = animate ? "transform .18s ease" : "none";
-      sheet.style.transform  = `translateY(${points.expanded - current}px)`;
-      content.style.maxHeight = (current >= points.mid) ? "74vh" : "60vh";
-      if(animate) setTimeout(()=> sheet.style.transition="", 200);
-    }
-
-    function nearestSnap(y){
-      const arr = [points.collapsed, points.mid, points.expanded];
-      return arr.reduce((a,b)=> (Math.abs(b-y) < Math.abs(a-y) ? b : a), arr[0]);
-    }
-
-    function down(e){
-      dragging = true;
-      sheet.classList.add("dragging");
-      startY = (e.touches ? e.touches[0].clientY : e.clientY);
-      startCurrent = current;
-    }
-
-    function move(e){
-      if(!dragging) return;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      const dy = startY - y;
-      render(startCurrent + dy, false);
-      e.preventDefault();
-    }
-
-    function up(){
-      if(!dragging) return;
-      dragging = false;
-      sheet.classList.remove("dragging");
-      render(nearestSnap(current), true);
-      setTimeout(fixMap, 220);
-    }
-
-    render(current, false);
-
-    handle.addEventListener("touchstart", down, {passive:false});
-    handle.addEventListener("touchmove", move, {passive:false});
-    handle.addEventListener("touchend", up);
-
-    handle.addEventListener("mousedown", down);
-    window.addEventListener("mousemove", move, {passive:false});
-    window.addEventListener("mouseup", up);
-
-    window.addEventListener("resize", ()=>{
-      points = getPoints();
-      current = clamp(current, points.collapsed, points.expanded);
-      render(current, false);
-      setTimeout(fixMap, 220);
-    });
-
-    // ===== init UI
-    setOnlineUI();
-    await loadOffers();
-    startOffersListener();
+    refreshBtn.addEventListener("click", load);
+    load();
   </script>
 </body>
 </html>
