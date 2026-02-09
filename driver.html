@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - السائق</title>
   <link rel="stylesheet" href="./styles.css">
+  <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
 </head>
 
 <body>
@@ -33,12 +34,12 @@
       </div>
 
       <div class="actions" style="margin-top:12px">
-        <button class="btn primary" id="onlineBtn">Go Online</button>
-        <button class="btn" id="refreshBtn">تحديث الطلبات</button>
+        <button class="btn primary" id="onlineBtn" type="button">Go Online</button>
+        <button class="btn" id="refreshBtn" type="button">تحديث الطلبات</button>
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
-      <div class="hint" style="margin-top:10px">القبول Transaction لمنع القبول المزدوج ✅</div>
+      <div class="hint" style="margin-top:10px">يعرض طلبات منطقتك فقط. القبول Transaction لمنع القبول المزدوج ✅</div>
     </div>
 
     <div id="list" class="list" style="margin-top:12px"></div>
@@ -46,15 +47,15 @@
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
-    const { user } = await requireAuthAndRole("driver");
-    document.getElementById("who").textContent = user.email;
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     import {
       collection, query, where, orderBy, limit,
-      getDocs, doc, runTransaction, serverTimestamp,
-      setDoc, getDoc
+      getDocs, doc, runTransaction, serverTimestamp, setDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const { user } = await requireAuthAndRole("driver");
+    document.getElementById("who").textContent = user.email;
+    document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     const listEl = document.getElementById("list");
     const refreshBtn = document.getElementById("refreshBtn");
@@ -70,20 +71,9 @@
     let isOnline = false;
     let watchId = null;
     let pushTimer = null;
-    let lastPos = null;
 
-    // ✅ نجيب المنطقة من driver_profiles أولاً (حسب الاسكيما اللي انت محددها)
-    async function loadDriverArea(){
-      const profRef = doc(db, "driver_profiles", user.uid);
-      const profSnap = await getDoc(profRef);
-      if(profSnap.exists()){
-        const p = profSnap.data();
-        return { governorate: p.governorate || null, center: p.center || null };
-      }
-      // fallback: users/{uid}
-      const u = await getUserDoc(user.uid);
-      return { governorate: u?.governorate || null, center: u?.center || null };
-    }
+    let lastPos = null; // {lat,lng,heading,speed}
+    let driverProfile = null; // users/{uid}
 
     function setOnlineUI(on){
       isOnline = on;
@@ -122,10 +112,145 @@
       return Number.isFinite(n) ? n : null;
     }
 
+    function rideCard(r, gov, cen){
+      const fromLat = safeNum(r.from?.lat);
+      const fromLng = safeNum(r.from?.lng);
+
+      const el = document.createElement("div");
+      el.className = "card";
+
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div><b>طلب:</b> ${r.id}</div>
+          <div class="pill">${r.status || "-"}</div>
+        </div>
+
+        <div class="hint" style="margin-top:8px">
+          <b>الراكب:</b> ${r.passengerName ?? "-"} (${r.passengerEmail ?? "-"})
+          <br><b>من:</b> ${r.fromText ?? "-"}
+          <br><b>إلى:</b> ${r.toText ?? "-"}
+          <br><b>المنطقة:</b> ${r.governorate ?? "-"} / ${r.center ?? "-"}
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" data-accept="${r.id}" type="button">قبول</button>
+          ${fromLat !== null && fromLng !== null ? `
+            <a class="btn" target="_blank"
+              href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
+              فتح الانطلاق
+            </a>` : ``}
+        </div>
+        <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
+      `;
+
+      el.querySelector(`[data-accept="${r.id}"]`).addEventListener("click", async ()=>{
+        const m = el.querySelector(`#m_${r.id}`);
+        const rideRef = doc(db, "rides", r.id);
+
+        try{
+          m.textContent = "جارٍ القبول…";
+
+          const d = driverProfile || await getUserDoc(user.uid);
+          const driverName  = d?.name || "سائق";
+          const driverPhone = d?.phone || null;
+
+          const res = await runTransaction(db, async (tx)=>{
+            const snap = await tx.get(rideRef);
+            if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
+
+            const cur = snap.data();
+
+            // ✅ تأمين: لازم Open + نفس المنطقة
+            if(cur.status !== "open" || cur.driverUid){
+              return { ok:false, msg:"الطلب اتقبل بالفعل." };
+            }
+            if(cur.governorate !== gov || cur.center !== cen){
+              return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
+            }
+
+            tx.update(rideRef, {
+              status: "accepted",
+              acceptedAt: serverTimestamp(),
+              driverUid: user.uid,
+              driverEmail: user.email,
+              driverName,
+              driverPhone
+            });
+
+            // السائق أصبح غير متاح مؤقتاً
+            tx.set(statusRef, {
+              online: true,
+              available: false,
+              currentTripId: r.id,
+              lastSeenAt: serverTimestamp()
+            }, { merge:true });
+
+            return { ok:true, msg:"✅ تم قبول الطلب." };
+          });
+
+          m.textContent = res.msg;
+          await load();
+        }catch(e){
+          console.error(e);
+          m.textContent = "❌ فشل القبول. راجع Firestore Rules.";
+        }
+      });
+
+      return el;
+    }
+
+    async function load(){
+      if(!driverProfile) driverProfile = await getUserDoc(user.uid);
+
+      const gov = driverProfile?.governorate || null;
+      const cen = driverProfile?.center || null;
+
+      if(!gov || !cen){
+        listEl.innerHTML = `<div class="card">❌ لازم تضيف governorate + center للسائق في users/{uid}.</div>`;
+        areaPill.textContent = "منطقة: -";
+        return;
+      }
+
+      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
+      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
+
+      // ✅ فلترة احترافية حسب المنطقة
+      const q = query(
+        collection(db, "rides"),
+        where("status", "==", "open"),
+        where("governorate", "==", gov),
+        where("center", "==", cen),
+        orderBy("createdAt", "desc"),
+        limit(25)
+      );
+
+      const snap = await getDocs(q);
+
+      listEl.innerHTML = "";
+      if(snap.empty){
+        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
+        return;
+      }
+
+      snap.forEach(d=>{
+        listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
+      });
+    }
+
+    refreshBtn.addEventListener("click", load);
+
+    // =========================
+    // Online / Offline + GPS Push
+    // =========================
     async function pushStatus(extra = {}){
+      const gov = driverProfile?.governorate || null;
+      const cen = driverProfile?.center || null;
+
       const payload = {
         online: isOnline,
-        available: isOnline,
+        available: isOnline, // طالما Online ولسه مفيش Trip
+        governorate: gov,
+        center: cen,
         lastSeenAt: serverTimestamp(),
         ...extra
       };
@@ -141,6 +266,7 @@
     }
 
     function startGPS(){
+      msg.textContent = "";
       if(!navigator.geolocation){
         setGpsUI("denied");
         msg.textContent = "❌ جهازك لا يدعم GPS.";
@@ -159,7 +285,7 @@
         console.error(err);
         if(err?.code === 1){
           setGpsUI("denied");
-          msg.innerHTML = "❌ فعل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
+          msg.innerHTML = "❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
         }else{
           setGpsUI("unknown");
           msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
@@ -173,7 +299,7 @@
         }catch(e){
           console.error(e);
         }
-      }, 3000);
+      }, 4000); // 4 ثواني (أخف على البطارية)
 
       return true;
     }
@@ -195,27 +321,24 @@
       onlineBtn.disabled = true;
       msg.textContent = "جارٍ التشغيل Online…";
 
-      const area = await loadDriverArea();
-      if(!area.governorate || !area.center){
-        msg.textContent = "❌ لازم تضيف governorate + center داخل driver_profiles/{uid}.";
+      driverProfile = await getUserDoc(user.uid);
+
+      const gov = driverProfile?.governorate;
+      const cen = driverProfile?.center;
+
+      if(!gov || !cen){
+        msg.textContent = "❌ لازم تضيف governorate + center داخل users/{uid} للسائق.";
         onlineBtn.disabled = false;
         return;
       }
 
-      areaPill.textContent = `منطقة: ${area.governorate} / ${area.center}`;
-
+      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
       setOnlineUI(true);
 
       const ok = startGPS();
       if(ok){
         try{
-          await pushStatus({
-            online:true,
-            available:true,
-            currentTripId: null,
-            governorate: area.governorate,
-            center: area.center
-          });
+          await pushStatus({ online:true, available:true, currentTripId: null });
           msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
         }catch(e){
           console.error(e);
@@ -255,117 +378,7 @@
       else await goOnline();
     });
 
-    // =========================
-    // Requests list + Accept Transaction
-    // =========================
-    function rideCard(r){
-      const fromLat = safeNum(r.from?.lat);
-      const fromLng = safeNum(r.from?.lng);
-
-      const el = document.createElement("div");
-      el.className = "card";
-
-      el.innerHTML = `
-        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div><b>طلب:</b> ${r.id}</div>
-          <div class="pill">${r.status || "-"}</div>
-        </div>
-
-        <div class="hint" style="margin-top:8px">
-          <b>الراكب:</b> ${r.passengerName ?? "-"} (${r.passengerEmail ?? "-"})
-          <br><b>من:</b> ${r.fromText ?? "-"}
-          <br><b>إلى:</b> ${r.toText ?? "-"}
-        </div>
-
-        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn primary" data-accept="${r.id}">قبول</button>
-          ${fromLat !== null && fromLng !== null ? `
-            <a class="btn" target="_blank"
-              href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
-              فتح الانطلاق
-            </a>` : ``}
-        </div>
-        <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
-      `;
-
-      el.querySelector(`[data-accept="${r.id}"]`).addEventListener("click", async ()=>{
-        const m = el.querySelector(`#m_${r.id}`);
-        const rideRef = doc(db, "rides", r.id);
-
-        try{
-          m.textContent = "جارٍ القبول…";
-
-          const d = await getUserDoc(user.uid).catch(()=>null);
-          const driverName  = d?.name || "سائق";
-          const driverPhone = d?.phone || null;
-
-          const res = await runTransaction(db, async (tx)=>{
-            const snap = await tx.get(rideRef);
-            if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
-
-            const cur = snap.data();
-            if(cur.status !== "open" || cur.driverUid){
-              return { ok:false, msg:"الطلب اتقبل بالفعل." };
-            }
-
-            tx.update(rideRef, {
-              status: "accepted",
-              acceptedAt: serverTimestamp(),
-              driverUid: user.uid,
-              driverEmail: user.email,
-              driverName,
-              driverPhone
-            });
-
-            tx.set(statusRef, {
-              online: true,
-              available: false,
-              currentTripId: r.id,
-              lastSeenAt: serverTimestamp()
-            }, { merge:true });
-
-            return { ok:true, msg:"✅ تم قبول الطلب." };
-          });
-
-          m.textContent = res.msg;
-          await load();
-        }catch(e){
-          console.error(e);
-          m.textContent = "❌ فشل القبول. راجع Firestore Rules.";
-        }
-      });
-
-      return el;
-    }
-
-    async function load(){
-      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-
-      const q = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        orderBy("createdAt", "desc"),
-        limit(25)
-      );
-
-      const snap = await getDocs(q);
-
-      listEl.innerHTML = "";
-      if(snap.empty){
-        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة حالياً.</div>`;
-        return;
-      }
-
-      snap.forEach(d=>{
-        listEl.appendChild(rideCard({ id:d.id, ...d.data() }));
-      });
-    }
-
-    refreshBtn.addEventListener("click", load);
-
-    window.addEventListener("beforeunload", ()=>{
-      try{ stopGPS(); }catch{}
-    });
+    window.addEventListener("beforeunload", ()=>{ try{ stopGPS(); }catch{} });
 
     setOnlineUI(false);
     setGpsUI("unknown");
