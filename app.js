@@ -36,7 +36,6 @@ export const auth = getAuth(app);
 export const qs = (k) => new URLSearchParams(location.search).get(k);
 
 export function currentPage() {
-  // يرجّع اسم الملف الحالي (بدون مسار) + query
   const file = location.pathname.split("/").pop() || "index.html";
   return file + (location.search || "");
 }
@@ -48,7 +47,6 @@ export function redirectToLogin(requiredRole = null) {
 }
 
 export async function safeSetDoc(ref, payload) {
-  // helper: setDoc merge + updatedAt
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
@@ -64,6 +62,12 @@ export async function getUserDoc(uid) {
 export async function upsertUser(uid, payload) {
   const ref = doc(db, "users", uid);
   await safeSetDoc(ref, payload);
+}
+
+// ✅ NEW: used by profile.html
+export async function saveUserProfile(uid, payload) {
+  // نفس upsertUser لكن باسم واضح
+  return upsertUser(uid, payload);
 }
 
 export function fallbackNameFromEmail(email) {
@@ -85,7 +89,6 @@ export async function ensureUserDefaults(user, extra = {}) {
   if (!existing?.email && user.email) patch.email = user.email;
   if (!existing?.name) patch.name = fallbackNameFromEmail(user.email);
 
-  // لو مفيش حاجة تتكتب
   if (Object.keys(patch).length === 0) return;
 
   await upsertUser(user.uid, patch).catch(() => {});
@@ -97,7 +100,6 @@ export async function ensureUserDefaults(user, extra = {}) {
 export function requireAuthAndRole(requiredRole = null) {
   return new Promise((resolve) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      // مهم: امنع التكرار
       try { unsub(); } catch {}
 
       if (!user) {
@@ -107,19 +109,16 @@ export function requireAuthAndRole(requiredRole = null) {
 
       const data = await getUserDoc(user.uid).catch(() => null);
 
-      // لازم role
       if (!data?.role) {
         redirectToLogin(requiredRole);
         return;
       }
 
-      // منع راكب يفتح السائق والعكس
       if (requiredRole && data.role !== requiredRole) {
         location.href = "index.html";
         return;
       }
 
-      // يضمن name/email موجودين مرة واحدة
       await ensureUserDefaults(user);
 
       resolve({ user, data });
