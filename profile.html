@@ -44,13 +44,14 @@
         </div>
       </div>
 
+      <div class="field">
+        <label>رقم الهاتف (للتواصل)</label>
+        <input id="phoneCommon" placeholder="مثال: 01xxxxxxxxx" inputmode="tel" />
+        <div class="hint" style="margin-top:6px">* مهم علشان السائق يقدر يتصل بيك.</div>
+      </div>
+
       <div id="driverOnly" style="display:none;margin-top:10px">
         <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
-
-        <div class="field" style="margin-top:0">
-          <label>هاتف السائق (للاتصال)</label>
-          <input id="phone" placeholder="مثال: 01xxxxxxxxx" />
-        </div>
 
         <div class="grid2">
           <div class="field" style="margin-top:0">
@@ -92,13 +93,25 @@
     const govEl = document.getElementById("gov");
     const centerEl = document.getElementById("center");
 
+    const phoneCommonEl = document.getElementById("phoneCommon");
+
     const driverOnly = document.getElementById("driverOnly");
-    const phoneEl = document.getElementById("phone");
     const vehicleEl = document.getElementById("vehicle");
     const modelEl = document.getElementById("model");
     const plateEl = document.getElementById("plate");
 
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+    const logoutBtn = document.getElementById("logoutBtn");
+    const saveBtn = document.getElementById("saveBtn");
+
+    logoutBtn.addEventListener("click", doLogout);
+
+    function normalizePhone(p){
+      const x = (p || "").trim();
+      if(!x) return null;
+      // سيبها مرنة: أرقام + + فقط
+      const cleaned = x.replace(/[^\d+]/g, "");
+      return cleaned.length >= 8 ? cleaned : null;
+    }
 
     const { user, data } = await requireAuthAndRole(null);
     who.textContent = user.email;
@@ -108,33 +121,51 @@
 
     if(role === "driver") driverOnly.style.display = "block";
 
-    const u = await getUserDoc(user.uid);
+    // load existing
+    const u = await getUserDoc(user.uid).catch(()=>null);
 
     nameEl.value = u?.name || "";
     govEl.value = u?.governorate || "";
     centerEl.value = u?.center || "";
+    phoneCommonEl.value = u?.phone || "";
 
     if(role === "driver"){
-      phoneEl.value = u?.phone || "";
       vehicleEl.value = u?.vehicle || "tuktuk";
       modelEl.value = u?.model || "";
       plateEl.value = u?.plate || "";
     }
 
-    document.getElementById("saveBtn").addEventListener("click", async ()=>{
+    saveBtn.addEventListener("click", async ()=>{
       msg.textContent = "جارٍ الحفظ…";
+      saveBtn.disabled = true;
+
       try{
+        const phoneNorm = normalizePhone(phoneCommonEl.value);
+
+        // لو كتب رقم صغير جدًا
+        if(phoneCommonEl.value.trim() && !phoneNorm){
+          msg.textContent = "❌ رقم الهاتف غير صحيح (اكتب رقم أطول).";
+          saveBtn.disabled = false;
+          return;
+        }
+
         const payload = {
           name: nameEl.value.trim() || null,
           governorate: govEl.value.trim() || null,
           center: centerEl.value.trim() || null,
+          phone: phoneNorm
         };
 
+        // بيانات السائق فقط
         if(role === "driver"){
-          payload.phone = phoneEl.value.trim() || null;
           payload.vehicle = vehicleEl.value || null;
           payload.model = modelEl.value.trim() || null;
           payload.plate = plateEl.value.trim() || null;
+        }else{
+          // تنظيف أي بيانات سائق قديمة لو المستخدم راكب
+          payload.vehicle = null;
+          payload.model = null;
+          payload.plate = null;
         }
 
         await saveUserProfile(user.uid, payload);
@@ -142,6 +173,8 @@
       }catch(e){
         console.error(e);
         msg.textContent = "❌ فشل الحفظ.";
+      }finally{
+        saveBtn.disabled = false;
       }
     });
   </script>
