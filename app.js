@@ -1,10 +1,10 @@
-// app.js - SINGLE Firebase init + helpers (Email/Password)
+// app.js - SINGLE Firebase init + helpers (Email/Password) ✅ FINAL
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 
 import {
   getAuth,
   onAuthStateChanged,
-  signOut
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -12,10 +12,10 @@ import {
   doc,
   getDoc,
   setDoc,
-  serverTimestamp
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ Firebase config (بتاعك)
+// ✅ Firebase config
 export const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -23,7 +23,7 @@ export const firebaseConfig = {
   storageBucket: "meshwark-8adf8.firebasestorage.app",
   messagingSenderId: "450060838946",
   appId: "1:450060838946:web:963cacdd125b253fa1827b",
-  measurementId: "G-GP0JGBZTGG"
+  measurementId: "G-GP0JGBZTGG",
 };
 
 export const app = initializeApp(firebaseConfig);
@@ -31,10 +31,30 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 // =========================
-// Helpers
+// Helpers (URL / Safe)
 // =========================
 export const qs = (k) => new URLSearchParams(location.search).get(k);
 
+export function currentPage() {
+  // يرجّع اسم الملف الحالي (بدون مسار) + query
+  const file = location.pathname.split("/").pop() || "index.html";
+  return file + (location.search || "");
+}
+
+export function redirectToLogin(requiredRole = null) {
+  const returnTo = encodeURIComponent(currentPage());
+  const roleQ = requiredRole ? `&role=${encodeURIComponent(requiredRole)}` : "";
+  location.href = `login.html?returnTo=${returnTo}${roleQ}`;
+}
+
+export async function safeSetDoc(ref, payload) {
+  // helper: setDoc merge + updatedAt
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// =========================
+// Users
+// =========================
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -43,19 +63,45 @@ export async function getUserDoc(uid) {
 
 export async function upsertUser(uid, payload) {
   const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+  await safeSetDoc(ref, payload);
+}
+
+export function fallbackNameFromEmail(email) {
+  const x = (email || "").split("@")[0] || "مستخدم";
+  return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
+}
+
+/**
+ * يضمن وجود بيانات أساسية للمستخدم في users/{uid}
+ * - name/email (لو ناقصين)
+ * - role لو اتبعت
+ */
+export async function ensureUserDefaults(user, extra = {}) {
+  if (!user?.uid) return;
+
+  const existing = await getUserDoc(user.uid).catch(() => null);
+  const patch = { ...extra };
+
+  if (!existing?.email && user.email) patch.email = user.email;
+  if (!existing?.name) patch.name = fallbackNameFromEmail(user.email);
+
+  // لو مفيش حاجة تتكتب
+  if (Object.keys(patch).length === 0) return;
+
+  await upsertUser(user.uid, patch).catch(() => {});
 }
 
 // =========================
-// Auth Guard
+// Auth Guard (✅ unsubscribe + stable)
 // =========================
 export function requireAuthAndRole(requiredRole = null) {
   return new Promise((resolve) => {
-    onAuthStateChanged(auth, async (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      // مهم: امنع التكرار
+      try { unsub(); } catch {}
+
       if (!user) {
-        const returnTo = encodeURIComponent(location.pathname.split("/").pop() || "index.html");
-        const roleQ = requiredRole ? `&role=${encodeURIComponent(requiredRole)}` : "";
-        location.href = `login.html?returnTo=${returnTo}${roleQ}`;
+        redirectToLogin(requiredRole);
         return;
       }
 
@@ -63,9 +109,7 @@ export function requireAuthAndRole(requiredRole = null) {
 
       // لازم role
       if (!data?.role) {
-        const returnTo = encodeURIComponent(location.pathname.split("/").pop() || "index.html");
-        const roleQ = requiredRole ? `&role=${encodeURIComponent(requiredRole)}` : "";
-        location.href = `login.html?returnTo=${returnTo}${roleQ}`;
+        redirectToLogin(requiredRole);
         return;
       }
 
@@ -74,6 +118,9 @@ export function requireAuthAndRole(requiredRole = null) {
         location.href = "index.html";
         return;
       }
+
+      // يضمن name/email موجودين مرة واحدة
+      await ensureUserDefaults(user);
 
       resolve({ user, data });
     });
