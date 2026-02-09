@@ -110,8 +110,7 @@
 
     import {
       collection, addDoc, serverTimestamp,
-      doc, onSnapshot, setDoc,
-      runTransaction
+      doc, onSnapshot, setDoc, getDoc, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const { user } = await requireAuthAndRole("passenger");
@@ -189,6 +188,7 @@
       centerSelect.appendChild(other);
 
       centerSelect.disabled = false;
+
       centerOtherWrap.style.display = "none";
       centerOtherInput.value = "";
 
@@ -223,6 +223,7 @@
       areaPill.textContent = gov && center ? `المنطقة: ${gov} / ${center}` : "المنطقة: -";
     }
 
+    // حفظ/استرجاع المنطقة
     function saveAreaToLS(){
       const { gov, center } = getSelectedArea();
       if(gov) localStorage.setItem(LS.areaGov, gov);
@@ -322,6 +323,7 @@
       restoreAreaFromLS();
     }
 
+    // اسم افتراضي لو ناقص
     if(!passengerProfile?.name){
       try{
         await setDoc(doc(db, "users", user.uid), {
@@ -428,7 +430,7 @@
       drawLine(); updateUI(); fixMap();
     }
 
-    // ===== Geocode
+    // ===== Geocode (Nominatim)
     async function geocode(q){
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
       const res = await fetch(url, { headers: { "Accept":"application/json" } });
@@ -504,98 +506,63 @@
 
       [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) map.removeLayer(x); });
       fromMarker=toMarker=line=myMarker=null;
-
       msg.textContent="";
       updateUI();
       fixMap();
     });
 
     // =========================
-    // متابعة الطلب الحالي
+    // متابعة الطلب الحالي + منع التكرار
     // =========================
     let unsubRide = null;
     let currentRideId = localStorage.getItem(LS.lastRideId) || null;
 
-    function setRideButtonsByStatus(status){
-      // create ممنوع لو فيه طلب قائم
-      if(status === "open"){
-        createBtn.disabled = true;
-        cancelBtn.disabled = false;
-      }else if(status === "accepted" || status === "arrived" || status === "started"){
-        createBtn.disabled = true;
-        cancelBtn.disabled = true;
-      }else{
-        // completed / canceled / none
-        createBtn.disabled = false;
-        cancelBtn.disabled = true;
-      }
-    }
-
-    function cleanupRideLocal(){
-      currentRideId = null;
-      localStorage.removeItem(LS.lastRideId);
-      contactBox.style.display="none";
-      contactBox.innerHTML="";
-      ridePill.textContent = "لا يوجد طلب";
-      cancelBtn.disabled = true;
-      updateUI();
+    function setRideUI(state){
+      cancelBtn.disabled = !(state === "open");
+      createBtn.disabled = (state === "open" || state === "accepted");
     }
 
     function watchRide(rideId){
       if(unsubRide) unsubRide();
       const ref = doc(db, "rides", rideId);
 
-      unsubRide = onSnapshot(ref, (snap)=>{
+      unsubRide = onSnapshot(ref, async (snap)=>{
         if(!snap.exists()){
           ridePill.textContent = "الطلب غير موجود.";
-          cleanupRideLocal();
+          contactBox.style.display="none";
+          contactBox.innerHTML="";
+          currentRideId = null;
+          localStorage.removeItem(LS.lastRideId);
+          setRideUI("none");
+          updateUI();
           return;
         }
 
         const r = snap.data();
-        const st = r.status || "-";
 
-        // نهاية الرحلة: نظّف
-        if(st === "completed" || st === "canceled"){
-          ridePill.textContent = `الحالة: ${st}`;
-          msg.textContent = (st === "completed") ? "✅ الرحلة انتهت." : "✅ تم إلغاء الطلب.";
-          cleanupRideLocal();
-          return;
-        }
-
-        // شغال
-        if(st === "open"){
+        if(r.status === "open"){
           ridePill.textContent = "طلبك جارٍ البحث عن سائق…";
           contactBox.style.display="none";
           contactBox.innerHTML="";
-          setRideButtonsByStatus("open");
+          setRideUI("open");
           return;
         }
 
-        if(st === "accepted" || st === "arrived" || st === "started"){
-          ridePill.textContent =
-            st === "accepted" ? "✅ السائق وافق" :
-            st === "arrived"  ? "🚖 السائق وصل" :
-            "▶️ الرحلة بدأت";
-
-          setRideButtonsByStatus(st);
+        if(r.status === "accepted"){
+          ridePill.textContent = "✅ السائق وافق";
+          setRideUI("accepted");
 
           const dName = r.driverName || "سائق";
           const dPhone = r.driverPhone || "";
 
           const pickupLat = r.from?.lat;
           const pickupLng = r.from?.lng;
-
           const mapLink = (pickupLat && pickupLng)
             ? `https://www.openstreetmap.org/?mlat=${pickupLat}&mlon=${pickupLng}#map=16/${pickupLat}/${pickupLng}`
             : null;
 
-          const shareText =
-            `طلب مشوار - مشوارك\n` +
-            `المنطقة: ${r.governorate||"-"} / ${r.center||"-"}\n` +
-            `من: ${r.fromText||"-"}\n` +
-            `إلى: ${r.toText||"-"}\n` +
-            `رقم الطلب: ${rideId}`;
+          const shareText = `طلب مشوار - مشوارك\nالمنطقة: ${r.governorate||"-"} / ${r.center||"-"}\nمن: ${r.fromText||"-"}\nإلى: ${r.toText||"-"}\nرقم الطلب: ${rideId}`;
+          const shareBtn = `<button class="btn" id="shareBtn" type="button">مشاركة</button>`;
 
           contactBox.style.display="block";
           contactBox.innerHTML = `
@@ -606,13 +573,13 @@
             <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
               ${dPhone ? `<a class="btn success" href="tel:${dPhone}">اتصال</a>` : ``}
               ${mapLink ? `<a class="btn" target="_blank" href="${mapLink}">فتح الانطلاق</a>` : ``}
-              <button class="btn" id="shareBtn" type="button">مشاركة</button>
+              ${shareBtn}
             </div>
           `;
 
-          const shareBtn = document.getElementById("shareBtn");
-          if(shareBtn){
-            shareBtn.addEventListener("click", async ()=>{
+          const shareEl = document.getElementById("shareBtn");
+          if(shareEl){
+            shareEl.addEventListener("click", async ()=>{
               try{
                 if(navigator.share){
                   await navigator.share({ text: shareText });
@@ -627,16 +594,12 @@
           return;
         }
 
-        // أي حالة أخرى
-        ridePill.textContent = `الحالة: ${st}`;
-        setRideButtonsByStatus("other");
+        ridePill.textContent = `الحالة: ${r.status || "-"}`;
+        setRideUI("other");
       });
     }
 
-    if(currentRideId) {
-      createBtn.disabled = true;
-      watchRide(currentRideId);
-    }
+    if(currentRideId) watchRide(currentRideId);
 
     // =========================
     // UI gate
@@ -649,10 +612,7 @@
     function updateUI(){
       renderAreaPill();
 
-      // لو فيه طلب قائم: منع الإنشاء هنا
       if(currentRideId){
-        statusPill.textContent = "لديك طلب قائم…";
-        createBtn.disabled = true;
         return;
       }
 
@@ -731,6 +691,7 @@
         watchRide(docRef.id);
 
         msg.textContent = `✅ تم إنشاء الطلب! رقم: ${docRef.id}`;
+        setRideUI("open");
       }catch(e){
         console.error(e);
         msg.textContent="❌ حصل خطأ. راجع Firestore Rules.";
@@ -741,7 +702,7 @@
     });
 
     // =========================
-    // إلغاء الطلب (open فقط) - Transaction
+    // إلغاء الطلب (لو open فقط)
     // =========================
     cancelBtn.addEventListener("click", async ()=>{
       if(!currentRideId) return;
@@ -750,48 +711,49 @@
         cancelBtn.disabled = true;
         msg.textContent = "جارٍ إلغاء الطلب…";
 
-        const rideId = currentRideId;
-        const ref = doc(db, "rides", rideId);
+        const ref = doc(db, "rides", currentRideId);
+        const snap = await getDoc(ref);
 
-        const res = await runTransaction(db, async (tx)=>{
-          const snap = await tx.get(ref);
-          if(!snap.exists()) return { ok:false, msg:"الطلب غير موجود." };
-
-          const r = snap.data();
-          if(r.passengerUid !== user.uid) return { ok:false, msg:"ليس لديك صلاحية." };
-
-          if(r.status !== "open"){
-            return { ok:false, msg:"لا يمكن الإلغاء بعد القبول." };
-          }
-
-          tx.update(ref, {
-            status: "canceled",
-            canceledBy: "passenger",
-            canceledAt: serverTimestamp()
-          });
-
-          return { ok:true, msg:"✅ تم إلغاء الطلب." };
-        });
-
-        msg.textContent = res.msg;
-
-        if(res.ok){
-          cleanupRideLocal();
-        }else{
-          cancelBtn.disabled = false;
+        if(!snap.exists()){
+          msg.textContent = "الطلب غير موجود.";
+          currentRideId = null;
+          localStorage.removeItem(LS.lastRideId);
+          setRideUI("none");
+          updateUI();
+          return;
         }
+
+        const r = snap.data();
+        if(r.status !== "open"){
+          msg.textContent = "لا يمكن إلغاء الطلب بعد القبول.";
+          setRideUI(r.status);
+          return;
+        }
+
+        await updateDoc(ref, { status: "canceled", canceledAt: serverTimestamp() });
+
+        msg.textContent = "✅ تم إلغاء الطلب.";
+        currentRideId = null;
+        localStorage.removeItem(LS.lastRideId);
+        contactBox.style.display="none";
+        contactBox.innerHTML="";
+        ridePill.textContent = "لا يوجد طلب";
+        setRideUI("none");
+        updateUI();
       }catch(e){
         console.error(e);
         msg.textContent = "❌ فشل الإلغاء. راجع Rules.";
+      }finally{
         cancelBtn.disabled = false;
       }
     });
 
     // init
+    setRideUI(currentRideId ? "open" : "none");
     updateUI();
 
     // =========================
-    // Bottom Sheet Drag (Handle ONLY)
+    // Bottom Sheet Drag ✅ FIX (Pointer Events) — يمنع تعطيل الأزرار
     // =========================
     const sheet   = document.getElementById("sheet");
     const handle  = document.getElementById("sheetHandle");
@@ -808,7 +770,10 @@
 
     let points = getPoints();
     let current = points.mid;
-    let startY = 0, startCurrent = 0, dragging = false;
+
+    let dragging = false;
+    let startY = 0;
+    let startCurrent = 0;
 
     function render(y, animate=true){
       current = clamp(y, points.collapsed, points.expanded);
@@ -823,44 +788,43 @@
       return arr.reduce((a,b)=> (Math.abs(b-y) < Math.abs(a-y) ? b : a), arr[0]);
     }
 
-    function down(e){
-      dragging = true;
-      sheet.classList.add("dragging");
-      startY = (e.touches ? e.touches[0].clientY : e.clientY);
-      startCurrent = current;
-    }
-
-    function move(e){
-      if(!dragging) return;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      const dy = startY - y;
-      render(startCurrent + dy, false);
-      e.preventDefault();
-    }
-
-    function up(){
+    function endDrag(){
       if(!dragging) return;
       dragging = false;
       sheet.classList.remove("dragging");
       render(nearestSnap(current), true);
-      setTimeout(fixMap, 220);
+      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 220);
     }
 
+    // ✅ مهم لأندرويد
+    handle.style.touchAction = "none";
+
+    handle.addEventListener("pointerdown", (e)=>{
+      dragging = true;
+      sheet.classList.add("dragging");
+      startY = e.clientY;
+      startCurrent = current;
+      handle.setPointerCapture(e.pointerId);
+    });
+
+    handle.addEventListener("pointermove", (e)=>{
+      if(!dragging) return;
+      const dy = startY - e.clientY;
+      render(startCurrent + dy, false);
+    });
+
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+
+    document.addEventListener("visibilitychange", ()=>{ if(document.hidden) endDrag(); });
+
     render(current, false);
-
-    handle.addEventListener("touchstart", down, {passive:false});
-    handle.addEventListener("touchmove", move, {passive:false});
-    handle.addEventListener("touchend", up);
-
-    handle.addEventListener("mousedown", down);
-    window.addEventListener("mousemove", move, {passive:false});
-    window.addEventListener("mouseup", up);
 
     window.addEventListener("resize", ()=>{
       points = getPoints();
       current = clamp(current, points.collapsed, points.expanded);
       render(current, false);
-      setTimeout(fixMap, 220);
+      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 220);
     });
   </script>
 </body>
