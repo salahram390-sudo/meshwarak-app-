@@ -23,9 +23,9 @@
           <p id="who">جارٍ التحميل…</p>
         </div>
       </div>
-      <div class="topbar-actions">
+      <div style="display:flex;gap:8px">
         <a class="btn" href="./index.html">الرئيسية</a>
-        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
+        <button class="btn danger" id="logoutBtn">خروج</button>
       </div>
     </div>
   </div>
@@ -37,6 +37,32 @@
       <div class="sheet-handle" id="sheetHandle"></div>
 
       <div class="sheet-content" id="sheetContent">
+
+        <!-- ✅ اختيار المنطقة (احترافي) -->
+        <div class="card" style="margin-top:0">
+          <div class="field" style="margin-top:0">
+            <label>منطقتك (لإظهار الطلب لنفس السائقين فقط)</label>
+            <div class="grid2">
+              <div>
+                <select id="govSelect">
+                  <option value="">اختر المحافظة…</option>
+                </select>
+              </div>
+              <div>
+                <select id="centerSelect" disabled>
+                  <option value="">اختر المركز/الحي…</option>
+                </select>
+              </div>
+            </div>
+            <div id="centerOtherWrap" style="display:none;margin-top:10px">
+              <input id="centerOtherInput" placeholder="اكتب اسم المركز/الحي يدويًا…" />
+            </div>
+            <div class="hint" style="margin-top:10px">
+              * الطلب لن يظهر إلا للسائقين في نفس المحافظة + المركز.
+            </div>
+          </div>
+        </div>
+
         <div class="grid2">
           <div class="field" style="margin-top:0">
             <label>مكان القيام</label>
@@ -59,6 +85,7 @@
           <span class="pill" id="statusPill">اختر مكان القيام…</span>
           <span class="pill" id="ridePill">لا يوجد طلب</span>
           <span class="pill" id="permPill">الموقع: غير معروف</span>
+          <span class="pill" id="areaPill">المنطقة: -</span>
         </div>
 
         <div id="contactBox" class="card" style="margin-top:12px; display:none"></div>
@@ -76,6 +103,7 @@
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
+
     import {
       collection, addDoc, serverTimestamp,
       doc, onSnapshot, setDoc
@@ -88,20 +116,158 @@
     const whoEl = document.getElementById("who");
 
     // =========================
-    // ✅ Profile: name/phone (with fallback)
+    // ✅ بيانات المحافظات/المراكز (احترافي + يدعم إدخال يدوي)
     // =========================
+    const AREAS = {
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","عين شمس","الزيتون","المرج","العباسية","التجمع","القطامية","السيدة زينب","الدرب الأحمر","باب الشعرية","روض الفرج"],
+      "الجيزة": ["الدقي","العجوزة","الهرم","فيصل","إمبابة","الوراق","6 أكتوبر","الشيخ زايد","البدرشين","العياط","أوسيم","كرداسة","صف","أطفيح"],
+      "الإسكندرية": ["المنتزه","سيدي جابر","محرم بك","العجمي","العامرية","برج العرب","الدخيلة","الرمل","كفر الدوار"],
+      "الدقهلية": ["المنصورة","طلخا","ميت غمر","دكرنس","أجا","المنزلة","الجمالية","السنبلاوين"],
+      "الشرقية": ["الزقازيق","العاشر من رمضان","بلبيس","فاقوس","منيا القمح","أبو كبير","ههيا"],
+      "القليوبية": ["بنها","شبرا الخيمة","قليوب","طوخ","الخانكة","كفر شكر","شبين القناطر"],
+      "المنوفية": ["شبين الكوم","السادات","منوف","أشمون","الباجور","قويسنا","بركة السبع"],
+      "الغربية": ["طنطا","المحلة الكبرى","زفتى","كفر الزيات","بسيون","سمنود"],
+      "البحيرة": ["دمنهور","كفر الدوار","رشيد","إدكو","أبو حمص","إيتاي البارود","حوش عيسى"],
+      "كفر الشيخ": ["كفر الشيخ","دسوق","سيدي سالم","الحامول","بيلا","مطوبس"],
+      "دمياط": ["دمياط","رأس البر","كفر سعد","فارسكور","الزرقا"],
+      "بورسعيد": ["بورسعيد","بورفؤاد"],
+      "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة","التل الكبير"],
+      "السويس": ["السويس","الأربعين","عتاقة"],
+      "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
+      "بني سويف": ["بني سويف","الواسطى","ناصر","إهناسيا","ببا","سمسطا"],
+      "المنيا": ["المنيا","مغاغة","بني مزار","مطاي","سمالوط","أبو قرقاص","ملوي"],
+      "أسيوط": ["أسيوط","ديروط","القوصية","منفلوط","أبو تيج","الغنايم"],
+      "سوهاج": ["سوهاج","أخميم","جرجا","البلينا","طهطا","طما"],
+      "قنا": ["قنا","نجع حمادي","دشنا","قفط","قوص","فرشوط"],
+      "الأقصر": ["الأقصر","إسنا","أرمنت"],
+      "أسوان": ["أسوان","دراو","كوم أمبو","إدفو"],
+      "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم","رأس غارب"],
+      "الوادي الجديد": ["الخارجة","الداخلة","الفرافرة"],
+      "مطروح": ["مرسى مطروح","الحمام","العلمين","سيوة"],
+      "شمال سيناء": ["العريش","الشيخ زويد","رفح"],
+      "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طابا","رأس سدر"]
+    };
+
+    const govSelect = document.getElementById("govSelect");
+    const centerSelect = document.getElementById("centerSelect");
+    const centerOtherWrap = document.getElementById("centerOtherWrap");
+    const centerOtherInput = document.getElementById("centerOtherInput");
+    const areaPill = document.getElementById("areaPill");
+
+    // تعبئة المحافظات
+    const govs = Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar"));
+    govs.forEach(g=>{
+      const o = document.createElement("option");
+      o.value = g; o.textContent = g;
+      govSelect.appendChild(o);
+    });
+
+    function fillCenters(gov){
+      centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
+      const list = AREAS[gov] || [];
+      list.forEach(c=>{
+        const o = document.createElement("option");
+        o.value = c; o.textContent = c;
+        centerSelect.appendChild(o);
+      });
+
+      // خيار "أخرى" للإدخال اليدوي (احترافي)
+      const other = document.createElement("option");
+      other.value = "__other__";
+      other.textContent = "أخرى (إدخال يدوي)…";
+      centerSelect.appendChild(other);
+
+      centerSelect.disabled = false;
+      centerOtherWrap.style.display = "none";
+      centerOtherInput.value = "";
+    }
+
+    function getSelectedArea(){
+      const gov = govSelect.value.trim();
+      if(!gov) return { gov:null, center:null };
+
+      const cVal = centerSelect.value;
+      if(!cVal) return { gov, center:null };
+
+      if(cVal === "__other__"){
+        const manual = centerOtherInput.value.trim();
+        return { gov, center: manual.length >= 2 ? manual : null };
+      }
+      return { gov, center: cVal.trim() };
+    }
+
+    function renderAreaPill(){
+      const { gov, center } = getSelectedArea();
+      areaPill.textContent = gov && center ? `المنطقة: ${gov} / ${center}` : "المنطقة: -";
+    }
+
+    govSelect.addEventListener("change", ()=>{
+      const g = govSelect.value.trim();
+      if(!g){
+        centerSelect.disabled = true;
+        centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
+        centerOtherWrap.style.display = "none";
+        centerOtherInput.value = "";
+        renderAreaPill();
+        updateUI();
+        return;
+      }
+      fillCenters(g);
+      renderAreaPill();
+      updateUI();
+    });
+
+    centerSelect.addEventListener("change", ()=>{
+      if(centerSelect.value === "__other__"){
+        centerOtherWrap.style.display = "block";
+        centerOtherInput.focus();
+      }else{
+        centerOtherWrap.style.display = "none";
+        centerOtherInput.value = "";
+      }
+      renderAreaPill();
+      updateUI();
+    });
+
+    centerOtherInput.addEventListener("input", ()=>{
+      renderAreaPill();
+      updateUI();
+    });
+
+    // =========================
+    // ✅ تحميل بروفايل الراكب + اسم احترافي
+    // =========================
+    let passengerProfile = await getUserDoc(user.uid).catch(()=>null);
+
     const fallbackNameFromEmail = (email) => {
       const x = (email || "").split("@")[0] || "مستخدم";
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
     };
 
-    let passengerProfile = await getUserDoc(user.uid).catch(()=>null);
-    let passengerName = passengerProfile?.name?.trim() || fallbackNameFromEmail(user.email);
+    let passengerName  = passengerProfile?.name?.trim() || fallbackNameFromEmail(user.email);
     let passengerPhone = passengerProfile?.phone?.trim() || null;
 
     whoEl.textContent = `${passengerName} • ${user.email}`;
 
-    // لو الاسم ناقص في users: خزنه مرة واحدة
+    // اضبط الاختيار من البروفايل لو موجود
+    if(passengerProfile?.governorate){
+      govSelect.value = passengerProfile.governorate;
+      fillCenters(passengerProfile.governorate);
+      if(passengerProfile?.center){
+        // لو المركز ضمن القائمة اختاره، وإلا خليها "أخرى" واكتب يدوي
+        const exists = Array.from(centerSelect.options).some(o=>o.value===passengerProfile.center);
+        if(exists){
+          centerSelect.value = passengerProfile.center;
+        }else{
+          centerSelect.value = "__other__";
+          centerOtherWrap.style.display = "block";
+          centerOtherInput.value = passengerProfile.center;
+        }
+      }
+    }
+    renderAreaPill();
+
+    // اكتب الاسم الافتراضي لو ناقص
     if(!passengerProfile?.name){
       try{
         await setDoc(doc(db, "users", user.uid), {
@@ -113,30 +279,26 @@
     }
 
     // =========================
-    // ✅ Leaflet map (stable)
+    // ✅ خريطة OSM
     // =========================
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-
     const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
     base.on("tileerror", ()=> {
-      msg.textContent = "⚠️ في مشكلة تحميل الخريطة من الشبكة. جرّب بيانات/واي فاي تاني.";
+      msg.textContent = "⚠️ مشكلة تحميل الخريطة. جرّب بيانات/واي فاي تاني.";
     });
 
     const fixMap = () => {
       try { map.invalidateSize(true); } catch {}
-      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 220);
+      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 250);
     };
-
-    // أول ما الصفحة تفتح + عند الرجوع من الخلفية
     setTimeout(fixMap, 450);
     window.addEventListener("load", ()=> setTimeout(fixMap, 250));
     document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
 
-    // ✅ Pins بدون صور
     const divPin = (emoji) => L.divIcon({
       className: "pin-emoji",
       html: `<div class="pin-bubble">${emoji}</div>`,
@@ -151,6 +313,7 @@
     const ridePill   = document.getElementById("ridePill");
     const permPill   = document.getElementById("permPill");
     const createBtn  = document.getElementById("createBtn");
+
     const fromText = document.getElementById("fromText");
     const toText   = document.getElementById("toText");
     const contactBox = document.getElementById("contactBox");
@@ -180,19 +343,6 @@
     }
     refreshPermissionState();
 
-    function updateUI(){
-      if(!from){
-        statusPill.textContent = "اختر مكان القيام…";
-        createBtn.disabled = true;
-      } else if(from && !to){
-        statusPill.textContent = "تم تحديد القيام ✅ اختر الوصول…";
-        createBtn.disabled = true;
-      } else {
-        statusPill.textContent = "جاهز ✅";
-        createBtn.disabled = false;
-      }
-    }
-
     function drawLine(){
       if(from && to){
         if(line) map.removeLayer(line);
@@ -209,7 +359,6 @@
       map.setView([lat,lng], 14, { animate:false });
       drawLine(); updateUI(); fixMap();
     }
-
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
@@ -246,7 +395,7 @@
 
     function explainLocationDenied(){
       msg.innerHTML =
-        "❌ لازم تفعّل إذن الموقع للتطبيق.<br>" +
+        "❌ لازم تفعّل إذن الموقع.<br>" +
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
@@ -280,7 +429,7 @@
           msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
         }
         fixMap();
-      }, { enableHighAccuracy:true, timeout:20000, maximumAge:15000 });
+      }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     });
 
     document.getElementById("resetBtn").addEventListener("click", ()=>{
@@ -296,14 +445,14 @@
     });
 
     // =========================
-    // ✅ Ride watch
+    // ✅ متابعة الطلب الحالي
     // =========================
     let unsubRide = null;
     function watchRide(rideId){
       if(unsubRide) unsubRide();
       const ref = doc(db, "rides", rideId);
 
-      unsubRide = onSnapshot(ref, (snap)=>{
+      unsubRide = onSnapshot(ref, async (snap)=>{
         if(!snap.exists()){
           ridePill.textContent = "الطلب غير موجود.";
           contactBox.style.display="none";
@@ -353,16 +502,61 @@
     if(lastRideId) watchRide(lastRideId);
 
     // =========================
-    // ✅ Create ride (rides + cash)
+    // ✅ UI gate احترافي: لازم منطقة + نقاط
     // =========================
+    function hasAreaReady(){
+      const { gov, center } = getSelectedArea();
+      return !!(gov && center);
+    }
+
+    function updateUI(){
+      renderAreaPill();
+
+      const areaOk = hasAreaReady();
+      if(!areaOk){
+        statusPill.textContent = "اختر المحافظة + المركز أولاً…";
+        createBtn.disabled = true;
+        return;
+      }
+
+      if(!from){
+        statusPill.textContent = "اختر مكان القيام…";
+        createBtn.disabled = true;
+      } else if(from && !to){
+        statusPill.textContent = "تم تحديد القيام ✅ اختر الوصول…";
+        createBtn.disabled = true;
+      } else {
+        statusPill.textContent = "جاهز ✅";
+        createBtn.disabled = false;
+      }
+    }
+
+    // ✅ إنشاء الطلب (يحفظ المنطقة في users + في ride)
     createBtn.addEventListener("click", async ()=>{
       try{
         createBtn.disabled = true;
         msg.textContent="جارٍ إنشاء الطلب…";
 
+        const { gov, center } = getSelectedArea();
+        if(!gov || !center){
+          msg.textContent = "❌ لازم تختار المحافظة وتحدد المركز.";
+          updateUI();
+          return;
+        }
+
+        // احفظها في users للراكب (merge)
+        await setDoc(doc(db, "users", user.uid), {
+          governorate: gov,
+          center: center,
+          updatedAt: serverTimestamp()
+        }, { merge:true });
+
         const docRef = await addDoc(collection(db, "rides"), {
           status: "open",
           createdAt: serverTimestamp(),
+
+          governorate: gov,
+          center: center,
 
           from, to,
           fromText: fromText.value.trim() || null,
@@ -378,6 +572,7 @@
 
         localStorage.setItem("lastRideId", docRef.id);
         watchRide(docRef.id);
+
         msg.textContent = `✅ تم إنشاء الطلب! رقم: ${docRef.id}`;
       }catch(e){
         console.error(e);
@@ -400,15 +595,14 @@
     const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
     const getPoints = () => {
       const vh = window.innerHeight;
-      const collapsed = Math.max(150, Math.round(vh * 0.24));
-      const mid       = Math.round(vh * 0.48);
-      const expanded  = Math.round(vh * 0.84);
+      const collapsed = Math.max(150, Math.round(vh * 0.22));
+      const mid       = Math.round(vh * 0.46);
+      const expanded  = Math.round(vh * 0.82);
       return { collapsed, mid, expanded };
     };
 
     let points = getPoints();
     let current = points.mid;
-
     let startY = 0, startCurrent = 0, dragging = false;
 
     function render(y, animate=true){
