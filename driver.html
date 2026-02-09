@@ -33,12 +33,21 @@
       <div class="grid2" style="margin-top:10px">
         <div class="field" style="margin-top:0">
           <label>المحافظة</label>
-          <select id="govSel"></select>
+          <select id="govSel">
+            <option value="">اختر المحافظة</option>
+          </select>
         </div>
         <div class="field" style="margin-top:0">
-          <label>المركز</label>
-          <select id="cenSel"></select>
+          <label>المركز / الحي</label>
+          <select id="cenSel" disabled>
+            <option value="">اختر المركز</option>
+          </select>
         </div>
+      </div>
+
+      <div id="cenOtherWrap" style="display:none;margin-top:10px">
+        <label>اكتب المركز يدويًا (اختياري لو اخترت "أخرى")</label>
+        <input id="cenOtherInput" placeholder="مثال: مركز جديد…" />
       </div>
 
       <div class="actions">
@@ -62,7 +71,9 @@
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
-      <div class="hint" style="margin-top:10px">يعرض طلبات منطقتك فقط. القبول Transaction لمنع القبول المزدوج ✅</div>
+      <div class="hint" style="margin-top:10px">
+        يعرض طلبات منطقتك فقط. القبول Transaction لمنع القبول المزدوج ✅
+      </div>
     </div>
 
     <div id="list" class="list" style="margin-top:12px"></div>
@@ -73,7 +84,7 @@
 
     import {
       collection, query, where, orderBy, limit,
-      getDocs, doc, runTransaction, serverTimestamp, setDoc, getDoc
+      getDocs, doc, runTransaction, serverTimestamp, setDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const { user } = await requireAuthAndRole("driver");
@@ -93,6 +104,8 @@
     const setupMsg = document.getElementById("setupMsg");
     const govSel = document.getElementById("govSel");
     const cenSel = document.getElementById("cenSel");
+    const cenOtherWrap = document.getElementById("cenOtherWrap");
+    const cenOtherInput = document.getElementById("cenOtherInput");
     const saveAreaBtn = document.getElementById("saveAreaBtn");
 
     const statusRef = doc(db, "driver_status", user.uid);
@@ -106,10 +119,10 @@
     let driverProfile = null; // users/{uid}
 
     // =========================
-    // ✅ محافظات + مراكز (قائمة جاهزة — تقدر تزودها براحتك)
+    // ✅ محافظات + مراكز (قائمة جاهزة)
     // =========================
     const AREAS = {
-      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","المرج","شبرا","الزيتون","العباسية","الجيزة (حدود القاهرة)"],
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","المرج","شبرا","الزيتون","العباسية","التجمع"],
       "الجيزة": ["الهرم","فيصل","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","البدرشين","الحوامدية"],
       "الإسكندرية": ["سيدي جابر","محرم بك","المنتزه","العجمي","ميامي","سموحة"],
       "الدقهلية": ["المنصورة","طلخا","ميت غمر","أجا","دكرنس"],
@@ -122,27 +135,27 @@
       "أسيوط": ["أسيوط","ديروط","منفلوط"],
       "سوهاج": ["سوهاج","جرجا","طما"],
       "قنا": ["قنا","نجع حمادي","قفط"],
-      "أسوان": ["أسوان","دراو","كوم أمبو"]
+      "أسوان": ["أسوان","دراو","كوم أمبو"],
+      "الأقصر": ["الأقصر","إسنا","أرمنت"]
     };
 
     function fillGov(){
+      // امسح اللي بعد أول option
+      const keep0 = govSel.querySelector("option[value='']");
       govSel.innerHTML = "";
-      const opt0 = document.createElement("option");
-      opt0.value = ""; opt0.textContent = "اختر المحافظة";
-      govSel.appendChild(opt0);
+      govSel.appendChild(keep0);
 
-      Object.keys(AREAS).forEach(g=>{
-        const o = document.createElement("option");
-        o.value = g; o.textContent = g;
-        govSel.appendChild(o);
-      });
+      Object.keys(AREAS)
+        .sort((a,b)=>a.localeCompare(b,"ar"))
+        .forEach(g=>{
+          const o = document.createElement("option");
+          o.value = g; o.textContent = g;
+          govSel.appendChild(o);
+        });
     }
 
     function fillCenter(gov, preselect=null){
-      cenSel.innerHTML = "";
-      const opt0 = document.createElement("option");
-      opt0.value = ""; opt0.textContent = "اختر المركز";
-      cenSel.appendChild(opt0);
+      cenSel.innerHTML = `<option value="">اختر المركز</option>`;
 
       const arr = AREAS[gov] || [];
       arr.forEach(c=>{
@@ -151,17 +164,62 @@
         cenSel.appendChild(o);
       });
 
+      // ✅ أخرى (إدخال يدوي)
+      const other = document.createElement("option");
+      other.value = "__other__";
+      other.textContent = "أخرى (إدخال يدوي)…";
+      cenSel.appendChild(other);
+
+      cenSel.disabled = !gov;
+      cenOtherWrap.style.display = "none";
+      cenOtherInput.value = "";
+
       if(preselect){
-        cenSel.value = preselect;
+        const exists = Array.from(cenSel.options).some(o=>o.value===preselect);
+        if(exists){
+          cenSel.value = preselect;
+        }else{
+          cenSel.value = "__other__";
+          cenOtherWrap.style.display = "block";
+          cenOtherInput.value = preselect;
+        }
       }
     }
 
     govSel.addEventListener("change", ()=>{
-      fillCenter(govSel.value);
+      const g = govSel.value.trim();
+      fillCenter(g);
+      setupMsg.textContent = "";
     });
 
+    cenSel.addEventListener("change", ()=>{
+      if(cenSel.value === "__other__"){
+        cenOtherWrap.style.display = "block";
+        cenOtherInput.focus();
+      }else{
+        cenOtherWrap.style.display = "none";
+        cenOtherInput.value = "";
+      }
+      setupMsg.textContent = "";
+    });
+
+    function getSelectedArea(){
+      const g = govSel.value.trim() || null;
+      const cVal = cenSel.value;
+
+      if(!g) return { gov:null, cen:null };
+
+      if(!cVal) return { gov:g, cen:null };
+
+      if(cVal === "__other__"){
+        const manual = cenOtherInput.value.trim();
+        return { gov:g, cen: (manual.length >= 2 ? manual : null) };
+      }
+      return { gov:g, cen:cVal.trim() || null };
+    }
+
     async function loadDriverProfile(){
-      driverProfile = await getUserDoc(user.uid);
+      driverProfile = await getUserDoc(user.uid).catch(()=>null);
       return driverProfile;
     }
 
@@ -172,17 +230,10 @@
       const cen = driverProfile?.center || null;
 
       if(!gov || !cen){
-        // show setup UI
         setupCard.style.display = "block";
         fillGov();
-
-        // حاول يملا لو محفوظ جزئيا
-        if(gov){
-          govSel.value = gov;
-          fillCenter(gov, cen || null);
-        }else{
-          fillCenter("");
-        }
+        govSel.value = gov || "";
+        fillCenter(govSel.value, cen || null);
 
         areaPill.textContent = "منطقة: -";
         return false;
@@ -195,29 +246,29 @@
 
     saveAreaBtn.addEventListener("click", async ()=>{
       setupMsg.textContent = "";
-      const g = govSel.value;
-      const c = cenSel.value;
-      if(!g) return setupMsg.textContent = "❌ اختر المحافظة.";
-      if(!c) return setupMsg.textContent = "❌ اختر المركز.";
+
+      const { gov, cen } = getSelectedArea();
+      if(!gov) return setupMsg.textContent = "❌ اختر المحافظة.";
+      if(!cen) return setupMsg.textContent = "❌ اختر المركز (أو اكتب يدويًا).";
 
       saveAreaBtn.disabled = true;
       setupMsg.textContent = "جارٍ الحفظ…";
 
       try{
         await setDoc(userRef, {
-          governorate: g,
-          center: c,
+          governorate: gov,
+          center: cen,
           updatedAt: serverTimestamp()
         }, { merge:true });
 
         await loadDriverProfile();
         setupMsg.textContent = "✅ تم حفظ المنطقة.";
         setupCard.style.display = "none";
-        areaPill.textContent = `منطقة: ${g} / ${c}`;
+        areaPill.textContent = `منطقة: ${gov} / ${cen}`;
         await load();
       }catch(e){
         console.error(e);
-        setupMsg.textContent = "❌ فشل الحفظ. راجع Firestore Rules.";
+        setupMsg.textContent = `❌ فشل الحفظ: ${e.code || ""} ${e.message || e}`;
       }finally{
         saveAreaBtn.disabled = false;
       }
@@ -311,9 +362,12 @@
 
             const cur = snap.data();
 
-            if(cur.status !== "open" || cur.driverUid){
-              return { ok:false, msg:"الطلب اتقبل بالفعل." };
-            }
+            // ✅ لازم Open + نفس المنطقة + لم يتم قبوله
+            if(cur.status !== "open") return { ok:false, msg:"الطلب لم يعد مفتوح." };
+
+            // مهم: ممكن تكون driverUid = null أو undefined
+            if(cur.driverUid) return { ok:false, msg:"الطلب اتقبل بالفعل." };
+
             if(cur.governorate !== gov || cur.center !== cen){
               return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
             }
@@ -341,7 +395,7 @@
           await load();
         }catch(e){
           console.error(e);
-          m.textContent = "❌ فشل القبول. راجع Firestore Rules.";
+          m.textContent = `❌ فشل القبول: ${e.code || ""} ${e.message || e}`;
         }
       });
 
@@ -483,7 +537,7 @@
           msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
         }catch(e){
           console.error(e);
-          msg.textContent = "⚠️ Online اشتغل لكن في مشكلة كتابة driver_status. راجع Rules.";
+          msg.textContent = `⚠️ Online اشتغل لكن مشكلة driver_status: ${e.code || ""} ${e.message || e}`;
         }
       }
 
@@ -508,7 +562,7 @@
         msg.textContent = "✅ تم الإيقاف Offline.";
       }catch(e){
         console.error(e);
-        msg.textContent = "⚠️ Offline اتعمل لكن في مشكلة كتابة driver_status. راجع Rules.";
+        msg.textContent = `⚠️ Offline اتعمل لكن مشكلة driver_status: ${e.code || ""} ${e.message || e}`;
       }
 
       onlineBtn.disabled = false;
