@@ -35,12 +35,10 @@
 
   <div class="container" style="padding-top:14px">
 
-    <!-- ✅ خريطة السائق -->
     <div class="map-wrap-driver">
       <div id="dmap"></div>
     </div>
 
-    <!-- إعداد منطقة السائق -->
     <div class="card" id="setupCard" style="display:none;margin-top:12px">
       <div class="hint">لازم تحدد محافظتك ومركزك علشان تشوف الطلبات وتشتغل Online.</div>
 
@@ -71,7 +69,6 @@
       <div class="hint" id="setupMsg" style="margin-top:10px"></div>
     </div>
 
-    <!-- لوحة السائق -->
     <div class="card" style="margin-top:12px">
       <div class="pills" style="margin-top:0">
         <span class="pill" id="onlinePill">Offline</span>
@@ -97,35 +94,35 @@
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
-
     import {
       collection, query, where, orderBy, limit,
       getDocs, doc, runTransaction, serverTimestamp, setDoc,
       onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+    const $ = (id)=>document.getElementById(id);
+
     const { user } = await requireAuthAndRole("driver");
-    document.getElementById("who").textContent = user.email;
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+    $("who").textContent = user.email;
+    $("logoutBtn").addEventListener("click", doLogout);
 
-    const listEl = document.getElementById("list");
-    const refreshBtn = document.getElementById("refreshBtn");
+    const listEl = $("list");
+    const msg = $("msg");
+    const onlineBtn = $("onlineBtn");
+    const onlinePill = $("onlinePill");
+    const gpsPill = $("gpsPill");
+    const areaPill = $("areaPill");
+    const tripPill = $("tripPill");
+    const currentTripCard = $("currentTripCard");
 
-    const msg = document.getElementById("msg");
-    const onlineBtn = document.getElementById("onlineBtn");
-    const onlinePill = document.getElementById("onlinePill");
-    const gpsPill = document.getElementById("gpsPill");
-    const areaPill = document.getElementById("areaPill");
-    const tripPill = document.getElementById("tripPill");
-    const currentTripCard = document.getElementById("currentTripCard");
-
-    const setupCard = document.getElementById("setupCard");
-    const setupMsg = document.getElementById("setupMsg");
-    const govSel = document.getElementById("govSel");
-    const cenSel = document.getElementById("cenSel");
-    const cenOtherWrap = document.getElementById("cenOtherWrap");
-    const cenOtherInput = document.getElementById("cenOtherInput");
-    const saveAreaBtn = document.getElementById("saveAreaBtn");
+    const setupCard = $("setupCard");
+    const setupMsg = $("setupMsg");
+    const govSel = $("govSel");
+    const cenSel = $("cenSel");
+    const cenOtherWrap = $("cenOtherWrap");
+    const cenOtherInput = $("cenOtherInput");
+    const saveAreaBtn = $("saveAreaBtn");
+    $("refreshBtn").addEventListener("click", load);
 
     const statusRef = doc(db, "driver_status", user.uid);
     const userRef = doc(db, "users", user.uid);
@@ -133,63 +130,75 @@
     const OTHER = "__other__";
     const LS = { gov:"mw_driver_gov", cen:"mw_driver_cen", cenOther:"mw_driver_cen_other" };
 
-    let isOnline = false;
-    let watchId = null;
-    let pushTimer = null;
+    // رفض الطلب محليًا (مش بيأثر على الراكب)
+    const REJ_KEY = "mw_rejected_ids";
+    const rejected = new Set(JSON.parse(localStorage.getItem(REJ_KEY) || "[]"));
+    const rejectId = (id)=>{ rejected.add(id); localStorage.setItem(REJ_KEY, JSON.stringify([...rejected])); };
+
+    let isOnline = false, watchId = null, pushTimer = null;
     let lastPos = null; // {lat,lng,heading,speed}
     let driverProfile = null;
-    let unsubStatus = null;
-    let unsubTrip = null;
+    let unsubStatus = null, unsubTrip = null;
     let currentTripId = null;
 
-    // ====== خريطة السائق
+    // =========================
+    // خريطة السائق
+    // =========================
     const dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: "&copy; OpenStreetMap"
     }).addTo(dmap);
 
-    const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
-    setTimeout(fixMap, 450);
-    window.addEventListener("load", ()=> setTimeout(fixMap, 250));
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
+    const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} };
+    setTimeout(fixMap, 300);
+    window.addEventListener("load", ()=> setTimeout(fixMap, 200));
+    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 150); });
 
-    const divPin = (emoji) => L.divIcon({
-      className: "pin-emoji",
-      html: `<div class="pin-bubble">${emoji}</div>`,
-      iconSize: [44,44],
-      iconAnchor: [22,44],
-      popupAnchor: [0,-36]
+    const divPin = (emoji)=>L.divIcon({
+      className:"pin-emoji",
+      html:`<div class="pin-bubble">${emoji}</div>`,
+      iconSize:[44,44], iconAnchor:[22,44], popupAnchor:[0,-36]
     });
 
-    let meMarker = null;
-    let passengerMarker = null;
-    let routeLine = null;
+    let meMarker=null, passengerMarker=null, routeLine=null;
 
     function setMeOnMap(lat,lng){
       if(!meMarker){
         meMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 })
           .addTo(dmap).bindPopup("📍 أنت");
-      }else meMarker.setLatLng([lat,lng]);
+      } else meMarker.setLatLng([lat,lng]);
     }
-
     function setPassengerOnMap(lat,lng){
       if(!passengerMarker){
         passengerMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(dmap).bindPopup("🚩 الراكب");
-      }else passengerMarker.setLatLng([lat,lng]);
+      } else passengerMarker.setLatLng([lat,lng]);
     }
-
     function drawRoute(){
       if(!meMarker || !passengerMarker) return;
-      const a = meMarker.getLatLng();
-      const b = passengerMarker.getLatLng();
+      const a = meMarker.getLatLng(), b = passengerMarker.getLatLng();
       if(routeLine) dmap.removeLayer(routeLine);
       routeLine = L.polyline([a,b]).addTo(dmap);
-      dmap.fitBounds(routeLine.getBounds(), { padding:[30,30] });
-      fixMap();
+    }
+    function clearTripMap(){
+      if(passengerMarker){ try{ dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
+      if(routeLine){ try{ dmap.removeLayer(routeLine);}catch{} routeLine=null; }
     }
 
-    // ====== مناطق
+    // ✅ تحديد موقع تلقائي عند الدخول (حتى لو Offline)
+    function autoLocateOnce(){
+      if(!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition((pos)=>{
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        setMeOnMap(lat,lng);
+        dmap.setView([lat,lng], 15, { animate:false });
+        fixMap();
+      }, ()=>{}, { enableHighAccuracy:true, timeout:15000, maximumAge:8000 });
+    }
+    autoLocateOnce();
+
+    // =========================
+    // مناطق
+    // =========================
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","المرج","شبرا","الزيتون","العباسية","التجمع"],
       "الجيزة": ["الهرم","فيصل","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","البدرشين","الحوامدية"],
@@ -210,190 +219,129 @@
 
     function fillGov(){
       const keep0 = govSel.querySelector("option[value='']");
-      govSel.innerHTML = "";
-      govSel.appendChild(keep0);
-
+      govSel.innerHTML = ""; govSel.appendChild(keep0);
       Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar")).forEach(g=>{
-        const o = document.createElement("option");
-        o.value = g; o.textContent = g;
-        govSel.appendChild(o);
+        const o=document.createElement("option"); o.value=g; o.textContent=g; govSel.appendChild(o);
       });
     }
-
-    function fillCenter(gov, preselect=null){
+    function fillCenter(gov, pre=null){
       cenSel.innerHTML = `<option value="">اختر المركز</option>`;
-      (AREAS[gov] || []).forEach(c=>{
-        const o = document.createElement("option");
-        o.value = c; o.textContent = c;
-        cenSel.appendChild(o);
-      });
-      const other = document.createElement("option");
-      other.value = OTHER;
-      other.textContent = "أخرى (إدخال يدوي)…";
-      cenSel.appendChild(other);
+      (AREAS[gov]||[]).forEach(c=>{ const o=document.createElement("option"); o.value=c; o.textContent=c; cenSel.appendChild(o); });
+      const other=document.createElement("option"); other.value=OTHER; other.textContent="أخرى (إدخال يدوي)…"; cenSel.appendChild(other);
 
-      cenSel.disabled = !gov;
-      cenOtherWrap.style.display = "none";
-      cenOtherInput.value = "";
-
-      if(preselect){
-        const exists = Array.from(cenSel.options).some(o=>o.value===preselect);
-        if(exists){ cenSel.value = preselect; }
-        else{
-          cenSel.value = OTHER;
-          cenOtherWrap.style.display = "block";
-          cenOtherInput.value = preselect;
-        }
+      cenSel.disabled=!gov; cenOtherWrap.style.display="none"; cenOtherInput.value="";
+      if(pre){
+        const ok=[...cenSel.options].some(o=>o.value===pre);
+        if(ok) cenSel.value=pre;
+        else{ cenSel.value=OTHER; cenOtherWrap.style.display="block"; cenOtherInput.value=pre; }
       }
     }
-
     function getSelectedArea(){
-      const g = govSel.value.trim() || null;
-      const cVal = cenSel.value;
-      if(!g) return { gov:null, cen:null };
-      if(!cVal) return { gov:g, cen:null };
-      if(cVal === OTHER){
-        const manual = cenOtherInput.value.trim();
-        return { gov:g, cen: (manual.length >= 2 ? manual : null) };
+      const gov=govSel.value.trim()||null, cVal=cenSel.value;
+      if(!gov) return {gov:null, cen:null};
+      if(!cVal) return {gov, cen:null};
+      if(cVal===OTHER){
+        const manual=cenOtherInput.value.trim();
+        return {gov, cen:(manual.length>=2?manual:null)};
       }
-      return { gov:g, cen:cVal.trim() || null };
+      return {gov, cen:cVal.trim()||null};
     }
-
     function saveAreaLS(){
-      const { gov, cen } = getSelectedArea();
+      const {gov,cen}=getSelectedArea();
       if(gov) localStorage.setItem(LS.gov, gov);
-      if(cenSel.value === OTHER){
+      if(cenSel.value===OTHER){
         localStorage.setItem(LS.cen, OTHER);
-        localStorage.setItem(LS.cenOther, cenOtherInput.value || "");
+        localStorage.setItem(LS.cenOther, cenOtherInput.value||"");
       }else{
         if(cen) localStorage.setItem(LS.cen, cen);
         localStorage.removeItem(LS.cenOther);
       }
     }
-
     function restoreAreaLS(){
-      const g = localStorage.getItem(LS.gov) || "";
-      const c = localStorage.getItem(LS.cen) || "";
-      const co = localStorage.getItem(LS.cenOther) || "";
+      const g=localStorage.getItem(LS.gov)||"", c=localStorage.getItem(LS.cen)||"", co=localStorage.getItem(LS.cenOther)||"";
       if(g){
-        fillGov();
-        govSel.value = g;
-        fillCenter(g, (c && c !== OTHER) ? c : (co || null));
-        if(c === OTHER){
-          cenSel.value = OTHER;
-          cenOtherWrap.style.display = "block";
-          cenOtherInput.value = co;
-        }
+        fillGov(); govSel.value=g;
+        fillCenter(g, (c && c!==OTHER) ? c : (co||null));
+        if(c===OTHER){ cenSel.value=OTHER; cenOtherWrap.style.display="block"; cenOtherInput.value=co; }
       }
     }
 
-    govSel.addEventListener("change", ()=>{
-      fillCenter(govSel.value.trim());
-      setupMsg.textContent = "";
-      saveAreaLS();
-    });
-
+    govSel.addEventListener("change", ()=>{ fillCenter(govSel.value.trim()); setupMsg.textContent=""; saveAreaLS(); });
     cenSel.addEventListener("change", ()=>{
-      if(cenSel.value === OTHER){
-        cenOtherWrap.style.display = "block";
-        cenOtherInput.focus();
-      }else{
-        cenOtherWrap.style.display = "none";
-        cenOtherInput.value = "";
-      }
-      setupMsg.textContent = "";
-      saveAreaLS();
+      if(cenSel.value===OTHER){ cenOtherWrap.style.display="block"; cenOtherInput.focus(); }
+      else{ cenOtherWrap.style.display="none"; cenOtherInput.value=""; }
+      setupMsg.textContent=""; saveAreaLS();
     });
-
     cenOtherInput.addEventListener("input", saveAreaLS);
 
     async function loadDriverProfile(){
       driverProfile = await getUserDoc(user.uid).catch(()=>null);
       return driverProfile;
     }
-
     async function ensureAreaSelected(){
       if(!driverProfile) await loadDriverProfile();
-
-      const gov = driverProfile?.governorate || null;
-      const cen = driverProfile?.center || null;
+      const gov=driverProfile?.governorate||null, cen=driverProfile?.center||null;
 
       if(!gov || !cen){
-        setupCard.style.display = "block";
-        fillGov();
-        restoreAreaLS();
-        if(gov){
-          govSel.value = gov;
-          fillCenter(govSel.value, cen || null);
-        }else if(govSel.value){
-          fillCenter(govSel.value, null);
-        }
-        areaPill.textContent = "منطقة: -";
+        setupCard.style.display="block";
+        fillGov(); restoreAreaLS();
+        if(gov){ govSel.value=gov; fillCenter(govSel.value, cen||null); }
+        else if(govSel.value){ fillCenter(govSel.value, null); }
+        areaPill.textContent="منطقة: -";
         return false;
       }
-
-      setupCard.style.display = "none";
-      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
+      setupCard.style.display="none";
+      areaPill.textContent=`منطقة: ${gov} / ${cen}`;
       return true;
     }
 
     saveAreaBtn.addEventListener("click", async ()=>{
-      setupMsg.textContent = "";
-      const { gov, cen } = getSelectedArea();
-      if(!gov) return setupMsg.textContent = "❌ اختر المحافظة.";
-      if(!cen) return setupMsg.textContent = "❌ اختر المركز (أو اكتب يدويًا).";
+      setupMsg.textContent="";
+      const {gov,cen}=getSelectedArea();
+      if(!gov) return setupMsg.textContent="❌ اختر المحافظة.";
+      if(!cen) return setupMsg.textContent="❌ اختر المركز (أو اكتب يدويًا).";
 
-      saveAreaBtn.disabled = true;
-      setupMsg.textContent = "جارٍ الحفظ…";
-
+      saveAreaBtn.disabled=true; setupMsg.textContent="جارٍ الحفظ…";
       try{
-        await setDoc(userRef, { governorate: gov, center: cen, updatedAt: serverTimestamp() }, { merge:true });
-        saveAreaLS();
-        await loadDriverProfile();
-        setupMsg.textContent = "✅ تم حفظ المنطقة.";
-        setupCard.style.display = "none";
-        areaPill.textContent = `منطقة: ${gov} / ${cen}`;
+        await setDoc(userRef, { governorate:gov, center:cen, updatedAt:serverTimestamp() }, { merge:true });
+        saveAreaLS(); await loadDriverProfile();
+        setupMsg.textContent="✅ تم حفظ المنطقة.";
+        setupCard.style.display="none";
+        areaPill.textContent=`منطقة: ${gov} / ${cen}`;
         await load();
       }catch(e){
         console.error(e);
-        setupMsg.textContent = `❌ فشل الحفظ: ${e.message || e}`;
-      }finally{
-        saveAreaBtn.disabled = false;
-      }
+        setupMsg.textContent=`❌ فشل الحفظ: ${e.message||e}`;
+      }finally{ saveAreaBtn.disabled=false; }
     });
 
-    // ====== UI helpers
+    // =========================
+    // UI
+    // =========================
     function setOnlineUI(on){
-      isOnline = on;
+      isOnline=on;
       onlinePill.classList.remove("ok","bad");
       if(on){
-        onlinePill.textContent = "Online ✅";
-        onlinePill.classList.add("ok");
-        onlineBtn.textContent = "Go Offline";
-        onlineBtn.classList.remove("primary");
-        onlineBtn.classList.add("danger");
+        onlinePill.textContent="Online ✅"; onlinePill.classList.add("ok");
+        onlineBtn.textContent="Go Offline"; onlineBtn.classList.remove("primary"); onlineBtn.classList.add("danger");
       }else{
-        onlinePill.textContent = "Offline";
-        onlinePill.classList.add("bad");
-        onlineBtn.textContent = "Go Online";
-        onlineBtn.classList.remove("danger");
-        onlineBtn.classList.add("primary");
+        onlinePill.textContent="Offline"; onlinePill.classList.add("bad");
+        onlineBtn.textContent="Go Online"; onlineBtn.classList.remove("danger"); onlineBtn.classList.add("primary");
       }
     }
-
     function setGpsUI(state){
       gpsPill.classList.remove("ok","bad");
-      if(state === "ok"){ gpsPill.textContent = "GPS: شغال ✅"; gpsPill.classList.add("ok"); }
-      else if(state === "denied"){ gpsPill.textContent = "GPS: مرفوض ❌"; gpsPill.classList.add("bad"); }
-      else { gpsPill.textContent = "GPS: غير معروف"; }
+      if(state==="ok"){ gpsPill.textContent="GPS: شغال ✅"; gpsPill.classList.add("ok"); }
+      else if(state==="denied"){ gpsPill.textContent="GPS: مرفوض ❌"; gpsPill.classList.add("bad"); }
+      else gpsPill.textContent="GPS: غير معروف";
     }
 
-    // ====== متابعة الرحلة الحالية (وإظهار الراكب على الخريطة)
+    // =========================
+    // الرحلة الحالية (اظهار الراكب على الخريطة)
+    // =========================
     function stopWatchTrip(){
-      if(unsubTrip){ try{ unsubTrip(); }catch{} unsubTrip=null; }
-      // مسح passenger marker لو مفيش رحلة
-      if(passengerMarker){ try{ dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
-      if(routeLine){ try{ dmap.removeLayer(routeLine);}catch{} routeLine=null; }
+      if(unsubTrip){ try{unsubTrip();}catch{} unsubTrip=null; }
+      clearTripMap();
     }
 
     function watchTrip(tripId){
@@ -403,47 +351,42 @@
       const rideRef = doc(db, "rides", tripId);
       unsubTrip = onSnapshot(rideRef, (snap)=>{
         if(!snap.exists()){
-          currentTripCard.style.display = "block";
-          currentTripCard.innerHTML = `<div class="hint">⚠️ الرحلة غير موجودة.</div>`;
+          currentTripCard.style.display="block";
+          currentTripCard.innerHTML=`<div class="hint">⚠️ الرحلة غير موجودة.</div>`;
           return;
         }
 
-        const r = snap.data();
-        const status = r.status || "-";
+        const r=snap.data();
+        const status=r.status||"-";
 
-        // ✅ اظهر الراكب على الخريطة
-        const pLat = Number(r.from?.lat);
-        const pLng = Number(r.from?.lng);
+        const pLat=Number(r.from?.lat), pLng=Number(r.from?.lng);
         if(Number.isFinite(pLat) && Number.isFinite(pLng)){
           setPassengerOnMap(pLat,pLng);
-          // ارسم خط بين السائق والراكب لو السائق مكانه معروف
           if(meMarker) drawRoute();
-          // فتح تلقائي على موقع الراكب أول مرة بعد القبول
-          if(status === "accepted" && !localStorage.getItem("autoFocusPickup_"+tripId)){
-            localStorage.setItem("autoFocusPickup_"+tripId, "1");
-            dmap.setView([pLat,pLng], 16, { animate:false });
+          if(status==="accepted" && !localStorage.getItem("autoFocusPickup_"+tripId)){
+            localStorage.setItem("autoFocusPickup_"+tripId,"1");
+            dmap.setView([pLat,pLng],16,{animate:false});
             fixMap();
           }
         }
 
-        if(status === "done" || status === "canceled"){
-          currentTripCard.style.display = "block";
-          currentTripCard.innerHTML = `<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
-          setDoc(statusRef, { available: !!isOnline, currentTripId: null, lastSeenAt: serverTimestamp() }, { merge:true }).catch(()=>{});
+        if(status==="done" || status==="canceled" || status==="completed"){
+          currentTripCard.style.display="block";
+          currentTripCard.innerHTML=`<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
+          setDoc(statusRef, { available:!!isOnline, currentTripId:null, lastSeenAt:serverTimestamp() }, { merge:true }).catch(()=>{});
           return;
         }
 
-        const pName = r.passengerName || "راكب";
-        const pEmail = r.passengerEmail || "-";
-        const pPhone = r.passengerPhone || "";
+        const pName=r.passengerName||"راكب";
+        const pEmail=r.passengerEmail||"-";
+        const pPhone=r.passengerPhone||"";
 
-        currentTripCard.style.display = "block";
-        currentTripCard.innerHTML = `
+        currentTripCard.style.display="block";
+        currentTripCard.innerHTML=`
           <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
             <div><b>🚖 الرحلة الحالية</b></div>
             <span class="pill ok">${status}</span>
           </div>
-
           <div class="hint" style="margin-top:10px">
             <b>الراكب:</b> ${pName} (${pEmail})
             <br><b>هاتف:</b> ${pPhone || "لا يوجد"}
@@ -451,14 +394,13 @@
             <br><b>إلى:</b> ${r.toText ?? "-"}
             <br><b>المنطقة:</b> ${r.governorate ?? "-"} / ${r.center ?? "-"}
           </div>
-
           <div class="actions" style="margin-top:12px">
             ${pPhone ? `<a class="btn success" href="tel:${pPhone}">📞 اتصال بالراكب</a>` : `<button class="btn" disabled>📞 لا يوجد رقم</button>`}
             ${(Number.isFinite(pLat) && Number.isFinite(pLng)) ? `<button class="btn" id="focusPickupBtn" type="button">تركيز على الراكب</button>` : ``}
           </div>
         `;
 
-        const focusBtn = currentTripCard.querySelector("#focusPickupBtn");
+        const focusBtn=currentTripCard.querySelector("#focusPickupBtn");
         if(focusBtn){
           focusBtn.addEventListener("click", ()=>{
             dmap.setView([pLat,pLng], 16, { animate:false });
@@ -471,48 +413,41 @@
     function watchDriverStatus(){
       if(unsubStatus) unsubStatus();
       unsubStatus = onSnapshot(statusRef, (snap)=>{
-        const st = snap.exists() ? snap.data() : null;
-        const online = !!st?.online;
-        const tripId = st?.currentTripId || null;
-
+        const st=snap.exists()?snap.data():null;
+        const online=!!st?.online;
+        const tripId=st?.currentTripId||null;
         setOnlineUI(online);
 
         if(tripId){
-          tripPill.textContent = `🚖 رحلة: ${tripId}`;
-          currentTripId = tripId;
+          tripPill.textContent=`🚖 رحلة: ${tripId}`;
+          currentTripId=tripId;
           watchTrip(tripId);
         }else{
-          tripPill.textContent = "لا يوجد رحلة";
-          currentTripId = null;
+          tripPill.textContent="لا يوجد رحلة";
+          currentTripId=null;
           stopWatchTrip();
-          currentTripCard.style.display = "none";
-          currentTripCard.innerHTML = "";
+          currentTripCard.style.display="none";
+          currentTripCard.innerHTML="";
         }
       });
     }
 
-    // ====== كروت الطلبات المفتوحة (تعرض هاتف الراكب + فتح الانطلاق)
-    function safeNum(x){
-      const n = Number(x);
-      return Number.isFinite(n) ? n : null;
-    }
-    function mapLinkFor(lat, lng, zoom=16){
-      if(lat === null || lng === null) return null;
-      return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`;
-    }
+    // =========================
+    // كروت الطلبات (قبول + رفض)
+    // =========================
+    const safeNum=(x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
 
     function rideCard(r, gov, cen){
-      const fromLat = safeNum(r.from?.lat);
-      const fromLng = safeNum(r.from?.lng);
-      const fromLink = mapLinkFor(fromLat, fromLng, 16);
+      if(rejected.has(r.id)) return null; // مخفي محليًا
 
-      const el = document.createElement("div");
-      el.className = "card";
+      const fromLat=safeNum(r.from?.lat), fromLng=safeNum(r.from?.lng);
 
-      el.innerHTML = `
+      const el=document.createElement("div");
+      el.className="card";
+      el.innerHTML=`
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
           <div><b>طلب:</b> ${r.id}</div>
-          <div class="pill">${r.status || "-"}</div>
+          <div class="pill">${r.status||"-"}</div>
         </div>
 
         <div class="hint" style="margin-top:8px">
@@ -525,75 +460,74 @@
 
         <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn primary" data-accept="${r.id}" type="button">قبول</button>
-          ${fromLink ? `<a class="btn" target="_blank" href="${fromLink}">فتح الانطلاق</a>` : ``}
-          ${fromLat!==null && fromLng!==null ? `<button class="btn" data-focus="${r.id}" type="button">عرض على الخريطة</button>` : ``}
+          <button class="btn" data-reject="${r.id}" type="button">رفض</button>
+          ${(fromLat!==null && fromLng!==null) ? `<button class="btn" data-focus="${r.id}" type="button">عرض على الخريطة</button>` : ``}
         </div>
         <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
       `;
 
-      const focusBtn = el.querySelector(`[data-focus="${r.id}"]`);
+      // focus
+      const focusBtn=el.querySelector(`[data-focus="${r.id}"]`);
       if(focusBtn){
         focusBtn.addEventListener("click", ()=>{
-          if(fromLat!==null && fromLng!==null){
-            setPassengerOnMap(fromLat, fromLng);
-            dmap.setView([fromLat, fromLng], 16, { animate:false });
-            fixMap();
-          }
+          setPassengerOnMap(fromLat, fromLng);
+          dmap.setView([fromLat, fromLng], 16, { animate:false });
+          fixMap();
         });
       }
 
+      // reject (local hide)
+      el.querySelector(`[data-reject="${r.id}"]`).addEventListener("click", ()=>{
+        rejectId(r.id);
+        el.remove();
+      });
+
+      // accept
       el.querySelector(`[data-accept="${r.id}"]`).addEventListener("click", async ()=>{
-        const m = el.querySelector(`#m_${r.id}`);
-        const rideRef = doc(db, "rides", r.id);
+        const m=el.querySelector(`#m_${r.id}`);
+        const rideRef=doc(db,"rides",r.id);
 
         try{
-          m.textContent = "جارٍ القبول…";
+          m.textContent="جارٍ القبول…";
+          if(currentTripId){ m.textContent="❌ لديك رحلة حالية. أنهِ الرحلة أولاً."; return; }
 
-          if(currentTripId){
-            m.textContent = "❌ لديك رحلة حالية. أنهِ الرحلة أولاً.";
-            return;
-          }
-
-          const d = driverProfile || await getUserDoc(user.uid);
-          const driverName  = d?.name || "سائق";
-          const driverPhone = d?.phone || null;
+          const d=driverProfile || await getUserDoc(user.uid);
+          const driverName=d?.name || "سائق";
+          const driverPhone=d?.phone || null;
 
           const res = await runTransaction(db, async (tx)=>{
-            const snap = await tx.get(rideRef);
+            const snap=await tx.get(rideRef);
             if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
+            const cur=snap.data();
 
-            const cur = snap.data();
-            if(cur.status !== "open") return { ok:false, msg:"الطلب لم يعد مفتوح." };
+            if(cur.status!=="open") return { ok:false, msg:"الطلب لم يعد مفتوح." };
             if(cur.driverUid) return { ok:false, msg:"الطلب اتقبل بالفعل." };
-
-            if(cur.governorate !== gov || cur.center !== cen){
-              return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
-            }
+            if(cur.governorate!==gov || cur.center!==cen) return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
 
             tx.update(rideRef, {
-              status: "accepted",
-              acceptedAt: serverTimestamp(),
-              driverUid: user.uid,
-              driverEmail: user.email,
+              status:"accepted",
+              acceptedAt:serverTimestamp(),
+              driverUid:user.uid,
+              driverEmail:user.email,
               driverName,
               driverPhone
             });
 
             tx.set(statusRef, {
-              online: true,
-              available: false,
-              currentTripId: r.id,
-              lastSeenAt: serverTimestamp()
+              online:true,
+              available:false,
+              currentTripId:r.id,
+              lastSeenAt:serverTimestamp()
             }, { merge:true });
 
             return { ok:true, msg:"✅ تم قبول الطلب." };
           });
 
-          m.textContent = res.msg;
+          m.textContent=res.msg;
           await load();
         }catch(e){
           console.error(e);
-          m.textContent = `❌ فشل القبول: ${e.message || e}`;
+          m.textContent=`❌ فشل القبول: ${e.message||e}`;
         }
       });
 
@@ -602,69 +536,60 @@
 
     async function load(){
       const ok = await ensureAreaSelected();
-      if(!ok){
-        listEl.innerHTML = `<div class="card">حدد منطقتك أولاً.</div>`;
-        return;
-      }
+      if(!ok){ listEl.innerHTML=`<div class="card">حدد منطقتك أولاً.</div>`; return; }
 
-      const gov = driverProfile.governorate;
-      const cen = driverProfile.center;
-
-      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
+      const gov=driverProfile.governorate, cen=driverProfile.center;
+      listEl.innerHTML=`<div class="card">جارٍ تحميل الطلبات…</div>`;
 
       const q = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        where("governorate", "==", gov),
-        where("center", "==", cen),
-        orderBy("createdAt", "desc"),
+        collection(db,"rides"),
+        where("status","==","open"),
+        where("governorate","==",gov),
+        where("center","==",cen),
+        orderBy("createdAt","desc"),
         limit(25)
       );
 
-      const snap = await getDocs(q);
+      const snap=await getDocs(q);
+      listEl.innerHTML="";
 
-      listEl.innerHTML = "";
       if(snap.empty){
-        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
+        listEl.innerHTML=`<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
         return;
       }
 
       snap.forEach(d=>{
-        listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
+        const card = rideCard({ id:d.id, ...d.data() }, gov, cen);
+        if(card) listEl.appendChild(card);
       });
     }
 
-    refreshBtn.addEventListener("click", load);
-
-    // ====== Online / Offline + GPS Push (ومعاه تحديث marker على الخريطة)
-    async function pushStatus(extra = {}){
-      const gov = driverProfile?.governorate || null;
-      const cen = driverProfile?.center || null;
-
-      const payload = {
-        online: isOnline,
-        available: isOnline && !currentTripId,
-        governorate: gov,
-        center: cen,
-        lastSeenAt: serverTimestamp(),
+    // =========================
+    // Online/Offline + GPS Push
+    // =========================
+    async function pushStatus(extra={}){
+      const gov=driverProfile?.governorate||null, cen=driverProfile?.center||null;
+      const payload={
+        online:isOnline,
+        available:isOnline && !currentTripId,
+        governorate:gov,
+        center:cen,
+        lastSeenAt:serverTimestamp(),
         ...extra
       };
-
       if(lastPos){
-        payload.lat = lastPos.lat;
-        payload.lng = lastPos.lng;
-        payload.heading = lastPos.heading ?? null;
-        payload.speed = lastPos.speed ?? null;
+        payload.lat=lastPos.lat; payload.lng=lastPos.lng;
+        payload.heading=lastPos.heading ?? null;
+        payload.speed=lastPos.speed ?? null;
       }
-
       await setDoc(statusRef, payload, { merge:true });
     }
 
     function startGPS(){
-      msg.textContent = "";
+      msg.textContent="";
       if(!navigator.geolocation){
         setGpsUI("denied");
-        msg.textContent = "❌ جهازك لا يدعم GPS.";
+        msg.textContent="❌ جهازك لا يدعم GPS.";
         return false;
       }
 
@@ -673,96 +598,76 @@
         lastPos = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-          heading: (pos.coords.heading ?? null),
-          speed: (pos.coords.speed ?? null),
+          heading: pos.coords.heading ?? null,
+          speed: pos.coords.speed ?? null
         };
-        // ✅ على الخريطة
         setMeOnMap(lastPos.lat, lastPos.lng);
-        // لو فيه راكب ظاهر ارسم خط
         if(passengerMarker) drawRoute();
       }, (err)=>{
         console.error(err);
-        if(err?.code === 1){
+        if(err?.code===1){
           setGpsUI("denied");
-          msg.innerHTML = "❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
+          msg.innerHTML="❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
         }else{
           setGpsUI("unknown");
-          msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
+          msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
         }
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
 
       pushTimer = setInterval(async ()=>{
-        try{
-          if(!isOnline) return;
-          await pushStatus();
-        }catch(e){ console.error(e); }
-      }, 4000);
+        try{ if(isOnline) await pushStatus(); }catch(e){ console.error(e); }
+      }, 4500);
 
       return true;
     }
 
     function stopGPS(){
-      if(watchId !== null){ try{ navigator.geolocation.clearWatch(watchId); }catch{} watchId = null; }
-      if(pushTimer){ clearInterval(pushTimer); pushTimer = null; }
-      lastPos = null;
+      if(watchId!==null){ try{ navigator.geolocation.clearWatch(watchId);}catch{} watchId=null; }
+      if(pushTimer){ clearInterval(pushTimer); pushTimer=null; }
+      lastPos=null;
       setGpsUI("unknown");
     }
 
     async function goOnline(){
-      onlineBtn.disabled = true;
-      msg.textContent = "جارٍ التشغيل Online…";
+      onlineBtn.disabled=true;
+      msg.textContent="جارٍ التشغيل Online…";
 
       await loadDriverProfile();
       const ok = await ensureAreaSelected();
-      if(!ok){
-        msg.textContent = "❌ لازم تحدد محافظتك ومركزك أولاً.";
-        onlineBtn.disabled = false;
-        return;
-      }
+      if(!ok){ msg.textContent="❌ لازم تحدد محافظتك ومركزك أولاً."; onlineBtn.disabled=false; return; }
 
       setOnlineUI(true);
-
       const okGps = startGPS();
+
       if(okGps){
         try{
-          await pushStatus({ online:true, available: !currentTripId, currentTripId: currentTripId || null });
-          msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
+          await pushStatus({ online:true, available:!currentTripId, currentTripId: currentTripId || null });
+          msg.textContent="✅ Online شغال.. بيتم إرسال موقعك.";
         }catch(e){
           console.error(e);
-          msg.textContent = `⚠️ Online اشتغل لكن مشكلة driver_status: ${e.message || e}`;
+          msg.textContent=`⚠️ Online اشتغل لكن مشكلة driver_status: ${e.message||e}`;
         }
       }
-
-      onlineBtn.disabled = false;
+      onlineBtn.disabled=false;
     }
 
     async function goOffline(){
-      onlineBtn.disabled = true;
-      msg.textContent = "جارٍ الإيقاف Offline…";
-
+      onlineBtn.disabled=true;
+      msg.textContent="جارٍ الإيقاف Offline…";
       setOnlineUI(false);
       stopGPS();
 
       try{
-        await setDoc(statusRef, {
-          online: false,
-          available: false,
-          lastSeenAt: serverTimestamp()
-        }, { merge:true });
-        msg.textContent = "✅ تم الإيقاف Offline.";
+        await setDoc(statusRef, { online:false, available:false, lastSeenAt:serverTimestamp() }, { merge:true });
+        msg.textContent="✅ تم الإيقاف Offline.";
       }catch(e){
         console.error(e);
-        msg.textContent = `⚠️ Offline اتعمل لكن مشكلة driver_status: ${e.message || e}`;
+        msg.textContent=`⚠️ Offline اتعمل لكن مشكلة driver_status: ${e.message||e}`;
       }
-
-      onlineBtn.disabled = false;
+      onlineBtn.disabled=false;
     }
 
-    onlineBtn.addEventListener("click", async ()=>{
-      if(isOnline) await goOffline();
-      else await goOnline();
-    });
-
+    onlineBtn.addEventListener("click", async ()=>{ if(isOnline) await goOffline(); else await goOnline(); });
     window.addEventListener("beforeunload", ()=>{ try{ stopGPS(); }catch{} });
 
     // init
