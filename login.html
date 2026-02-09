@@ -39,11 +39,17 @@
 <body>
   <div class="box">
     <h1>🔐 مشوارك — إنشاء حساب / تسجيل دخول</h1>
-    <p>اكتب Gmail + باسورد + اسمك، واختر (راكب/سائق) + المحافظة + المركز</p>
+    <p>اكتب Gmail + باسورد + اسمك + رقم الهاتف، واختر (راكب/سائق) + المحافظة + المركز</p>
 
     <div class="field" style="margin-top:0">
       <label>الاسم</label>
       <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
+    </div>
+
+    <div class="field">
+      <label>رقم الهاتف (هيظهر للسائق بعد القبول)</label>
+      <input id="phone" inputmode="tel" placeholder="مثال: 01xxxxxxxxx" autocomplete="tel"/>
+      <div class="small" style="margin-top:6px">* يُفضّل رقم مصري يبدأ بـ 01 وطوله 11 رقم.</div>
     </div>
 
     <div class="field">
@@ -86,7 +92,7 @@
     </div>
 
     <div id="otherCenterWrap" class="field" style="display:none">
-      <label>اكتب المركز (اختياري لو اخترت "أخرى")</label>
+      <label>اكتب المركز (لو اخترت "أخرى")</label>
       <input id="centerOther" placeholder="مثال: مركز جديد…" />
       <div class="small" style="margin-top:6px">اكتب على الأقل حرفين.</div>
     </div>
@@ -109,12 +115,16 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
     import {
-      doc, getDoc, setDoc, serverTimestamp
+      doc,
+      getDoc,
+      setDoc,
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const qs = (k) => new URLSearchParams(location.search).get(k);
 
     const nameEl  = document.getElementById("name");
+    const phoneEl = document.getElementById("phone");
     const emailEl = document.getElementById("email");
     const passEl  = document.getElementById("pass");
     const msg     = document.getElementById("msg");
@@ -209,24 +219,23 @@
       msg.textContent = "";
     });
 
-    // Roles
     let selectedRole = null;
 
     function isGmail(email){
       return /@gmail\.com$/i.test(email.trim());
     }
+    function isEgPhone(p){
+      const x = (p||"").replace(/\s+/g,"").trim();
+      return /^01\d{9}$/.test(x);
+    }
 
     function setRole(role){
       selectedRole = role;
-
       rolePassenger.classList.remove("active");
       roleDriver.classList.remove("active","driver");
 
-      if(role === "passenger"){
-        rolePassenger.classList.add("active");
-      }else if(role === "driver"){
-        roleDriver.classList.add("active","driver");
-      }
+      if(role === "passenger") rolePassenger.classList.add("active");
+      if(role === "driver") roleDriver.classList.add("active","driver");
     }
 
     function lockUI(locked){
@@ -238,6 +247,7 @@
       centerEl.disabled = locked || !govEl.value;
       centerOtherEl.disabled = locked;
       nameEl.disabled = locked;
+      phoneEl.disabled = locked;
       emailEl.disabled = locked;
       passEl.disabled = locked;
     }
@@ -276,37 +286,15 @@
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
     roleDriver.addEventListener("click", ()=> setRole("driver"));
 
-    // role من URL
     const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver"){
       setRole(roleFromUrl);
-      // (اختياري) اقفل تغيير الدور لو جاي من الرئيسية
-      // rolePassenger.disabled = true;
-      // roleDriver.disabled = true;
     }
 
-    function mapAuthError(e){
-      const code = e?.code || "";
-      if(code.includes("auth/email-already-in-use")) return "❌ الإيميل مستخدم قبل كده.";
-      if(code.includes("auth/invalid-email")) return "❌ الإيميل غير صحيح.";
-      if(code.includes("auth/wrong-password")) return "❌ الإيميل أو الباسورد غلط.";
-      if(code.includes("auth/user-not-found")) return "❌ الحساب غير موجود.";
-      if(code.includes("auth/too-many-requests")) return "❌ محاولات كثيرة. جرّب بعد شوية.";
-      if(code.includes("auth/weak-password")) return "❌ الباسورد ضعيف.";
-      return "❌ حصل خطأ. جرّب تاني.";
-    }
-
-    // لو عامل login بالفعل
     onAuthStateChanged(auth, async (user) => {
       if(!user) return;
       try{
         const data = await getUserDoc(user.uid);
-        // لو فيه returnTo نرجع له مباشرة (بدون تعقيد)
-        const returnTo = qs("returnTo");
-        if(returnTo){
-          location.href = returnTo;
-          return;
-        }
         if(data?.role === "passenger" || data?.role === "driver"){
           goAfterLogin(data.role);
         }
@@ -319,11 +307,13 @@
       msg.textContent = "";
 
       const name  = nameEl.value.trim();
+      const phone = phoneEl.value.trim();
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
       const area  = getArea();
 
       if(!name || name.length < 2) return msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
+      if(!isEgPhone(phone)) return msg.innerHTML = `<span class="text-bad">❌ اكتب رقم هاتف صحيح (مثال: 01xxxxxxxxx).</span>`;
       if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
       if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
       if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
@@ -337,6 +327,7 @@
 
         await upsertUser(res.user.uid, {
           name,
+          phone,
           email,
           role: selectedRole,
           governorate: area.governorate,
@@ -348,7 +339,7 @@
         goAfterLogin(selectedRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">${mapAuthError(e)}</span>`;
+        msg.innerHTML = `<span class="text-bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
       }finally{
         lockUI(false);
       }
@@ -358,6 +349,7 @@
       msg.textContent = "";
 
       const name  = nameEl.value.trim();
+      const phone = phoneEl.value.trim();
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
       const area  = getArea();
@@ -374,28 +366,21 @@
         const data = await getUserDoc(res.user.uid);
         let finalRole = data?.role || null;
 
-        // أول مرة: لازم يختار الدور
         if(!finalRole){
-          if(!selectedRole){
-            msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
-            return;
-          }
+          if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
           finalRole = selectedRole;
         }
 
-        // لازم منطقة لأول مرة
-        if((!data?.governorate || !data?.center) && (!area.governorate || !area.center)){
-          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
-          return;
-        }
-
         const patch = { email, role: finalRole };
-
         if(name && name.length >= 2) patch.name = name;
+        if(phone && /^01\d{9}$/.test(phone.replace(/\s+/g,""))) patch.phone = phone.replace(/\s+/g,"");
 
         if(area.governorate && area.center){
           patch.governorate = area.governorate;
           patch.center = area.center;
+        }else if(!data?.governorate || !data?.center){
+          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
+          return;
         }
 
         await upsertUser(res.user.uid, patch);
@@ -404,7 +389,7 @@
         goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">${mapAuthError(e)}</span>`;
+        msg.innerHTML = `<span class="text-bad">❌ الإيميل أو الباسورد غلط.</span>`;
       }finally{
         lockUI(false);
       }
@@ -412,13 +397,6 @@
 
     signupBtn.addEventListener("click", handleSignup);
     loginBtn.addEventListener("click", handleLogin);
-
-    // Enter = login
-    [nameEl,emailEl,passEl,centerOtherEl].forEach(el=>{
-      el.addEventListener("keydown",(ev)=>{
-        if(ev.key === "Enter") handleLogin();
-      });
-    });
   </script>
 </body>
 </html>
