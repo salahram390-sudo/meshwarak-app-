@@ -13,20 +13,10 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* Toast خفيف */
-    .toast{
-      position:fixed;left:14px;right:14px;bottom:16px;z-index:9999;
-      padding:12px 14px;border-radius:14px;
-      background:rgba(16,24,37,.92);border:1px solid rgba(255,255,255,.10);
-      color:#e8eef7;box-shadow:0 18px 55px rgba(0,0,0,.35);
-      transform:translateY(18px);opacity:0;transition:.18s ease;
-      backdrop-filter: blur(8px);
-      font-size:14px;line-height:1.5;
-    }
-    .toast.show{transform:translateY(0);opacity:1}
-    .toast.ok{border-color:rgba(34,197,94,.35)}
-    .toast.bad{border-color:rgba(239,68,68,.35)}
-    .toast .small{opacity:.8;font-size:12px;margin-top:4px}
+    /* سعر مثل أوبر */
+    .fareBox{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .fareNum{font-weight:900;font-size:15px}
+    .fareHint{font-size:12px;color:var(--muted)}
   </style>
 </head>
 
@@ -46,6 +36,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Toast -->
+  <div class="toast-wrap" id="toasts"></div>
 
   <div class="map-wrap">
     <div id="map"></div>
@@ -80,18 +73,6 @@
           </div>
         </div>
 
-        <!-- هاتف الراكب (لو ناقص) -->
-        <div id="phoneWrap" class="card" style="display:none;margin-top:12px">
-          <div class="hint" style="margin-top:0">لازم رقم الهاتف عشان السائق يتصل بك بعد قبول المشوار.</div>
-          <div class="field" style="margin-top:10px">
-            <label>رقم الهاتف</label>
-            <input id="phoneInput" placeholder="01xxxxxxxxx" inputmode="tel" />
-          </div>
-          <div class="actions">
-            <button class="btn primary" id="savePhoneBtn" type="button">حفظ الرقم</button>
-          </div>
-        </div>
-
         <!-- من/إلى -->
         <div class="grid2">
           <div class="field" style="margin-top:0">
@@ -108,6 +89,15 @@
               <input id="toText" placeholder="مثال: الهرم، الجيزة" />
               <button class="btn" id="toSearchBtn" type="button">بحث</button>
             </div>
+          </div>
+        </div>
+
+        <!-- السعر -->
+        <div class="card" style="margin-top:12px">
+          <div class="fareBox">
+            <div class="pill ok">السعر التقديري</div>
+            <div class="fareNum" id="fareText">—</div>
+            <div class="fareHint" id="fareHint">حدد القيام والوصول لحساب السعر.</div>
           </div>
         </div>
 
@@ -134,45 +124,30 @@
     </div>
   </div>
 
-  <div id="toast" class="toast"></div>
-
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
+
     import {
       collection, addDoc, serverTimestamp,
       doc, onSnapshot, setDoc, getDoc, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // =========================
-    // Toast + Debug
-    // =========================
-    const toastEl = document.getElementById("toast");
-    let toastTimer = null;
-    function toast(text, type=""){
-      toastEl.className = "toast" + (type ? (" " + type) : "");
-      toastEl.textContent = text;
-      toastEl.classList.add("show");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(()=> toastEl.classList.remove("show"), 2200);
-    }
-    window.addEventListener("error", (e)=> toast("❌ خطأ بالصفحة: " + (e?.message || "unknown"), "bad"));
-    window.addEventListener("unhandledrejection", (e)=> toast("❌ خطأ: " + (e?.reason?.message || e?.reason || "unknown"), "bad"));
-
-    const onTap = (el, fn) => { // يحل مشاكل click على الموبايل
-      el.addEventListener("pointerup", (ev)=>{ ev.preventDefault(); fn(); }, {passive:false});
-      el.addEventListener("click", (ev)=>{ ev.preventDefault(); fn(); }, {passive:false});
-    };
-
-    // =========================
-    // Auth
-    // =========================
     const { user } = await requireAuthAndRole("passenger");
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
+
+    // ===== Toast
+    const toasts = document.getElementById("toasts");
+    function toast(text, type="ok", icon="✅", ms=2600){
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      el.innerHTML = `<div class="t-ic">${icon}</div><div class="t-txt">${text}</div>`;
+      toasts.appendChild(el);
+      setTimeout(()=>{ try{ el.remove(); }catch{} }, ms);
+    }
 
     const msg = document.getElementById("msg");
     const whoEl = document.getElementById("who");
 
-    // LocalStorage Keys
     const LS = {
       areaGov: "mw_area_gov",
       areaCenter: "mw_area_center",
@@ -181,11 +156,10 @@
       toText: "mw_to_text",
       lastRideId: "lastRideId"
     };
-
     const OTHER = "__other__";
 
     // =========================
-    // AREAS (كما هو)
+    // المناطق
     // =========================
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","عين شمس","الزيتون","المرج","العباسية","التجمع","القطامية","السيدة زينب","الدرب الأحمر","باب الشعرية","روض الفرج"],
@@ -217,9 +191,6 @@
       "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طابا","رأس سدر"]
     };
 
-    // =========================
-    // Region UI
-    // =========================
     const govSelect = document.getElementById("govSelect");
     const centerSelect = document.getElementById("centerSelect");
     const centerOtherWrap = document.getElementById("centerOtherWrap");
@@ -234,9 +205,9 @@
 
     function fillCenters(gov, preselect=null){
       centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
-      (AREAS[gov] || []).forEach(c=>{
+      (AREAS[gov]||[]).forEach(c=>{
         const o = document.createElement("option");
-        o.value = c; o.textContent = c;
+        o.value=c; o.textContent=c;
         centerSelect.appendChild(o);
       });
       const other = document.createElement("option");
@@ -244,15 +215,14 @@
       other.textContent = "أخرى (إدخال يدوي)…";
       centerSelect.appendChild(other);
 
-      centerSelect.disabled = false;
+      centerSelect.disabled = !gov;
       centerOtherWrap.style.display = "none";
       centerOtherInput.value = "";
 
       if(preselect){
         const exists = Array.from(centerSelect.options).some(o=>o.value===preselect);
-        if(exists){
-          centerSelect.value = preselect;
-        }else{
+        if(exists) centerSelect.value = preselect;
+        else{
           centerSelect.value = OTHER;
           centerOtherWrap.style.display = "block";
           centerOtherInput.value = preselect;
@@ -267,14 +237,14 @@
       if(!cVal) return { gov, center:null };
       if(cVal === OTHER){
         const manual = centerOtherInput.value.trim();
-        return { gov, center: manual.length >= 2 ? manual : null };
+        return { gov, center: manual.length>=2 ? manual : null };
       }
       return { gov, center: cVal.trim() };
     }
 
     function renderAreaPill(){
       const { gov, center } = getSelectedArea();
-      areaPill.textContent = gov && center ? `المنطقة: ${gov} / ${center}` : "المنطقة: -";
+      areaPill.textContent = (gov && center) ? `المنطقة: ${gov} / ${center}` : "المنطقة: -";
     }
 
     function saveAreaToLS(){
@@ -293,12 +263,13 @@
       const g = localStorage.getItem(LS.areaGov) || "";
       const c = localStorage.getItem(LS.areaCenter) || "";
       const co = localStorage.getItem(LS.areaCenterOther) || "";
+
       if(g){
         govSelect.value = g;
         fillCenters(g, (c && c !== OTHER) ? c : (co || null));
         if(c === OTHER){
           centerSelect.value = OTHER;
-          centerOtherWrap.style.display = "block";
+          centerOtherWrap.style.display="block";
           centerOtherInput.value = co;
         }
       }
@@ -310,13 +281,11 @@
       if(!g){
         centerSelect.disabled = true;
         centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
-        centerOtherWrap.style.display = "none";
-        centerOtherInput.value = "";
-        renderAreaPill();
-        updateUI();
-        return;
+        centerOtherWrap.style.display="none";
+        centerOtherInput.value="";
+      }else{
+        fillCenters(g);
       }
-      fillCenters(g);
       saveAreaToLS();
       renderAreaPill();
       updateUI();
@@ -324,11 +293,11 @@
 
     centerSelect.addEventListener("change", ()=>{
       if(centerSelect.value === OTHER){
-        centerOtherWrap.style.display = "block";
+        centerOtherWrap.style.display="block";
         centerOtherInput.focus();
       }else{
-        centerOtherWrap.style.display = "none";
-        centerOtherInput.value = "";
+        centerOtherWrap.style.display="none";
+        centerOtherInput.value="";
       }
       saveAreaToLS();
       renderAreaPill();
@@ -336,16 +305,14 @@
     });
 
     centerOtherInput.addEventListener("input", ()=>{
-      saveAreaToLS();
-      renderAreaPill();
-      updateUI();
+      saveAreaToLS(); renderAreaPill(); updateUI();
     });
 
     // =========================
-    // Profile (name/phone)
+    // بروفايل
     // =========================
-    const fallbackNameFromEmail = (email)=>{
-      const x = (email || "").split("@")[0] || "مستخدم";
+    const fallbackNameFromEmail = (email) => {
+      const x = (email||"").split("@")[0] || "مستخدم";
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
     };
 
@@ -355,7 +322,6 @@
 
     whoEl.textContent = `${passengerName} • ${user.email}`;
 
-    // منطقة من user أو LS
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
       fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
@@ -364,61 +330,29 @@
     }
     renderAreaPill();
 
-    // Phone gate
-    const phoneWrap = document.getElementById("phoneWrap");
-    const phoneInput = document.getElementById("phoneInput");
-    const savePhoneBtn = document.getElementById("savePhoneBtn");
-
-    function showPhoneGateIfNeeded(){
-      if(passengerPhone && passengerPhone.length >= 8){
-        phoneWrap.style.display = "none";
-      }else{
-        phoneWrap.style.display = "block";
-      }
-    }
-    showPhoneGateIfNeeded();
-
-    onTap(savePhoneBtn, async ()=>{
-      const p = (phoneInput.value || "").trim();
-      if(p.length < 8){ toast("❌ اكتب رقم صحيح", "bad"); return; }
-      try{
-        await setDoc(doc(db,"users",user.uid), { phone: p, updatedAt: serverTimestamp() }, {merge:true});
-        passengerPhone = p;
-        toast("✅ تم حفظ رقم الهاتف", "ok");
-        showPhoneGateIfNeeded();
-        updateUI();
-      }catch(e){
-        console.error(e);
-        toast("❌ فشل حفظ الهاتف", "bad");
-      }
-    });
-
     // =========================
-    // Map
+    // الخريطة
     // =========================
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom:19, attribution:"&copy; OpenStreetMap"
     }).addTo(map);
 
-    const fixMap = ()=>{ try{ map.invalidateSize(true); }catch{} setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 250); };
+    const fixMap = () => { try{ map.invalidateSize(true);}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
     setTimeout(fixMap, 450);
     window.addEventListener("load", ()=> setTimeout(fixMap, 250));
     document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
 
-    const divPin = (emoji)=> L.divIcon({
-      className: "pin-emoji",
-      html: `<div class="pin-bubble">${emoji}</div>`,
-      iconSize: [44,44],
-      iconAnchor: [22,44],
-      popupAnchor: [0,-36]
+    const divPin = (emoji) => L.divIcon({
+      className:"pin-emoji",
+      html:`<div class="pin-bubble">${emoji}</div>`,
+      iconSize:[44,44], iconAnchor:[22,44], popupAnchor:[0,-36]
     });
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null;
     let myMarker=null, myPos=null;
 
-    // Driver tracking
+    // تتبع السائق
     let driverMarker=null, driverLine=null, unsubDriver=null;
 
     const statusPill = document.getElementById("statusPill");
@@ -426,11 +360,15 @@
     const permPill   = document.getElementById("permPill");
     const createBtn  = document.getElementById("createBtn");
     const cancelBtn  = document.getElementById("cancelBtn");
-    const fromText   = document.getElementById("fromText");
-    const toText     = document.getElementById("toText");
     const contactBox = document.getElementById("contactBox");
 
-    // restore texts
+    const fromText = document.getElementById("fromText");
+    const toText   = document.getElementById("toText");
+
+    const fareText = document.getElementById("fareText");
+    const fareHint = document.getElementById("fareHint");
+    let lastFare = { egp:null, km:null };
+
     fromText.value = localStorage.getItem(LS.fromText) || "";
     toText.value   = localStorage.getItem(LS.toText) || "";
     fromText.addEventListener("input", ()=> localStorage.setItem(LS.fromText, fromText.value));
@@ -438,83 +376,111 @@
 
     function setPermPill(state){
       permPill.classList.remove("ok","bad");
-      if(state === "granted"){ permPill.textContent="الموقع: مسموح ✅"; permPill.classList.add("ok"); }
-      else if(state === "denied"){ permPill.textContent="الموقع: مرفوض ❌"; permPill.classList.add("bad"); }
+      if(state==="granted"){ permPill.textContent="الموقع: مسموح ✅"; permPill.classList.add("ok"); }
+      else if(state==="denied"){ permPill.textContent="الموقع: مرفوض ❌"; permPill.classList.add("bad"); }
       else permPill.textContent="الموقع: غير معروف";
     }
-
     (async ()=>{
       try{
-        if(!navigator.permissions?.query) return setPermPill("unknown");
-        const p = await navigator.permissions.query({ name: "geolocation" });
+        if(!navigator.permissions?.query) return;
+        const p = await navigator.permissions.query({ name:"geolocation" });
         setPermPill(p.state);
         p.onchange = ()=> setPermPill(p.state);
-      }catch{ setPermPill("unknown"); }
+      }catch{}
     })();
 
     function drawLine(){
       if(from && to){
         if(line) map.removeLayer(line);
-        line = L.polyline([[from.lat, from.lng],[to.lat,to.lng]]).addTo(map);
+        line = L.polyline([[from.lat,from.lng],[to.lat,to.lng]]).addTo(map);
         map.fitBounds(line.getBounds(), { padding:[30,30] });
-        fixMap();
       }
+      fixMap();
     }
 
     function setFrom(lat,lng){
       from={lat,lng};
       if(fromMarker) map.removeLayer(fromMarker);
-      fromMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(map).bindPopup("🚩 القيام");
-      drawLine(); updateUI(); fixMap();
+      fromMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(map).bindPopup("🚩 القيام").openPopup();
+      map.setView([lat,lng], 15, { animate:false });
+      drawLine(); calcFare(); updateUI();
     }
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
-      toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(map).bindPopup("🏁 الوصول");
-      drawLine(); updateUI(); fixMap();
+      toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      map.setView([lat,lng], 15, { animate:false });
+      drawLine(); calcFare(); updateUI();
     }
 
-    async function autoLocate(){
-      if(!navigator.geolocation){
-        msg.textContent="جهازك لا يدعم تحديد الموقع.";
-        statusPill.textContent="اختر مكان القيام…";
+    // ===== السعر (مثل أوبر) - بسيط وخفيف
+    function haversineKm(a,b){
+      const R = 6371;
+      const dLat = (b.lat-a.lat) * Math.PI/180;
+      const dLng = (b.lng-a.lng) * Math.PI/180;
+      const la1 = a.lat * Math.PI/180;
+      const la2 = b.lat * Math.PI/180;
+      const x = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
+      return 2*R*Math.asin(Math.sqrt(x));
+    }
+    function calcFare(){
+      if(!from || !to){
+        lastFare = { egp:null, km:null };
+        fareText.textContent = "—";
+        fareHint.textContent = "حدد القيام والوصول لحساب السعر.";
         return;
       }
-      statusPill.textContent = "جارٍ تحديد موقعك تلقائيًا…";
+      const km = Math.max(0.2, haversineKm(from,to));
+      // تسعير خفيف: فتح عداد 10 + 4.5 لكل كم + حد أدنى 15
+      const egp = Math.max(15, Math.round((10 + km*4.5) * 1)); // تقريب
+      lastFare = { egp, km: Number(km.toFixed(2)) };
+      fareText.textContent = `${egp} EG`;
+      fareHint.textContent = `المسافة التقريبية: ${lastFare.km} كم • حد أدنى 15 EG`;
+    }
+
+    // ===== تحديد موقع تلقائي
+    function autoLocate({silent=false}={}){
+      if(!navigator.geolocation){
+        if(!silent) toast("جهازك لا يدعم GPS","bad","❌");
+        statusPill.textContent = "اختر مكان القيام…";
+        return;
+      }
+      if(!silent) msg.textContent = "جارٍ تحديد موقعك…";
+      statusPill.textContent = "جارٍ تحديد موقعك…";
+
       navigator.geolocation.getCurrentPosition((pos)=>{
         setPermPill("granted");
         const lat=pos.coords.latitude, lng=pos.coords.longitude;
         myPos = { lat, lng };
 
         if(myMarker) map.removeLayer(myMarker);
-        myMarker = L.circleMarker([lat,lng], { radius: 9, weight: 2, fillOpacity: 0.85 })
-          .addTo(map).bindPopup("📍 موقعك");
+        myMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 })
+          .addTo(map).bindPopup("📍 موقعك").openPopup();
 
         map.setView([lat,lng], 16, { animate:false });
         fixMap();
 
-        if(!from){ setFrom(lat,lng); }
-        toast("📍 تم تحديد موقعك", "ok");
+        if(!from) setFrom(lat,lng); // القيام تلقائي من موقعه
+        else calcFare();
+
+        if(!silent) msg.textContent = "";
       }, (err)=>{
         console.error(err);
-        if(err?.code === 1){
+        if(err?.code===1){
           setPermPill("denied");
           msg.innerHTML = "❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
-          toast("❌ إذن الموقع مرفوض", "bad");
+          toast("فعّل إذن الموقع","bad","📍",3200);
         }else{
-          msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
-          toast("⚠️ تعذر تحديد الموقع", "bad");
+          msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
+          toast("تعذر تحديد الموقع","bad","⚠️",2600);
         }
-        statusPill.textContent="اختر مكان القيام…";
+        statusPill.textContent = "اختر مكان القيام…";
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     }
 
-    onTap(document.getElementById("myLocBtn"), ()=>{
-      msg.textContent="جارٍ طلب الموقع…";
-      autoLocate();
-    });
+    document.getElementById("myLocBtn").addEventListener("click", ()=> autoLocate({silent:false}));
 
-    // ===== Geocode (Nominatim) قريب منك + في مصر + تحيز للمنطقة
+    // ===== بحث قريب من منطقتك/موقعك داخل مصر
     async function geocode(q){
       const { gov, center } = getSelectedArea();
       let queryText = (q||"").trim();
@@ -523,75 +489,83 @@
       queryText += `, Egypt`;
 
       const params = new URLSearchParams({
-        format:"json", limit:"5", countrycodes:"eg", q: queryText
+        format:"json",
+        limit:"5",
+        countrycodes:"eg",
+        q: queryText
       });
 
       if(myPos){
-        const d = 0.35; // ~35km
-        params.set("viewbox", `${myPos.lng-d},${myPos.lat+d},${myPos.lng+d},${myPos.lat-d}`);
+        const d = 0.35; // ~35 كم
+        params.set("viewbox", `${(myPos.lng-d)},${(myPos.lat+d)},${(myPos.lng+d)},${(myPos.lat-d)}`);
         params.set("bounded","1");
       }
 
       const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
-      const res = await fetch(url, { headers: { "Accept":"application/json" } });
+      const res = await fetch(url, { headers:{ "Accept":"application/json" }});
       if(!res.ok) throw new Error("geocode failed");
       const data = await res.json();
       if(!data?.length) return null;
-      return { lat:Number(data[0].lat), lng:Number(data[0].lon) };
+      return { lat:Number(data[0].lat), lng:Number(data[0].lon), display:data[0].display_name };
     }
 
     async function search(type){
-      msg.textContent="";
+      msg.textContent = "";
       const text = (type==="from"?fromText.value:toText.value).trim();
-      if(!text){ toast("اكتب اسم المكان ثم اضغط بحث", "bad"); return; }
+      if(!text){ toast("اكتب اسم المكان ثم اضغط بحث","bad","✍️"); return; }
       try{
-        toast("جارٍ البحث…");
+        msg.textContent = "جارٍ البحث…";
         const r = await geocode(text);
-        if(!r){ toast("لم يتم العثور على المكان", "bad"); return; }
+        if(!r){ msg.textContent=""; toast("لم يتم العثور على المكان","bad","🔎"); return; }
+        msg.textContent = "";
         if(type==="from") setFrom(r.lat,r.lng); else setTo(r.lat,r.lng);
-        toast("✅ تم تحديد المكان", "ok");
+        toast("تم تحديد المكان ✅","ok","📌",1800);
       }catch(e){
         console.error(e);
-        toast("❌ حصل خطأ في البحث", "bad");
+        msg.textContent="";
+        toast("حصل خطأ في البحث","bad","⚠️");
       }
     }
 
-    onTap(document.getElementById("fromSearchBtn"), ()=> search("from"));
-    onTap(document.getElementById("toSearchBtn"),   ()=> search("to"));
+    document.getElementById("fromSearchBtn").addEventListener("click",()=>search("from"));
+    document.getElementById("toSearchBtn").addEventListener("click",()=>search("to"));
 
-    onTap(document.getElementById("resetBtn"), ()=>{
+    document.getElementById("resetBtn").addEventListener("click", ()=>{
       from=null; to=null;
       fromText.value=""; toText.value="";
       localStorage.removeItem(LS.fromText);
       localStorage.removeItem(LS.toText);
+
       [fromMarker,toMarker,line].forEach(x=>{ if(x) map.removeLayer(x); });
       fromMarker=toMarker=line=null;
-      msg.textContent="";
-      toast("✅ تم إعادة الضبط", "ok");
+
+      calcFare();
       updateUI();
+      toast("تمت الإعادة ✅","ok","🔄",1600);
       fixMap();
     });
 
     // =========================
-    // Ride single + tracking
+    // الطلب الحالي
     // =========================
     let unsubRide=null;
     let currentRideId = localStorage.getItem(LS.lastRideId) || null;
 
     function setRideUI(state){
-      cancelBtn.disabled = !(state === "open");
-      createBtn.disabled = (state === "open" || state === "accepted");
+      cancelBtn.disabled = !(state==="open");
+      createBtn.disabled = (state==="open" || state==="accepted");
     }
 
     function stopDriverWatch(){
-      if(unsubDriver){ try{ unsubDriver(); }catch{} unsubDriver=null; }
-      if(driverMarker){ try{ map.removeLayer(driverMarker); }catch{} driverMarker=null; }
-      if(driverLine){ try{ map.removeLayer(driverLine); }catch{} driverLine=null; }
+      if(unsubDriver){ try{unsubDriver();}catch{} unsubDriver=null; }
+      if(driverMarker){ try{map.removeLayer(driverMarker);}catch{} driverMarker=null; }
+      if(driverLine){ try{map.removeLayer(driverLine);}catch{} driverLine=null; }
     }
 
     function startDriverWatch(driverUid){
       stopDriverWatch();
       if(!driverUid) return;
+
       const ref = doc(db, "driver_status", driverUid);
       unsubDriver = onSnapshot(ref, (snap)=>{
         const st = snap.exists() ? snap.data() : null;
@@ -615,34 +589,42 @@
       if(unsubRide) unsubRide();
       const ref = doc(db, "rides", rideId);
 
-      unsubRide = onSnapshot(ref, (snap)=>{
+      unsubRide = onSnapshot(ref, async (snap)=>{
         if(!snap.exists()){
-          ridePill.textContent = "الطلب غير موجود.";
+          ridePill.textContent="الطلب غير موجود.";
           contactBox.style.display="none"; contactBox.innerHTML="";
           currentRideId=null; localStorage.removeItem(LS.lastRideId);
-          stopDriverWatch();
-          setRideUI("none");
-          updateUI();
+          setRideUI("none"); stopDriverWatch(); updateUI();
           return;
         }
 
         const r = snap.data();
 
-        if(r.status === "open"){
-          ridePill.textContent = "طلبك جارٍ البحث عن سائق…";
+        if(r.status==="open"){
+          ridePill.textContent="طلبك جارٍ البحث عن سائق…";
           contactBox.style.display="none"; contactBox.innerHTML="";
-          stopDriverWatch();
-          setRideUI("open");
+          setRideUI("open"); stopDriverWatch();
           return;
         }
 
-        if(r.status === "accepted"){
-          ridePill.textContent = "✅ السائق وافق — تتبع شغال";
+        if(r.status==="accepted"){
+          ridePill.textContent="✅ السائق وافق";
           setRideUI("accepted");
+
           startDriverWatch(r.driverUid);
+
+          toast("✅ تم قبول المشوار! يتم تتبع السائق الآن","ok","🚖",3000);
 
           const dName = r.driverName || "سائق";
           const dPhone = r.driverPhone || "";
+
+          const shareText =
+`طلب مشوار - مشوارك
+المنطقة: ${r.governorate||"-"} / ${r.center||"-"}
+من: ${r.fromText||"-"}
+إلى: ${r.toText||"-"}
+السعر: ${r.fareEGP||"-"} EG
+رقم الطلب: ${rideId}`;
 
           contactBox.style.display="block";
           contactBox.innerHTML = `
@@ -652,27 +634,37 @@
             </div>
             <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
               ${dPhone ? `<a class="btn success" href="tel:${dPhone}">اتصال بالسائق</a>` : ``}
+              <button class="btn" id="shareBtn" type="button">مشاركة</button>
               <span class="pill ok">تتبع السائق ✅</span>
             </div>
           `;
 
-          toast("✅ تم قبول المشوار!", "ok");
+          const shareBtn = document.getElementById("shareBtn");
+          shareBtn?.addEventListener("click", async ()=>{
+            try{
+              if(navigator.share) await navigator.share({ text: shareText });
+              else{
+                await navigator.clipboard.writeText(shareText);
+                toast("تم نسخ التفاصيل ✅","ok","📋",2000);
+              }
+            }catch{}
+          });
+
           return;
         }
 
-        // انتهت/أُلغيت
-        if(["canceled","done","completed"].includes(r.status)){
-          ridePill.textContent = `الحالة: ${r.status}`;
+        // انتهى/اتلغى
+        if(r.status==="canceled" || r.status==="done" || r.status==="completed"){
+          ridePill.textContent=`الحالة: ${r.status}`;
           contactBox.style.display="none"; contactBox.innerHTML="";
           stopDriverWatch();
           currentRideId=null; localStorage.removeItem(LS.lastRideId);
-          setRideUI("none");
-          updateUI();
-          toast("ℹ️ تم إنهاء/إلغاء الطلب", "ok");
+          setRideUI("none"); updateUI();
+          toast("انتهى الطلب/تم إلغاؤه","bad","ℹ️",2200);
           return;
         }
 
-        ridePill.textContent = `الحالة: ${r.status || "-"}`;
+        ridePill.textContent=`الحالة: ${r.status||"-"}`;
         setRideUI("other");
       });
     }
@@ -690,121 +682,145 @@
       if(currentRideId) return;
 
       if(!hasAreaReady()){
-        statusPill.textContent = "اختر المحافظة + المركز أولاً…";
-        createBtn.disabled = true;
-        return;
-      }
-
-      // لازم الهاتف يكون موجود
-      if(!passengerPhone || passengerPhone.length < 8){
-        statusPill.textContent = "اكتب رقم الهاتف أولاً…";
+        statusPill.textContent="اختر المحافظة + المركز أولاً…";
         createBtn.disabled = true;
         return;
       }
 
       if(!from){
-        statusPill.textContent = "اختر مكان القيام…";
+        statusPill.textContent="اختر مكان القيام…";
         createBtn.disabled = true;
       }else if(from && !to){
-        statusPill.textContent = "تم تحديد القيام ✅ اختر الوصول…";
+        statusPill.textContent="تم تحديد القيام ✅ اختر الوصول…";
         createBtn.disabled = true;
       }else{
-        statusPill.textContent = "جاهز ✅";
+        statusPill.textContent="جاهز ✅";
         createBtn.disabled = false;
       }
     }
 
     // =========================
-    // Create / Cancel
+    // إنشاء الطلب
     // =========================
-    onTap(createBtn, async ()=>{
+    createBtn.addEventListener("click", async ()=>{
       try{
-        if(currentRideId){ toast("⚠️ لديك طلب قائم بالفعل", "bad"); return; }
-
-        createBtn.disabled = true;
-        toast("🚕 جارٍ طلب المشوار…");
+        if(currentRideId){ toast("لديك طلب قائم بالفعل","bad","⚠️"); return; }
 
         const { gov, center } = getSelectedArea();
-        if(!gov || !center){ toast("❌ اختر المحافظة + المركز", "bad"); updateUI(); return; }
-        if(!from || !to){ toast("❌ حدد القيام والوصول أولاً", "bad"); updateUI(); return; }
+        if(!gov || !center){ toast("اختر المحافظة + المركز","bad","❌"); updateUI(); return; }
+        if(!from || !to){ toast("حدد القيام والوصول أولاً","bad","❌"); updateUI(); return; }
 
-        // حفظ المنطقة في users
-        await setDoc(doc(db,"users",user.uid), { governorate:gov, center:center, updatedAt:serverTimestamp() }, {merge:true});
+        // لو مفيش رقم هاتف مخزن: نبعت تحذير (من غير ما نمنع)
+        if(!passengerPhone) toast("نصيحة: أضف رقم الهاتف من (حسابي) ليظهر للسائق","bad","📞",3200);
+
+        createBtn.disabled = true;
+        msg.textContent = "جارٍ إنشاء الطلب…";
+
+        // احفظ المنطقة
+        await setDoc(doc(db,"users",user.uid), {
+          governorate: gov, center: center, updatedAt: serverTimestamp()
+        }, { merge:true });
+
+        // تسعير
+        calcFare();
 
         const docRef = await addDoc(collection(db,"rides"), {
-          status: "open",
+          status:"open",
           createdAt: serverTimestamp(),
           governorate: gov,
           center: center,
+
           from, to,
           fromText: fromText.value.trim() || null,
           toText: toText.value.trim() || null,
+
+          distanceKM: lastFare.km || null,
+          fareEGP: lastFare.egp || 15,
+          currency: "EGP",
+          paymentMethod:"cash",
+
           passengerUid: user.uid,
           passengerEmail: user.email,
           passengerName: passengerName || null,
-          passengerPhone: passengerPhone || null,
-          paymentMethod: "cash"
+          passengerPhone: passengerPhone || null
         });
 
         currentRideId = docRef.id;
         localStorage.setItem(LS.lastRideId, docRef.id);
         watchRide(docRef.id);
 
-        ridePill.textContent = "✅ تم طلب المشوار — جاري البحث عن سائق";
-        toast("✅ تم طلب المشوار", "ok");
+        msg.textContent = "";
         setRideUI("open");
+        toast("✅ تم طلب المشوار! جاري البحث عن سائق…","ok","🚖",3200);
       }catch(e){
         console.error(e);
-        toast("❌ فشل طلب المشوار: " + (e?.message || e), "bad");
+        msg.textContent = "";
+        toast(`فشل إنشاء الطلب: ${e?.message || e}`,"bad","❌",3200);
       }finally{
         updateUI();
         fixMap();
+        createBtn.disabled = (currentRideId ? true : createBtn.disabled);
       }
     });
 
-    onTap(cancelBtn, async ()=>{
-      if(!currentRideId){ toast("لا يوجد طلب لإلغائه", "bad"); return; }
+    // =========================
+    // إلغاء الطلب (لو open فقط)
+    // =========================
+    cancelBtn.addEventListener("click", async ()=>{
+      if(!currentRideId){ toast("لا يوجد طلب لإلغائه","bad","ℹ️"); return; }
 
       try{
         cancelBtn.disabled = true;
-        toast("جارٍ إلغاء الطلب…");
+        msg.textContent = "جارٍ إلغاء الطلب…";
 
-        const ref = doc(db, "rides", currentRideId);
+        const ref = doc(db,"rides",currentRideId);
         const snap = await getDoc(ref);
 
         if(!snap.exists()){
-          toast("الطلب غير موجود", "bad");
-          currentRideId=null; localStorage.removeItem(LS.lastRideId);
+          msg.textContent="";
+          currentRideId=null;
+          localStorage.removeItem(LS.lastRideId);
           setRideUI("none"); updateUI();
+          toast("الطلب غير موجود","bad","⚠️");
           return;
         }
 
         const r = snap.data();
         if(r.status !== "open"){
-          toast("لا يمكن إلغاء الطلب بعد القبول", "bad");
+          msg.textContent="";
+          toast("لا يمكن الإلغاء بعد القبول","bad","❌");
           setRideUI(r.status);
           return;
         }
 
-        await updateDoc(ref, { status:"canceled", canceledAt:serverTimestamp(), canceledBy:"passenger" });
+        await updateDoc(ref, {
+          status:"canceled",
+          canceledAt: serverTimestamp(),
+          canceledBy:"passenger"
+        });
 
-        toast("✅ تم إلغاء الطلب", "ok");
-        currentRideId=null; localStorage.removeItem(LS.lastRideId);
+        msg.textContent="";
+        currentRideId=null;
+        localStorage.removeItem(LS.lastRideId);
         contactBox.style.display="none"; contactBox.innerHTML="";
         ridePill.textContent="لا يوجد طلب";
         stopDriverWatch();
         setRideUI("none");
         updateUI();
+        toast("✅ تم إلغاء الطلب","ok","🧹",2400);
       }catch(e){
         console.error(e);
-        toast("❌ فشل الإلغاء: " + (e?.message || e), "bad");
+        msg.textContent="";
+        toast(`فشل الإلغاء: ${e?.message || e}`,"bad","❌",3200);
+      }finally{
+        cancelBtn.disabled = !(currentRideId && cancelBtn.disabled===false);
       }
     });
 
     // init
     setRideUI(currentRideId ? "open" : "none");
     updateUI();
-    autoLocate(); // تلقائي
+    autoLocate({silent:true}); // ✅ تلقائي أول ما يفتح
 
     // =========================
     // Bottom Sheet Drag (Handle ONLY)
@@ -814,18 +830,17 @@
     const content = document.getElementById("sheetContent");
 
     const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
-    const getPoints = ()=>{
+    const getPoints = () => {
       const vh = window.innerHeight;
-      return {
-        collapsed: Math.max(150, Math.round(vh * 0.22)),
-        mid: Math.round(vh * 0.46),
-        expanded: Math.round(vh * 0.82)
-      };
+      const collapsed = Math.max(150, Math.round(vh * 0.22));
+      const mid       = Math.round(vh * 0.46);
+      const expanded  = Math.round(vh * 0.82);
+      return { collapsed, mid, expanded };
     };
 
     let points = getPoints();
     let current = points.mid;
-    let startY=0, startCurrent=0, dragging=false;
+    let startY = 0, startCurrent = 0, dragging = false;
 
     function renderSheet(y, animate=true){
       current = clamp(y, points.collapsed, points.expanded);
@@ -857,7 +872,7 @@
 
     function up(){
       if(!dragging) return;
-      dragging=false;
+      dragging = false;
       sheet.classList.remove("dragging");
       renderSheet(nearestSnap(current), true);
       setTimeout(fixMap, 220);
