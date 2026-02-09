@@ -90,6 +90,7 @@
     <div id="otherCenterWrap" class="field" style="display:none">
       <label>اكتب المركز (اختياري لو اخترت "أخرى")</label>
       <input id="centerOther" placeholder="مثال: مركز جديد…" />
+      <div class="small" style="margin-top:6px">اكتب على الأقل حرفين.</div>
     </div>
 
     <div class="btns">
@@ -134,37 +135,41 @@
     const otherWrap = document.getElementById("otherCenterWrap");
     const centerOtherEl = document.getElementById("centerOther");
 
-    // ✅ بيانات محافظات/مراكز (قابلة للتوسعة)
+    // ✅ ثابت: قيمة "أخرى" (أضمن من كلمة "أخرى")
+    const OTHER = "__other__";
+
+    // ✅ بيانات محافظات/مراكز
     const AREAS = {
-      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد","أخرى"],
-      "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين","أخرى"],
-      "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي","أخرى"],
-      "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة","أخرى"],
-      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية","أخرى"],
-      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة","أخرى"],
-      "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا","أخرى"],
-      "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق","أخرى"],
-      "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن","أخرى"],
-      "المنيا": ["المنيا","ملوي","سمالوط","مطاي","بني مزار","أخرى"],
-      "أسيوط": ["أسيوط","ديروط","منفلوط","القوصية","أبو تيج","أخرى"],
-      "سوهاج": ["سوهاج","جرجا","أخميم","طهطا","البلينا","أخرى"],
-      "قنا": ["قنا","نجع حمادي","قفط","قوص","أبو تشت","أخرى"],
-      "أسوان": ["أسوان","دراو","كوم أمبو","إدفو","أخرى"],
-      "البحيرة": ["دمنهور","كفر الدوار","إيتاي البارود","رشيد","أبو حمص","أخرى"],
-      "كفر الشيخ": ["كفر الشيخ","دسوق","بلطيم","الحامول","فوه","أخرى"],
-      "دمياط": ["دمياط","فارسكور","كفر سعد","الزرقا","أخرى"],
-      "بورسعيد": ["شرق","غرب","الزهور","المناخ","أخرى"],
-      "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة","التل الكبير","أخرى"],
-      "السويس": ["السويس","الجناين","عتاقة","أخرى"],
-      "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد","أخرى"],
-      "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء","أخرى"],
-      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني","أخرى"],
-      "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم","أخرى"],
-      "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت","أخرى"]
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
+      "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
+      "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي"],
+      "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة"],
+      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية"],
+      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة"],
+      "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا"],
+      "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
+      "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن"],
+      "المنيا": ["المنيا","ملوي","سمالوط","مطاي","بني مزار"],
+      "أسيوط": ["أسيوط","ديروط","منفلوط","القوصية","أبو تيج"],
+      "سوهاج": ["سوهاج","جرجا","أخميم","طهطا","البلينا"],
+      "قنا": ["قنا","نجع حمادي","قفط","قوص","أبو تشت"],
+      "أسوان": ["أسوان","دراو","كوم أمبو","إدفو"],
+      "البحيرة": ["دمنهور","كفر الدوار","إيتاي البارود","رشيد","أبو حمص"],
+      "كفر الشيخ": ["كفر الشيخ","دسوق","بلطيم","الحامول","فوه"],
+      "دمياط": ["دمياط","فارسكور","كفر سعد","الزرقا"],
+      "بورسعيد": ["شرق","غرب","الزهور","المناخ"],
+      "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة","التل الكبير"],
+      "السويس": ["السويس","الجناين","عتاقة"],
+      "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد"],
+      "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء"],
+      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني"],
+      "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم"],
+      "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
 
     function fillGov(){
-      const keys = Object.keys(AREAS);
+      // ترتيب أبجدي + عربي
+      const keys = Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar"));
       keys.forEach(k=>{
         const opt = document.createElement("option");
         opt.value = k;
@@ -178,13 +183,19 @@
       otherWrap.style.display = "none";
       centerOtherEl.value = "";
 
-      const arr = AREAS[gov] || [];
+      const arr = (AREAS[gov] || []).slice().sort((a,b)=>a.localeCompare(b,"ar"));
       arr.forEach(c=>{
         const opt = document.createElement("option");
         opt.value = c;
         opt.textContent = c;
         centerEl.appendChild(opt);
       });
+
+      // ✅ إضافة "أخرى" كقيمة ثابتة
+      const other = document.createElement("option");
+      other.value = OTHER;
+      other.textContent = "أخرى (إدخال يدوي)…";
+      centerEl.appendChild(other);
 
       centerEl.disabled = !gov;
     }
@@ -193,15 +204,18 @@
 
     govEl.addEventListener("change", ()=>{
       fillCenters(govEl.value);
+      msg.textContent = "";
     });
 
     centerEl.addEventListener("change", ()=>{
-      if(centerEl.value === "أخرى"){
+      if(centerEl.value === OTHER){
         otherWrap.style.display = "block";
+        centerOtherEl.focus();
       }else{
         otherWrap.style.display = "none";
         centerOtherEl.value = "";
       }
+      msg.textContent = "";
     });
 
     // =========================
@@ -217,9 +231,7 @@
       selectedRole = role;
 
       rolePassenger.classList.remove("active");
-      roleDriver.classList.remove("active");
-      rolePassenger.classList.remove("driver");
-      roleDriver.classList.remove("driver");
+      roleDriver.classList.remove("active","driver");
 
       if(role === "passenger"){
         rolePassenger.classList.add("active");
@@ -240,10 +252,7 @@
 
     function goAfterLogin(role){
       const returnTo = qs("returnTo");
-      if(returnTo){
-        location.href = returnTo;
-        return;
-      }
+      if(returnTo){ location.href = returnTo; return; }
       location.href = (role === "passenger") ? "passenger.html" : "driver.html";
     }
 
@@ -259,14 +268,17 @@
     }
 
     function getArea(){
-      const gov = (govEl.value || "").trim();
-      let center = (centerEl.value || "").trim();
+      const governorate = (govEl.value || "").trim() || null;
+      const cVal = (centerEl.value || "").trim();
 
-      if(center === "أخرى"){
-        const other = (centerOtherEl.value || "").trim();
-        if(other) center = other;
+      if(!governorate) return { governorate:null, center:null };
+      if(!cVal) return { governorate, center:null };
+
+      if(cVal === OTHER){
+        const manual = (centerOtherEl.value || "").trim();
+        return { governorate, center: (manual.length >= 2 ? manual : null) };
       }
-      return { governorate: gov || null, center: center || null };
+      return { governorate, center: cVal || null };
     }
 
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
@@ -302,26 +314,11 @@
       const pass  = passEl.value.trim();
       const area  = getArea();
 
-      if(!name || name.length < 2){
-        msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
-        return;
-      }
-      if(!isGmail(email)){
-        msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-        return;
-      }
-      if(pass.length < 6){
-        msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
-        return;
-      }
-      if(!selectedRole){
-        msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
-        return;
-      }
-      if(!area.governorate || !area.center){
-        msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
-        return;
-      }
+      if(!name || name.length < 2) return msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
+      if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
+      if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+      if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
+      if(!area.governorate || !area.center) return msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
 
       lockUI(true);
       msg.textContent = "جارٍ إنشاء الحساب…";
@@ -356,14 +353,8 @@
       const pass  = passEl.value.trim();
       const area  = getArea();
 
-      if(!isGmail(email)){
-        msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-        return;
-      }
-      if(pass.length < 6){
-        msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
-        return;
-      }
+      if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
+      if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
 
       lockUI(true);
       msg.textContent = "جارٍ تسجيل الدخول…";
@@ -374,20 +365,15 @@
         const data = await getUserDoc(res.user.uid);
         let finalRole = data?.role || null;
 
-        // لو مفيش role قديم: لازم يختار
         if(!finalRole){
-          if(!selectedRole){
-            msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
-            return;
-          }
+          if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
           finalRole = selectedRole;
         }
 
-        // المحافظة/المركز:
-        // لو المستخدم اختارهم دلوقتي نحدّثهم، ولو مااختارش نخلي القديم (لكن الأفضل يختارهم)
         const patch = { email, role: finalRole };
         if(name && name.length >= 2) patch.name = name;
 
+        // المنطقة: لو اختارها الآن نخزنها، ولو مش مختار ولا مخزنة نلزمه
         if(area.governorate && area.center){
           patch.governorate = area.governorate;
           patch.center = area.center;
