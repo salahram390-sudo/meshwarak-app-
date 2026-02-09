@@ -27,10 +27,28 @@
     }
     .btns{display:grid;gap:10px;margin-top:12px}
     .sep{height:1px;background:var(--stroke);margin:14px 0}
+
+    /* Toast (خليها هنا علشان الصفحة تشتغل لوحدها حتى لو styles.css مش فيه) */
+    .toast-wrap{position:fixed;left:12px;right:12px;top:12px;z-index:9999;display:grid;gap:10px;pointer-events:none}
+    .toast{
+      pointer-events:none;
+      display:flex;gap:10px;align-items:center;
+      padding:12px 14px;border-radius:16px;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(12,18,32,.92), rgba(10,18,34,.85));
+      box-shadow:0 18px 55px rgba(0,0,0,.35);
+      animation:toastIn .18s ease;
+    }
+    .toast .t-ic{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.07);border:1px solid var(--stroke)}
+    .toast.ok{border-color: rgba(34,197,94,.25)}
+    .toast.bad{border-color: rgba(255,92,122,.25)}
+    @keyframes toastIn{from{transform:translateY(-6px);opacity:.0}to{transform:none;opacity:1}}
   </style>
 </head>
 
 <body>
+  <div class="toast-wrap" id="toasts"></div>
+
   <div class="box">
     <h1>🔐 مشوارك — إنشاء حساب / تسجيل دخول</h1>
     <p>Gmail + باسورد + اسمك + رقم الهاتف + (راكب/سائق) + المحافظة + المركز</p>
@@ -41,7 +59,7 @@
     </div>
 
     <div class="field">
-      <label>رقم الهاتف (هيظهر للسائق بعد قبول الطلب)</label>
+      <label>رقم الهاتف (هيظهر بعد قبول الطلب)</label>
       <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" autocomplete="tel"/>
       <div class="small" style="margin-top:6px">يفضل رقم مصري: 01 + 9 أرقام</div>
     </div>
@@ -112,26 +130,47 @@
       doc, getDoc, setDoc, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    const qs = (k) => new URLSearchParams(location.search).get(k);
+    // ===== Helpers
+    const $ = (id)=> document.getElementById(id);
+    const qs = (k)=> new URLSearchParams(location.search).get(k);
 
-    const nameEl  = document.getElementById("name");
-    const phoneEl = document.getElementById("phone");
-    const emailEl = document.getElementById("email");
-    const passEl  = document.getElementById("pass");
-    const msg     = document.getElementById("msg");
+    const toasts = $("toasts");
+    function toast(text, type="ok", icon="✅", ms=2600){
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      el.innerHTML = `<div class="t-ic">${icon}</div><div>${text}</div>`;
+      toasts.appendChild(el);
+      setTimeout(()=>{ try{el.remove();}catch{} }, ms);
+    }
 
-    const signupBtn = document.getElementById("signupBtn");
-    const loginBtn  = document.getElementById("loginBtn");
+    const nameEl  = $("name");
+    const phoneEl = $("phone");
+    const emailEl = $("email");
+    const passEl  = $("pass");
+    const msg     = $("msg");
 
-    const rolePassenger = document.getElementById("rolePassenger");
-    const roleDriver = document.getElementById("roleDriver");
+    const signupBtn = $("signupBtn");
+    const loginBtn  = $("loginBtn");
 
-    const govEl = document.getElementById("gov");
-    const centerEl = document.getElementById("center");
-    const otherWrap = document.getElementById("otherCenterWrap");
-    const centerOtherEl = document.getElementById("centerOther");
+    const rolePassenger = $("rolePassenger");
+    const roleDriver    = $("roleDriver");
+
+    const govEl = $("gov");
+    const centerEl = $("center");
+    const otherWrap = $("otherCenterWrap");
+    const centerOtherEl = $("centerOther");
 
     const OTHER = "__other__";
+
+    const LS = {
+      role: "mw_role",
+      gov: "mw_gov",
+      center: "mw_center",
+      centerOther: "mw_center_other",
+      name: "mw_name",
+      phone: "mw_phone",
+      email: "mw_email"
+    };
 
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
@@ -161,6 +200,44 @@
       "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
 
+    function isGmail(email){ return /@gmail\.com$/i.test((email||"").trim()); }
+
+    function normalizePhone(p){
+      const x = (p||"").trim().replace(/\s+/g,"");
+      if(!x) return null;
+      // يقبل 01xxxxxxxxx أو +20/0020
+      if(/^01\d{9}$/.test(x)) return x;
+      if(/^(?:\+20|0020)1\d{9}$/.test(x)) return x.replace(/^0020/,"+20");
+      return null;
+    }
+
+    function lockUI(locked){
+      signupBtn.disabled = locked;
+      loginBtn.disabled  = locked;
+      rolePassenger.disabled = locked;
+      roleDriver.disabled = locked;
+      govEl.disabled = locked;
+      centerEl.disabled = locked || !govEl.value;
+      centerOtherEl.disabled = locked;
+      nameEl.disabled = locked;
+      phoneEl.disabled = locked;
+      emailEl.disabled = locked;
+      passEl.disabled = locked;
+    }
+
+    function setRole(role){
+      localStorage.setItem(LS.role, role || "");
+      rolePassenger.classList.remove("active");
+      roleDriver.classList.remove("active","driver");
+      if(role === "passenger") rolePassenger.classList.add("active");
+      if(role === "driver") roleDriver.classList.add("active","driver");
+    }
+
+    function getRole(){
+      const r = localStorage.getItem(LS.role) || null;
+      return (r==="passenger"||r==="driver") ? r : null;
+    }
+
     function fillGov(){
       Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar")).forEach(k=>{
         const opt = document.createElement("option");
@@ -168,7 +245,8 @@
         govEl.appendChild(opt);
       });
     }
-    function fillCenters(gov){
+
+    function fillCenters(gov, preselect=null){
       centerEl.innerHTML = `<option value="">اختر المركز…</option>`;
       otherWrap.style.display = "none";
       centerOtherEl.value = "";
@@ -186,59 +264,55 @@
       centerEl.appendChild(other);
 
       centerEl.disabled = !gov;
-    }
 
-    fillGov();
-
-    govEl.addEventListener("change", ()=>{
-      fillCenters(govEl.value);
-      msg.textContent = "";
-    });
-
-    centerEl.addEventListener("change", ()=>{
-      if(centerEl.value === OTHER){
-        otherWrap.style.display = "block";
-        centerOtherEl.focus();
-      }else{
-        otherWrap.style.display = "none";
-        centerOtherEl.value = "";
+      if(preselect){
+        const exists = Array.from(centerEl.options).some(o=>o.value===preselect);
+        if(exists) centerEl.value = preselect;
+        else{
+          centerEl.value = OTHER;
+          otherWrap.style.display = "block";
+          centerOtherEl.value = preselect;
+        }
       }
-      msg.textContent = "";
-    });
-
-    let selectedRole = null;
-
-    function isGmail(email){ return /@gmail\.com$/i.test(email.trim()); }
-
-    function normalizePhone(p){
-      const x = (p||"").trim().replace(/\s+/g,"");
-      if(!x) return null;
-      // يقبل 01xxxxxxxxx أو +20 / 0020
-      if(/^01\d{9}$/.test(x)) return x;
-      if(/^(?:\+20|0020)1\d{9}$/.test(x)) return x.replace(/^0020/,"+20");
-      return null;
     }
 
-    function setRole(role){
-      selectedRole = role;
-      rolePassenger.classList.remove("active");
-      roleDriver.classList.remove("active","driver");
-      if(role === "passenger") rolePassenger.classList.add("active");
-      if(role === "driver") roleDriver.classList.add("active","driver");
+    function getArea(){
+      const governorate = (govEl.value || "").trim() || null;
+      const cVal = (centerEl.value || "").trim();
+      if(!governorate) return { governorate:null, center:null };
+      if(!cVal) return { governorate, center:null };
+      if(cVal === OTHER){
+        const manual = (centerOtherEl.value || "").trim();
+        return { governorate, center: (manual.length >= 2 ? manual : null) };
+      }
+      return { governorate, center: cVal || null };
     }
 
-    function lockUI(locked){
-      signupBtn.disabled = locked;
-      loginBtn.disabled  = locked;
-      rolePassenger.disabled = locked;
-      roleDriver.disabled = locked;
-      govEl.disabled = locked;
-      centerEl.disabled = locked || !govEl.value;
-      centerOtherEl.disabled = locked;
-      nameEl.disabled = locked;
-      phoneEl.disabled = locked;
-      emailEl.disabled = locked;
-      passEl.disabled = locked;
+    function saveAreaLS(){
+      const { governorate, center } = getArea();
+      localStorage.setItem(LS.gov, governorate || "");
+      if(centerEl.value === OTHER){
+        localStorage.setItem(LS.center, OTHER);
+        localStorage.setItem(LS.centerOther, centerOtherEl.value || "");
+      }else{
+        localStorage.setItem(LS.center, center || "");
+        localStorage.removeItem(LS.centerOther);
+      }
+    }
+
+    function restoreAreaLS(){
+      const g = localStorage.getItem(LS.gov) || "";
+      const c = localStorage.getItem(LS.center) || "";
+      const co = localStorage.getItem(LS.centerOther) || "";
+      if(g){
+        govEl.value = g;
+        fillCenters(g, (c && c !== OTHER) ? c : (co || null));
+        if(c === OTHER){
+          centerEl.value = OTHER;
+          otherWrap.style.display = "block";
+          centerOtherEl.value = co;
+        }
+      }
     }
 
     function goAfterLogin(role){
@@ -258,34 +332,60 @@
       await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
     }
 
-    function getArea(){
-      const governorate = (govEl.value || "").trim() || null;
-      const cVal = (centerEl.value || "").trim();
-      if(!governorate) return { governorate:null, center:null };
-      if(!cVal) return { governorate, center:null };
-      if(cVal === OTHER){
-        const manual = (centerOtherEl.value || "").trim();
-        return { governorate, center: (manual.length >= 2 ? manual : null) };
+    // ===== Init UI
+    fillGov();
+
+    // restore cached inputs
+    nameEl.value  = localStorage.getItem(LS.name) || "";
+    phoneEl.value = localStorage.getItem(LS.phone) || "";
+    emailEl.value = localStorage.getItem(LS.email) || "";
+
+    nameEl.addEventListener("input", ()=> localStorage.setItem(LS.name, nameEl.value || ""));
+    phoneEl.addEventListener("input", ()=> localStorage.setItem(LS.phone, phoneEl.value || ""));
+    emailEl.addEventListener("input", ()=> localStorage.setItem(LS.email, emailEl.value || ""));
+
+    govEl.addEventListener("change", ()=>{
+      fillCenters(govEl.value);
+      saveAreaLS();
+      msg.textContent = "";
+    });
+
+    centerEl.addEventListener("change", ()=>{
+      if(centerEl.value === OTHER){
+        otherWrap.style.display = "block";
+        centerOtherEl.focus();
+      }else{
+        otherWrap.style.display = "none";
+        centerOtherEl.value = "";
       }
-      return { governorate, center: cVal || null };
-    }
+      saveAreaLS();
+      msg.textContent = "";
+    });
+
+    centerOtherEl.addEventListener("input", saveAreaLS);
 
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
     roleDriver.addEventListener("click", ()=> setRole("driver"));
 
+    // role from url has priority
     const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver") setRole(roleFromUrl);
+    else setRole(getRole());
 
-    onAuthStateChanged(auth, async (user) => {
-      if(!user) return;
+    restoreAreaLS();
+
+    // ===== Auto redirect if already logged
+    onAuthStateChanged(auth, async (u) => {
+      if(!u) return;
       try{
-        const data = await getUserDoc(user.uid);
+        const data = await getUserDoc(u.uid);
         if(data?.role === "passenger" || data?.role === "driver"){
           goAfterLogin(data.role);
         }
       }catch(e){ console.error(e); }
     });
 
+    // ===== Actions
     async function handleSignup(){
       msg.textContent = "";
 
@@ -293,33 +393,37 @@
       const phone = normalizePhone(phoneEl.value);
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
+      const role  = getRole();
       const area  = getArea();
 
-      if(!name || name.length < 2) return msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
-      if(!phone) return msg.innerHTML = `<span class="text-bad">❌ اكتب رقم هاتف صحيح (مثال: 01xxxxxxxxx).</span>`;
-      if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-      if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
-      if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
-      if(!area.governorate || !area.center) return msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
+      if(!name || name.length < 2) return toast("اكتب اسمك (حرفين على الأقل).","bad","✍️");
+      if(!phone) return toast("اكتب رقم هاتف صحيح (مثال: 01xxxxxxxxx).","bad","📞");
+      if(!isGmail(email)) return toast("لازم الإيميل ينتهي بـ @gmail.com","bad","📧");
+      if(pass.length < 6) return toast("كلمة المرور لازم 6 حروف/أرقام أو أكثر.","bad","🔒");
+      if(!role) return toast("لازم تختار راكب أو سائق.","bad","🚖");
+      if(!area.governorate || !area.center) return toast("اختر المحافظة + المركز.","bad","📍");
 
       lockUI(true);
       msg.textContent = "جارٍ إنشاء الحساب…";
 
       try{
         const res = await createUserWithEmailAndPassword(auth, email, pass);
+
         await upsertUser(res.user.uid, {
           name, phone, email,
-          role: selectedRole,
+          role,
           governorate: area.governorate,
           center: area.center,
           createdAt: serverTimestamp()
         });
 
-        msg.innerHTML = `<span class="text-ok">✅ تم إنشاء الحساب!</span>`;
-        goAfterLogin(selectedRole);
+        msg.textContent = "";
+        toast("تم إنشاء الحساب ✅","ok","✅",2200);
+        goAfterLogin(role);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
+        msg.textContent = "";
+        toast("فشل إنشاء الحساب (ممكن الإيميل مستخدم قبل كده).","bad","❌",3200);
       }finally{
         lockUI(false);
       }
@@ -329,13 +433,14 @@
       msg.textContent = "";
 
       const name  = nameEl.value.trim();
-      const phone = normalizePhone(phoneEl.value);
+      const phone = normalizePhone(phoneEl.value); // اختياري
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
       const area  = getArea();
+      const chosenRole = getRole(); // قد نحتاجه لو الحساب قديم بدون role
 
-      if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-      if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+      if(!isGmail(email)) return toast("لازم الإيميل ينتهي بـ @gmail.com","bad","📧");
+      if(pass.length < 6) return toast("كلمة المرور لازم 6 حروف/أرقام أو أكثر.","bad","🔒");
 
       lockUI(true);
       msg.textContent = "جارٍ تسجيل الدخول…";
@@ -343,31 +448,45 @@
       try{
         const res = await signInWithEmailAndPassword(auth, email, pass);
         const data = await getUserDoc(res.user.uid);
-        let finalRole = data?.role || null;
 
+        let finalRole = data?.role || null;
         if(!finalRole){
-          if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
-          finalRole = selectedRole;
+          if(!chosenRole){
+            msg.textContent = "";
+            toast("اختر راكب أو سائق أولاً (مرة واحدة فقط).","bad","🚖",3000);
+            return;
+          }
+          finalRole = chosenRole;
+        }
+
+        // لو مفيش منطقة محفوظة في الداتا، لازم يختارها هنا
+        const hasArea = !!(data?.governorate && data?.center);
+        if(!hasArea && (!area.governorate || !area.center)){
+          msg.textContent = "";
+          toast("اختر المحافظة + المركز.","bad","📍");
+          return;
         }
 
         const patch = { email, role: finalRole };
+
+        // تحديث اختياري
         if(name && name.length >= 2) patch.name = name;
         if(phone) patch.phone = phone;
 
         if(area.governorate && area.center){
           patch.governorate = area.governorate;
           patch.center = area.center;
-        }else if(!data?.governorate || !data?.center){
-          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
-          return;
         }
 
         await upsertUser(res.user.uid, patch);
-        msg.innerHTML = `<span class="text-ok">✅ تم تسجيل الدخول!</span>`;
+
+        msg.textContent = "";
+        toast("تم تسجيل الدخول ✅","ok","✅",1800);
         goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ الإيميل أو الباسورد غلط.</span>`;
+        msg.textContent = "";
+        toast("الإيميل أو الباسورد غلط.","bad","❌",2600);
       }finally{
         lockUI(false);
       }
