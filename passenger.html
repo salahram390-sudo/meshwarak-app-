@@ -38,7 +38,6 @@
 
       <div class="sheet-content" id="sheetContent">
 
-        <!-- ✅ اختيار المنطقة (احترافي) -->
         <div class="card" style="margin-top:0">
           <div class="field" style="margin-top:0">
             <label>منطقتك (لإظهار الطلب لنفس السائقين فقط)</label>
@@ -104,6 +103,7 @@
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
 
+    // ✅ لازم collection موجودة (إضافة مهمة)
     import {
       collection, addDoc, serverTimestamp,
       doc, onSnapshot, setDoc
@@ -115,9 +115,6 @@
     const msg = document.getElementById("msg");
     const whoEl = document.getElementById("who");
 
-    // =========================
-    // ✅ بيانات المحافظات/المراكز (احترافي + يدعم إدخال يدوي)
-    // =========================
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","عين شمس","الزيتون","المرج","العباسية","التجمع","القطامية","السيدة زينب","الدرب الأحمر","باب الشعرية","روض الفرج"],
       "الجيزة": ["الدقي","العجوزة","الهرم","فيصل","إمبابة","الوراق","6 أكتوبر","الشيخ زايد","البدرشين","العياط","أوسيم","كرداسة","صف","أطفيح"],
@@ -154,7 +151,6 @@
     const centerOtherInput = document.getElementById("centerOtherInput");
     const areaPill = document.getElementById("areaPill");
 
-    // تعبئة المحافظات
     const govs = Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar"));
     govs.forEach(g=>{
       const o = document.createElement("option");
@@ -164,14 +160,11 @@
 
     function fillCenters(gov){
       centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
-      const list = AREAS[gov] || [];
-      list.forEach(c=>{
+      (AREAS[gov] || []).forEach(c=>{
         const o = document.createElement("option");
         o.value = c; o.textContent = c;
         centerSelect.appendChild(o);
       });
-
-      // خيار "أخرى" للإدخال اليدوي (احترافي)
       const other = document.createElement("option");
       other.value = "__other__";
       other.textContent = "أخرى (إدخال يدوي)…";
@@ -234,9 +227,6 @@
       updateUI();
     });
 
-    // =========================
-    // ✅ تحميل بروفايل الراكب + اسم احترافي
-    // =========================
     let passengerProfile = await getUserDoc(user.uid).catch(()=>null);
 
     const fallbackNameFromEmail = (email) => {
@@ -249,12 +239,10 @@
 
     whoEl.textContent = `${passengerName} • ${user.email}`;
 
-    // اضبط الاختيار من البروفايل لو موجود
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
       fillCenters(passengerProfile.governorate);
       if(passengerProfile?.center){
-        // لو المركز ضمن القائمة اختاره، وإلا خليها "أخرى" واكتب يدوي
         const exists = Array.from(centerSelect.options).some(o=>o.value===passengerProfile.center);
         if(exists){
           centerSelect.value = passengerProfile.center;
@@ -267,7 +255,6 @@
     }
     renderAreaPill();
 
-    // اكتب الاسم الافتراضي لو ناقص
     if(!passengerProfile?.name){
       try{
         await setDoc(doc(db, "users", user.uid), {
@@ -278,9 +265,6 @@
       }catch{}
     }
 
-    // =========================
-    // ✅ خريطة OSM
-    // =========================
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
     const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
@@ -444,9 +428,6 @@
       fixMap();
     });
 
-    // =========================
-    // ✅ متابعة الطلب الحالي
-    // =========================
     let unsubRide = null;
     function watchRide(rideId){
       if(unsubRide) unsubRide();
@@ -501,9 +482,6 @@
     const lastRideId = localStorage.getItem("lastRideId");
     if(lastRideId) watchRide(lastRideId);
 
-    // =========================
-    // ✅ UI gate احترافي: لازم منطقة + نقاط
-    // =========================
     function hasAreaReady(){
       const { gov, center } = getSelectedArea();
       return !!(gov && center);
@@ -531,7 +509,6 @@
       }
     }
 
-    // ✅ إنشاء الطلب (يحفظ المنطقة في users + في ride)
     createBtn.addEventListener("click", async ()=>{
       try{
         createBtn.disabled = true;
@@ -544,12 +521,14 @@
           return;
         }
 
-        // احفظها في users للراكب (merge)
         await setDoc(doc(db, "users", user.uid), {
           governorate: gov,
           center: center,
           updatedAt: serverTimestamp()
         }, { merge:true });
+
+        // ✅ تحديث محلي (إضافة مهمة)
+        passengerProfile = { ...(passengerProfile||{}), governorate: gov, center: center };
 
         const docRef = await addDoc(collection(db, "rides"), {
           status: "open",
@@ -585,9 +564,6 @@
 
     updateUI();
 
-    // =========================
-    // ✅ Bottom Sheet Drag (Handle ONLY)
-    // =========================
     const sheet   = document.getElementById("sheet");
     const handle  = document.getElementById("sheetHandle");
     const content = document.getElementById("sheetContent");
