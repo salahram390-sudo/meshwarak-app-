@@ -25,7 +25,7 @@
       </div>
       <div style="display:flex;gap:8px">
         <a class="btn" href="./index.html">الرئيسية</a>
-        <button class="btn danger" id="logoutBtn">خروج</button>
+        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
       </div>
     </div>
   </div>
@@ -38,6 +38,7 @@
 
       <div class="sheet-content" id="sheetContent">
 
+        <!-- المنطقة -->
         <div class="card" style="margin-top:0">
           <div class="field" style="margin-top:0">
             <label>منطقتك (لإظهار الطلب لنفس السائقين فقط)</label>
@@ -62,6 +63,7 @@
           </div>
         </div>
 
+        <!-- من/إلى -->
         <div class="grid2">
           <div class="field" style="margin-top:0">
             <label>مكان القيام</label>
@@ -87,10 +89,13 @@
           <span class="pill" id="areaPill">المنطقة: -</span>
         </div>
 
+        <!-- صندوق السائق -->
         <div id="contactBox" class="card" style="margin-top:12px; display:none"></div>
 
+        <!-- أزرار -->
         <div class="actions">
           <button class="btn primary" id="createBtn" disabled type="button">اطلب مشوار</button>
+          <button class="btn danger" id="cancelBtn" disabled type="button">إلغاء الطلب</button>
           <button class="btn" id="myLocBtn" type="button">📍 موقعي</button>
           <button class="btn" id="resetBtn" type="button">إعادة</button>
         </div>
@@ -103,10 +108,9 @@
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
 
-    // ✅ لازم collection موجودة (إضافة مهمة)
     import {
       collection, addDoc, serverTimestamp,
-      doc, onSnapshot, setDoc
+      doc, onSnapshot, setDoc, getDoc, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const { user } = await requireAuthAndRole("passenger");
@@ -115,6 +119,19 @@
     const msg = document.getElementById("msg");
     const whoEl = document.getElementById("who");
 
+    // ===== Local Storage Keys
+    const LS = {
+      areaGov: "mw_area_gov",
+      areaCenter: "mw_area_center",
+      areaCenterOther: "mw_area_center_other",
+      fromText: "mw_from_text",
+      toText: "mw_to_text",
+      lastRideId: "lastRideId"
+    };
+
+    // =========================
+    // المحافظات/المراكز
+    // =========================
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","عين شمس","الزيتون","المرج","العباسية","التجمع","القطامية","السيدة زينب","الدرب الأحمر","باب الشعرية","روض الفرج"],
       "الجيزة": ["الدقي","العجوزة","الهرم","فيصل","إمبابة","الوراق","6 أكتوبر","الشيخ زايد","البدرشين","العياط","أوسيم","كرداسة","صف","أطفيح"],
@@ -158,7 +175,7 @@
       govSelect.appendChild(o);
     });
 
-    function fillCenters(gov){
+    function fillCenters(gov, preselect=null){
       centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
       (AREAS[gov] || []).forEach(c=>{
         const o = document.createElement("option");
@@ -171,8 +188,20 @@
       centerSelect.appendChild(other);
 
       centerSelect.disabled = false;
+
       centerOtherWrap.style.display = "none";
       centerOtherInput.value = "";
+
+      if(preselect){
+        const exists = Array.from(centerSelect.options).some(o=>o.value===preselect);
+        if(exists){
+          centerSelect.value = preselect;
+        }else{
+          centerSelect.value = "__other__";
+          centerOtherWrap.style.display = "block";
+          centerOtherInput.value = preselect;
+        }
+      }
     }
 
     function getSelectedArea(){
@@ -194,6 +223,36 @@
       areaPill.textContent = gov && center ? `المنطقة: ${gov} / ${center}` : "المنطقة: -";
     }
 
+    // حفظ/استرجاع المنطقة
+    function saveAreaToLS(){
+      const { gov, center } = getSelectedArea();
+      if(gov) localStorage.setItem(LS.areaGov, gov);
+      if(centerSelect.value === "__other__") {
+        localStorage.setItem(LS.areaCenter, "__other__");
+        localStorage.setItem(LS.areaCenterOther, centerOtherInput.value || "");
+      } else {
+        if(center) localStorage.setItem(LS.areaCenter, center);
+        localStorage.removeItem(LS.areaCenterOther);
+      }
+    }
+
+    function restoreAreaFromLS(){
+      const g = localStorage.getItem(LS.areaGov) || "";
+      const c = localStorage.getItem(LS.areaCenter) || "";
+      const co = localStorage.getItem(LS.areaCenterOther) || "";
+
+      if(g){
+        govSelect.value = g;
+        fillCenters(g, (c && c !== "__other__") ? c : (co || null));
+        if(c === "__other__"){
+          centerSelect.value = "__other__";
+          centerOtherWrap.style.display = "block";
+          centerOtherInput.value = co;
+        }
+      }
+      renderAreaPill();
+    }
+
     govSelect.addEventListener("change", ()=>{
       const g = govSelect.value.trim();
       if(!g){
@@ -206,6 +265,7 @@
         return;
       }
       fillCenters(g);
+      saveAreaToLS();
       renderAreaPill();
       updateUI();
     });
@@ -218,15 +278,20 @@
         centerOtherWrap.style.display = "none";
         centerOtherInput.value = "";
       }
+      saveAreaToLS();
       renderAreaPill();
       updateUI();
     });
 
     centerOtherInput.addEventListener("input", ()=>{
+      saveAreaToLS();
       renderAreaPill();
       updateUI();
     });
 
+    // =========================
+    // بروفايل الراكب
+    // =========================
     let passengerProfile = await getUserDoc(user.uid).catch(()=>null);
 
     const fallbackNameFromEmail = (email) => {
@@ -239,9 +304,10 @@
 
     whoEl.textContent = `${passengerName} • ${user.email}`;
 
+    // استرجاع منطقة من user أو LS
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
-      fillCenters(passengerProfile.governorate);
+      fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
       if(passengerProfile?.center){
         const exists = Array.from(centerSelect.options).some(o=>o.value===passengerProfile.center);
         if(exists){
@@ -252,9 +318,12 @@
           centerOtherInput.value = passengerProfile.center;
         }
       }
+      renderAreaPill();
+    } else {
+      restoreAreaFromLS();
     }
-    renderAreaPill();
 
+    // اسم افتراضي لو ناقص
     if(!passengerProfile?.name){
       try{
         await setDoc(doc(db, "users", user.uid), {
@@ -265,6 +334,9 @@
       }catch{}
     }
 
+    // =========================
+    // الخريطة
+    // =========================
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
     const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
@@ -297,10 +369,17 @@
     const ridePill   = document.getElementById("ridePill");
     const permPill   = document.getElementById("permPill");
     const createBtn  = document.getElementById("createBtn");
+    const cancelBtn  = document.getElementById("cancelBtn");
 
     const fromText = document.getElementById("fromText");
     const toText   = document.getElementById("toText");
     const contactBox = document.getElementById("contactBox");
+
+    // استرجاع النصوص
+    fromText.value = localStorage.getItem(LS.fromText) || "";
+    toText.value   = localStorage.getItem(LS.toText) || "";
+    fromText.addEventListener("input", ()=> localStorage.setItem(LS.fromText, fromText.value));
+    toText.addEventListener("input",   ()=> localStorage.setItem(LS.toText, toText.value));
 
     function setPermPill(state){
       permPill.classList.remove("ok","bad");
@@ -351,9 +430,14 @@
       drawLine(); updateUI(); fixMap();
     }
 
+    // ===== Geocode (Nominatim)
     async function geocode(q){
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { headers: { "Accept":"application/json" } });
+      const res = await fetch(url, {
+        headers: {
+          "Accept":"application/json"
+        }
+      });
       if(!res.ok) throw new Error("geocode failed");
       const data = await res.json();
       if(!data?.length) return null;
@@ -365,8 +449,10 @@
       const text = (type==="from"?fromText.value:toText.value).trim();
       if(!text) return msg.textContent="اكتب اسم المكان ثم اضغط بحث.";
       try{
+        msg.textContent = "جارٍ البحث…";
         const r = await geocode(text);
         if(!r) return msg.textContent="لم يتم العثور على المكان.";
+        msg.textContent = "";
         if(type==="from") setFrom(r.lat,r.lng); else setTo(r.lat,r.lng);
       }catch(e){
         console.error(e);
@@ -419,16 +505,28 @@
     document.getElementById("resetBtn").addEventListener("click", ()=>{
       from=null;to=null;
       fromText.value="";toText.value="";
+      localStorage.removeItem(LS.fromText);
+      localStorage.removeItem(LS.toText);
+
       [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) map.removeLayer(x); });
       fromMarker=toMarker=line=myMarker=null;
       msg.textContent="";
-      contactBox.style.display="none";
-      contactBox.innerHTML="";
       updateUI();
       fixMap();
     });
 
+    // =========================
+    // متابعة الطلب الحالي + منع التكرار
+    // =========================
     let unsubRide = null;
+    let currentRideId = localStorage.getItem(LS.lastRideId) || null;
+
+    function setRideUI(state){
+      // state: none|open|accepted|other
+      cancelBtn.disabled = !(state === "open");
+      createBtn.disabled = (state === "open" || state === "accepted");
+    }
+
     function watchRide(rideId){
       if(unsubRide) unsubRide();
       const ref = doc(db, "rides", rideId);
@@ -438,6 +536,10 @@
           ridePill.textContent = "الطلب غير موجود.";
           contactBox.style.display="none";
           contactBox.innerHTML="";
+          currentRideId = null;
+          localStorage.removeItem(LS.lastRideId);
+          setRideUI("none");
+          updateUI();
           return;
         }
 
@@ -447,11 +549,14 @@
           ridePill.textContent = "طلبك جارٍ البحث عن سائق…";
           contactBox.style.display="none";
           contactBox.innerHTML="";
+          setRideUI("open");
           return;
         }
 
         if(r.status === "accepted"){
           ridePill.textContent = "✅ السائق وافق";
+          setRideUI("accepted");
+
           const dName = r.driverName || "سائق";
           const dPhone = r.driverPhone || "";
 
@@ -461,27 +566,52 @@
             ? `https://www.openstreetmap.org/?mlat=${pickupLat}&mlon=${pickupLng}#map=16/${pickupLat}/${pickupLng}`
             : null;
 
+          // رابط مشاركة (مفيد)
+          const shareText = `طلب مشوار - مشوارك\nالمنطقة: ${r.governorate||"-"} / ${r.center||"-"}\nمن: ${r.fromText||"-"}\nإلى: ${r.toText||"-"}\nرقم الطلب: ${rideId}`;
+          const shareBtn = `<button class="btn" id="shareBtn" type="button">مشاركة</button>`;
+
           contactBox.style.display="block";
           contactBox.innerHTML = `
-            <div class="kv">
-              <b>👤 ${dName}</b>
-              <span>${dPhone ? "📞 " + dPhone : "📞 لا يوجد رقم"}</span>
+            <div class="hint" style="margin-top:0">
+              <b>👤 ${dName}</b> ${dPhone ? `• 📞 ${dPhone}` : "• 📞 لا يوجد رقم"}
+              <br><span class="small">رقم الطلب: ${rideId}</span>
             </div>
             <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
               ${dPhone ? `<a class="btn success" href="tel:${dPhone}">اتصال</a>` : ``}
               ${mapLink ? `<a class="btn" target="_blank" href="${mapLink}">فتح الانطلاق</a>` : ``}
+              ${shareBtn}
             </div>
           `;
+
+          const shareEl = document.getElementById("shareBtn");
+          if(shareEl){
+            shareEl.addEventListener("click", async ()=>{
+              try{
+                if(navigator.share){
+                  await navigator.share({ text: shareText });
+                }else{
+                  await navigator.clipboard.writeText(shareText);
+                  msg.textContent = "✅ تم نسخ تفاصيل الطلب.";
+                }
+              }catch{
+                // ignore
+              }
+            });
+          }
+
           return;
         }
 
         ridePill.textContent = `الحالة: ${r.status || "-"}`;
+        setRideUI("other");
       });
     }
 
-    const lastRideId = localStorage.getItem("lastRideId");
-    if(lastRideId) watchRide(lastRideId);
+    if(currentRideId) watchRide(currentRideId);
 
+    // =========================
+    // UI gate
+    // =========================
     function hasAreaReady(){
       const { gov, center } = getSelectedArea();
       return !!(gov && center);
@@ -489,6 +619,12 @@
 
     function updateUI(){
       renderAreaPill();
+
+      // لو فيه طلب شغال (open/accepted) خلّي الإنشاء مقفول من هنا
+      if(currentRideId){
+        // createBtn يتدار من watchRide، بس خليها آمنة
+        return;
+      }
 
       const areaOk = hasAreaReady();
       if(!areaOk){
@@ -509,8 +645,16 @@
       }
     }
 
+    // =========================
+    // إنشاء الطلب
+    // =========================
     createBtn.addEventListener("click", async ()=>{
       try{
+        if(currentRideId){
+          msg.textContent = "⚠️ لديك طلب قائم بالفعل.";
+          return;
+        }
+
         createBtn.disabled = true;
         msg.textContent="جارٍ إنشاء الطلب…";
 
@@ -521,15 +665,20 @@
           return;
         }
 
+        if(!from || !to){
+          msg.textContent = "❌ حدد القيام والوصول أولاً.";
+          updateUI();
+          return;
+        }
+
+        // احفظ المنطقة في users
         await setDoc(doc(db, "users", user.uid), {
           governorate: gov,
           center: center,
           updatedAt: serverTimestamp()
         }, { merge:true });
 
-        // ✅ تحديث محلي (إضافة مهمة)
-        passengerProfile = { ...(passengerProfile||{}), governorate: gov, center: center };
-
+        // إنشاء ride
         const docRef = await addDoc(collection(db, "rides"), {
           status: "open",
           createdAt: serverTimestamp(),
@@ -549,10 +698,12 @@
           paymentMethod: "cash"
         });
 
-        localStorage.setItem("lastRideId", docRef.id);
+        currentRideId = docRef.id;
+        localStorage.setItem(LS.lastRideId, docRef.id);
         watchRide(docRef.id);
 
         msg.textContent = `✅ تم إنشاء الطلب! رقم: ${docRef.id}`;
+        setRideUI("open");
       }catch(e){
         console.error(e);
         msg.textContent="❌ حصل خطأ. راجع Firestore Rules.";
@@ -562,8 +713,60 @@
       }
     });
 
+    // =========================
+    // إلغاء الطلب (لو open فقط)
+    // =========================
+    cancelBtn.addEventListener("click", async ()=>{
+      if(!currentRideId) return;
+
+      try{
+        cancelBtn.disabled = true;
+        msg.textContent = "جارٍ إلغاء الطلب…";
+
+        const ref = doc(db, "rides", currentRideId);
+        const snap = await getDoc(ref);
+
+        if(!snap.exists()){
+          msg.textContent = "الطلب غير موجود.";
+          currentRideId = null;
+          localStorage.removeItem(LS.lastRideId);
+          setRideUI("none");
+          updateUI();
+          return;
+        }
+
+        const r = snap.data();
+        if(r.status !== "open"){
+          msg.textContent = "لا يمكن إلغاء الطلب بعد القبول.";
+          setRideUI(r.status);
+          return;
+        }
+
+        // أفضل حل بدون حذف: نخليه canceled
+        await updateDoc(ref, { status: "canceled", canceledAt: serverTimestamp() });
+
+        msg.textContent = "✅ تم إلغاء الطلب.";
+        // تنظيف محلي
+        currentRideId = null;
+        localStorage.removeItem(LS.lastRideId);
+        contactBox.style.display="none";
+        contactBox.innerHTML="";
+        ridePill.textContent = "لا يوجد طلب";
+        setRideUI("none");
+        updateUI();
+      }catch(e){
+        console.error(e);
+        msg.textContent = "❌ فشل الإلغاء. راجع Rules.";
+      }
+    });
+
+    // init
+    setRideUI(currentRideId ? "open" : "none");
     updateUI();
 
+    // =========================
+    // Bottom Sheet Drag (Handle ONLY)
+    // =========================
     const sheet   = document.getElementById("sheet");
     const handle  = document.getElementById("sheetHandle");
     const content = document.getElementById("sheetContent");
