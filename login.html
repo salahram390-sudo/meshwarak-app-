@@ -8,60 +8,100 @@
   <link rel="stylesheet" href="./styles.css" />
 
   <style>
+    /* ✅ login لازم يكون قابل للسكرول */
     html,body{overflow:auto}
-    .box{width:92%;max-width:520px;margin:18px auto}
+
+    .box{
+      width:92%;
+      max-width:520px;
+      background: linear-gradient(180deg, rgba(12,18,32,.95), rgba(10,18,34,.82));
+      border:1px solid var(--stroke);
+      border-radius:22px;
+      padding:18px;
+      margin:18px auto;
+      box-shadow: 0 18px 55px rgba(0,0,0,.35);
+    }
+    h1{margin:0 0 10px;font-size:18px;text-align:center}
+    p{margin:0 0 12px;opacity:.85;text-align:center;color:var(--muted)}
     .roleBtn{background: rgba(255,255,255,.06)}
-    .roleBtn.active{background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); color:#bfffe0}
-    .btns{display:grid;gap:10px;margin-top:10px}
-    .bad{color:#ffb3bf}
-    .ok{color:#bfffe0}
+    .roleBtn.active{
+      background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(43,108,255,.72));
+      border:1px solid rgba(43,108,255,.35);
+    }
+    .roleBtn.active.driver{
+      background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.62));
+      border:1px solid rgba(34,197,94,.35);
+      color:#04110a;
+    }
+    .btns{display:grid;gap:10px;margin-top:12px}
+    .sep{height:1px;background:var(--stroke);margin:14px 0}
   </style>
 </head>
+
 <body>
-  <div class="container box">
-    <div class="card">
-      <div class="brand" style="justify-content:center">
-        <div class="logo">م</div>
-        <div>
-          <h1 style="margin:0;font-size:18px">تسجيل الدخول</h1>
-          <p class="hint" style="margin:4px 0 0">Gmail + Password + اختيار (راكب/سائق)</p>
-        </div>
-      </div>
+  <div class="box">
+    <h1>🔐 مشوارك — إنشاء حساب / تسجيل دخول</h1>
+    <p>اكتب Gmail + باسورد + اسمك، واختر (راكب/سائق) + المحافظة + المركز</p>
 
-      <div class="field">
-        <label>الاسم (مهم عند إنشاء الحساب)</label>
-        <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
-      </div>
-
-      <div class="field">
-        <label>الإيميل (لازم ينتهي بـ @gmail.com)</label>
-        <input id="email" placeholder="example@gmail.com" autocomplete="email"/>
-      </div>
-
-      <div class="field">
-        <label>كلمة المرور</label>
-        <input id="pass" type="password" placeholder="اكتب باسورد" autocomplete="current-password"/>
-      </div>
-
-      <div class="field">
-        <label>اختر نوع الحساب</label>
-        <div class="grid2">
-          <button class="btn roleBtn" id="rolePassenger" type="button">🚕 راكب</button>
-          <button class="btn roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
-        </div>
-      </div>
-
-      <div class="btns">
-        <button class="btn primary" id="signupBtn" type="button">إنشاء حساب</button>
-        <button class="btn" id="loginBtn" type="button">تسجيل دخول</button>
-      </div>
-
-      <div class="hint" id="msg" style="margin-top:10px"></div>
+    <div class="field" style="margin-top:0">
+      <label>الاسم</label>
+      <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
     </div>
+
+    <div class="field">
+      <label>الإيميل (لازم ينتهي بـ @gmail.com)</label>
+      <input id="email" placeholder="example@gmail.com" autocomplete="email"/>
+    </div>
+
+    <div class="field">
+      <label>كلمة المرور</label>
+      <input id="pass" type="password" placeholder="اكتب باسورد" autocomplete="current-password"/>
+    </div>
+
+    <div class="field">
+      <label>اختر نوع الحساب</label>
+      <div class="row">
+        <button class="btn roleBtn" id="rolePassenger" type="button">🚕 راكب</button>
+        <button class="btn roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
+      </div>
+      <div class="small" style="margin-top:8px">
+        لو بتسجل دخول لأول مرة على الحساب ده، لازم تختار الدور.
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grid2">
+      <div class="field" style="margin-top:0">
+        <label>المحافظة</label>
+        <select id="gov">
+          <option value="">اختر المحافظة…</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-top:0">
+        <label>المركز</label>
+        <select id="center" disabled>
+          <option value="">اختر المركز…</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="otherCenterWrap" class="field" style="display:none">
+      <label>اكتب المركز (اختياري لو اخترت "أخرى")</label>
+      <input id="centerOther" placeholder="مثال: مركز جديد…" />
+    </div>
+
+    <div class="btns">
+      <button class="btn primary" id="signupBtn" type="button">إنشاء حساب</button>
+      <button class="btn secondary" id="loginBtn" type="button">تسجيل دخول</button>
+    </div>
+
+    <div class="hint" id="msg" style="margin-top:12px"></div>
   </div>
 
   <script type="module">
-    import { auth, db, qs } from "./app.js";
+    import { auth, db } from "./app.js";
 
     import {
       createUserWithEmailAndPassword,
@@ -70,8 +110,13 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
     import {
-      doc, getDoc, setDoc, serverTimestamp
+      doc,
+      getDoc,
+      setDoc,
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const qs = (k) => new URLSearchParams(location.search).get(k);
 
     const nameEl  = document.getElementById("name");
     const emailEl = document.getElementById("email");
@@ -82,23 +127,115 @@
     const loginBtn  = document.getElementById("loginBtn");
 
     const rolePassenger = document.getElementById("rolePassenger");
-    const roleDriver    = document.getElementById("roleDriver");
+    const roleDriver = document.getElementById("roleDriver");
 
+    const govEl = document.getElementById("gov");
+    const centerEl = document.getElementById("center");
+    const otherWrap = document.getElementById("otherCenterWrap");
+    const centerOtherEl = document.getElementById("centerOther");
+
+    // ✅ بيانات محافظات/مراكز (قابلة للتوسعة)
+    const AREAS = {
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد","أخرى"],
+      "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين","أخرى"],
+      "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي","أخرى"],
+      "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة","أخرى"],
+      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية","أخرى"],
+      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة","أخرى"],
+      "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا","أخرى"],
+      "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق","أخرى"],
+      "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن","أخرى"],
+      "المنيا": ["المنيا","ملوي","سمالوط","مطاي","بني مزار","أخرى"],
+      "أسيوط": ["أسيوط","ديروط","منفلوط","القوصية","أبو تيج","أخرى"],
+      "سوهاج": ["سوهاج","جرجا","أخميم","طهطا","البلينا","أخرى"],
+      "قنا": ["قنا","نجع حمادي","قفط","قوص","أبو تشت","أخرى"],
+      "أسوان": ["أسوان","دراو","كوم أمبو","إدفو","أخرى"],
+      "البحيرة": ["دمنهور","كفر الدوار","إيتاي البارود","رشيد","أبو حمص","أخرى"],
+      "كفر الشيخ": ["كفر الشيخ","دسوق","بلطيم","الحامول","فوه","أخرى"],
+      "دمياط": ["دمياط","فارسكور","كفر سعد","الزرقا","أخرى"],
+      "بورسعيد": ["شرق","غرب","الزهور","المناخ","أخرى"],
+      "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة","التل الكبير","أخرى"],
+      "السويس": ["السويس","الجناين","عتاقة","أخرى"],
+      "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد","أخرى"],
+      "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء","أخرى"],
+      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني","أخرى"],
+      "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم","أخرى"],
+      "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت","أخرى"]
+    };
+
+    function fillGov(){
+      const keys = Object.keys(AREAS);
+      keys.forEach(k=>{
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.textContent = k;
+        govEl.appendChild(opt);
+      });
+    }
+
+    function fillCenters(gov){
+      centerEl.innerHTML = `<option value="">اختر المركز…</option>`;
+      otherWrap.style.display = "none";
+      centerOtherEl.value = "";
+
+      const arr = AREAS[gov] || [];
+      arr.forEach(c=>{
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        centerEl.appendChild(opt);
+      });
+
+      centerEl.disabled = !gov;
+    }
+
+    fillGov();
+
+    govEl.addEventListener("change", ()=>{
+      fillCenters(govEl.value);
+    });
+
+    centerEl.addEventListener("change", ()=>{
+      if(centerEl.value === "أخرى"){
+        otherWrap.style.display = "block";
+      }else{
+        otherWrap.style.display = "none";
+        centerOtherEl.value = "";
+      }
+    });
+
+    // =========================
+    // Roles
+    // =========================
     let selectedRole = null;
 
-    const isGmail = (email) => /@gmail\.com$/i.test((email||"").trim());
+    function isGmail(email){
+      return /@gmail\.com$/i.test(email.trim());
+    }
 
     function setRole(role){
       selectedRole = role;
-      rolePassenger.classList.toggle("active", role === "passenger");
-      roleDriver.classList.toggle("active", role === "driver");
+
+      rolePassenger.classList.remove("active");
+      roleDriver.classList.remove("active");
+      rolePassenger.classList.remove("driver");
+      roleDriver.classList.remove("driver");
+
+      if(role === "passenger"){
+        rolePassenger.classList.add("active");
+      }else if(role === "driver"){
+        roleDriver.classList.add("active","driver");
+      }
     }
 
     function lockUI(locked){
       signupBtn.disabled = locked;
       loginBtn.disabled  = locked;
       rolePassenger.disabled = locked;
-      roleDriver.disabled    = locked;
+      roleDriver.disabled = locked;
+      govEl.disabled = locked;
+      centerEl.disabled = locked || !govEl.value;
+      centerOtherEl.disabled = locked;
     }
 
     function goAfterLogin(role){
@@ -110,7 +247,7 @@
       location.href = (role === "passenger") ? "passenger.html" : "driver.html";
     }
 
-    async function getUser(uid){
+    async function getUserDoc(uid){
       const ref = doc(db, "users", uid);
       const snap = await getDoc(ref);
       return snap.exists() ? snap.data() : null;
@@ -118,38 +255,73 @@
 
     async function upsertUser(uid, payload){
       const ref = doc(db, "users", uid);
-      await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge:true });
+      await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+    }
+
+    function getArea(){
+      const gov = (govEl.value || "").trim();
+      let center = (centerEl.value || "").trim();
+
+      if(center === "أخرى"){
+        const other = (centerOtherEl.value || "").trim();
+        if(other) center = other;
+      }
+      return { governorate: gov || null, center: center || null };
     }
 
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
     roleDriver.addEventListener("click", ()=> setRole("driver"));
 
-    // role من URL (من index.html)
+    // ✅ role من URL
     const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver"){
       setRole(roleFromUrl);
     }
 
-    // لو عامل Login بالفعل
+    // ✅ لو عامل login بالفعل
     onAuthStateChanged(auth, async (user) => {
       if(!user) return;
-      const data = await getUser(user.uid).catch(()=>null);
-      if(data?.role === "passenger" || data?.role === "driver"){
-        goAfterLogin(data.role);
+      try{
+        const data = await getUserDoc(user.uid);
+        if(data?.role === "passenger" || data?.role === "driver"){
+          goAfterLogin(data.role);
+        }
+      }catch(e){
+        console.error(e);
       }
     });
 
+    // =========================
+    // Signup / Login
+    // =========================
     async function handleSignup(){
       msg.textContent = "";
 
       const name  = nameEl.value.trim();
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
+      const area  = getArea();
 
-      if(name.length < 2) return msg.innerHTML = `<span class="bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
-      if(!isGmail(email)) return msg.innerHTML = `<span class="bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-      if(pass.length < 6) return msg.innerHTML = `<span class="bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
-      if(!selectedRole)  return msg.innerHTML = `<span class="bad">❌ اختار راكب أو سائق.</span>`;
+      if(!name || name.length < 2){
+        msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
+        return;
+      }
+      if(!isGmail(email)){
+        msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
+        return;
+      }
+      if(pass.length < 6){
+        msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+        return;
+      }
+      if(!selectedRole){
+        msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
+        return;
+      }
+      if(!area.governorate || !area.center){
+        msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
+        return;
+      }
 
       lockUI(true);
       msg.textContent = "جارٍ إنشاء الحساب…";
@@ -158,16 +330,19 @@
         const res = await createUserWithEmailAndPassword(auth, email, pass);
 
         await upsertUser(res.user.uid, {
-          name, email,
+          name,
+          email,
           role: selectedRole,
+          governorate: area.governorate,
+          center: area.center,
           createdAt: serverTimestamp()
         });
 
-        msg.innerHTML = `<span class="ok">✅ تم إنشاء الحساب!</span>`;
+        msg.innerHTML = `<span class="text-ok">✅ تم إنشاء الحساب!</span>`;
         goAfterLogin(selectedRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="bad">❌ فشل إنشاء الحساب (الإيميل غالبًا مستخدم).</span>`;
+        msg.innerHTML = `<span class="text-bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
       }finally{
         lockUI(false);
       }
@@ -176,12 +351,19 @@
     async function handleLogin(){
       msg.textContent = "";
 
-      const name  = nameEl.value.trim(); // اختياري
+      const name  = nameEl.value.trim();
       const email = emailEl.value.trim();
       const pass  = passEl.value.trim();
+      const area  = getArea();
 
-      if(!isGmail(email)) return msg.innerHTML = `<span class="bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-      if(pass.length < 6) return msg.innerHTML = `<span class="bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+      if(!isGmail(email)){
+        msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
+        return;
+      }
+      if(pass.length < 6){
+        msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+        return;
+      }
 
       lockUI(true);
       msg.textContent = "جارٍ تسجيل الدخول…";
@@ -189,28 +371,38 @@
       try{
         const res = await signInWithEmailAndPassword(auth, email, pass);
 
-        const data = await getUser(res.user.uid).catch(()=>null);
+        const data = await getUserDoc(res.user.uid);
         let finalRole = data?.role || null;
 
+        // لو مفيش role قديم: لازم يختار
         if(!finalRole){
           if(!selectedRole){
-            msg.innerHTML = `<span class="bad">❌ اختار راكب أو سائق أولاً.</span>`;
-            lockUI(false);
+            msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
             return;
           }
           finalRole = selectedRole;
         }
 
+        // المحافظة/المركز:
+        // لو المستخدم اختارهم دلوقتي نحدّثهم، ولو مااختارش نخلي القديم (لكن الأفضل يختارهم)
         const patch = { email, role: finalRole };
-        if(name.length >= 2) patch.name = name;
+        if(name && name.length >= 2) patch.name = name;
+
+        if(area.governorate && area.center){
+          patch.governorate = area.governorate;
+          patch.center = area.center;
+        }else if(!data?.governorate || !data?.center){
+          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
+          return;
+        }
 
         await upsertUser(res.user.uid, patch);
 
-        msg.innerHTML = `<span class="ok">✅ تم تسجيل الدخول!</span>`;
+        msg.innerHTML = `<span class="text-ok">✅ تم تسجيل الدخول!</span>`;
         goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="bad">❌ الإيميل أو الباسورد غلط.</span>`;
+        msg.innerHTML = `<span class="text-bad">❌ الإيميل أو الباسورد غلط.</span>`;
       }finally{
         lockUI(false);
       }
