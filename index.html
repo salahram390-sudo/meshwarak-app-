@@ -6,7 +6,7 @@
   <title>مشوارك</title>
 
   <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#050B16">
 
   <!-- UI -->
@@ -26,18 +26,23 @@
 
       <!-- أزرار الدخول الأساسية -->
       <div class="actions" style="justify-content:center">
-        <a class="btn success" href="login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
-        <a class="btn primary" href="login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
+        <a class="btn success" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
+        <a class="btn primary" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
       </div>
 
       <!-- صندوق المستخدم الحالي -->
       <div id="meBox" class="card" style="margin-top:14px; display:none; text-align:right">
         <div class="hint" id="meText" style="margin-top:0"></div>
 
-        <div class="actions" style="margin-top:12px">
-          <a class="btn primary" id="goBtn" href="#" style="text-align:center">فتح</a>
-          <button class="btn danger" id="logoutBtn" type="button">تسجيل خروج</button>
+        <div class="actions" style="margin-top:12px;flex-wrap:wrap">
+          <a class="btn primary" id="goBtn" href="#" style="text-align:center;min-width:180px">فتح</a>
+          <button class="btn danger" id="logoutBtn" type="button" style="min-width:180px">تسجيل خروج</button>
         </div>
+      </div>
+
+      <!-- زر تحديث قوي -->
+      <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
+        <button class="btn" id="hardRefreshBtn" type="button" style="min-width:220px">🔄 تحديث قوي (حل المشاكل)</button>
       </div>
 
       <p class="hint" style="margin:14px 0 0">
@@ -45,22 +50,31 @@
       </p>
 
       <p class="hint" id="swMsg" style="margin:10px 0 0"></p>
+      <p class="hint" id="errMsg" style="margin:8px 0 0"></p>
     </div>
   </div>
+
+  <!-- Debug errors -->
+  <script>
+    const errMsg = document.getElementById("errMsg");
+    window.addEventListener("error", (e)=>{
+      try{
+        errMsg.textContent = "⚠️ خطأ: " + (e.message || "غير معروف");
+      }catch{}
+    });
+    window.addEventListener("unhandledrejection", (e)=>{
+      try{
+        errMsg.textContent = "⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف");
+      }catch{}
+    });
+  </script>
 
   <!-- Firebase + Auto redirect -->
   <script type="module">
     import { auth, db } from "./app.js";
 
-    import {
-      onAuthStateChanged,
-      signOut
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-    import {
-      doc,
-      getDoc
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const meBox = document.getElementById("meBox");
     const meText = document.getElementById("meText");
@@ -72,7 +86,7 @@
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
     }
 
-    async function getUserDoc(uid){
+    async function getUserDocX(uid){
       const ref = doc(db, "users", uid);
       const snap = await getDoc(ref);
       return snap.exists() ? snap.data() : null;
@@ -81,10 +95,8 @@
     logoutBtn.addEventListener("click", async ()=>{
       try{
         await signOut(auth);
-        location.href = "index.html";
-      }catch{
-        location.href = "index.html";
-      }
+      }catch{}
+      location.href = "./index.html";
     });
 
     onAuthStateChanged(auth, async (user)=>{
@@ -93,7 +105,7 @@
         return;
       }
 
-      const data = await getUserDoc(user.uid).catch(()=>null);
+      const data = await getUserDocX(user.uid).catch(()=>null);
 
       const role = data?.role || null;
       const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
@@ -102,32 +114,51 @@
         meBox.style.display = "block";
         meText.innerHTML = `👤 <b>${name}</b><br>⚠️ الحساب بدون Role. افتح صفحة تسجيل الدخول.`;
         goBtn.textContent = "فتح تسجيل الدخول";
-        goBtn.href = "login.html";
+        goBtn.href = "./login.html";
         return;
       }
 
       const roleText = (role === "passenger") ? "راكب" : "سائق";
-      const target = (role === "passenger") ? "passenger.html" : "driver.html";
+      const target = (role === "passenger") ? "./passenger.html" : "./driver.html";
 
       meBox.style.display = "block";
       meText.innerHTML =
         `👤 <b>${name}</b> • ${roleText}<br>` +
         `📧 ${user.email}<br>` +
-        `📍 ${data?.governorate || "-"} / ${data?.center || "-"}`;
+        `📍 ${(data?.governorate || "-")} / ${(data?.center || "-")}`;
 
       goBtn.textContent = (role === "passenger") ? "فتح الراكب" : "فتح السائق";
       goBtn.href = target;
     });
   </script>
 
-  <!-- Service Worker (GitHub Pages safe) -->
+  <!-- Service Worker (force update) -->
   <script>
     const swMsg = document.getElementById("swMsg");
+    const hardRefreshBtn = document.getElementById("hardRefreshBtn");
+
+    async function hardRefresh(){
+      try{
+        if("serviceWorker" in navigator){
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        if("caches" in window){
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      }catch{}
+      location.reload(true);
+    }
+
+    hardRefreshBtn.addEventListener("click", hardRefresh);
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js")
+      // ✅ كاش-باستر لملف sw.js
+      const v = Date.now();
+      navigator.serviceWorker.register("./sw.js?v=" + v)
         .then(()=>{
-          swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA.";
+          swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA (SW شغال).";
         })
         .catch(()=>{
           swMsg.textContent = "⚠️ تعذر تشغيل Service Worker (مش مشكلة كبيرة).";
