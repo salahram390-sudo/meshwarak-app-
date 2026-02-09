@@ -89,7 +89,7 @@
     import {
       collection, query, where, orderBy, limit,
       getDocs, doc, runTransaction, serverTimestamp, setDoc,
-      onSnapshot, getDoc, updateDoc
+      onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const { user } = await requireAuthAndRole("driver");
@@ -118,7 +118,7 @@
     const statusRef = doc(db, "driver_status", user.uid);
     const userRef = doc(db, "users", user.uid);
 
-    // LocalStorage
+    // LocalStorage keys
     const LS = {
       gov: "mw_driver_gov",
       cen: "mw_driver_cen",
@@ -130,7 +130,7 @@
     let pushTimer = null;
 
     let lastPos = null; // {lat,lng,heading,speed}
-    let driverProfile = null; // users/{uid}
+    let driverProfile = null;
 
     let unsubStatus = null;
     let unsubTrip = null;
@@ -217,6 +217,7 @@
     function saveAreaLS(){
       const { gov, cen } = getSelectedArea();
       if(gov) localStorage.setItem(LS.gov, gov);
+
       if(cenSel.value === "__other__"){
         localStorage.setItem(LS.cen, "__other__");
         localStorage.setItem(LS.cenOther, cenOtherInput.value || "");
@@ -230,10 +231,17 @@
       const g = localStorage.getItem(LS.gov) || "";
       const c = localStorage.getItem(LS.cen) || "";
       const co = localStorage.getItem(LS.cenOther) || "";
+
       if(g){
         fillGov();
         govSel.value = g;
-        fillCenter(g, (c && c !== "__other__") ? c : (co || null));
+
+        if(c && c !== "__other__"){
+          fillCenter(g, c);
+        }else{
+          fillCenter(g, co || null);
+        }
+
         if(c === "__other__"){
           cenSel.value = "__other__";
           cenOtherWrap.style.display = "block";
@@ -277,11 +285,9 @@
       if(!gov || !cen){
         setupCard.style.display = "block";
         fillGov();
-
-        // جرّب LS لو موجود
         restoreAreaLS();
 
-        // لو في user data جزئي
+        // لو فيه بيانات في Firestore جزئية
         if(gov){
           govSel.value = gov;
           fillCenter(govSel.value, cen || null);
@@ -400,11 +406,10 @@
         const r = snap.data();
         const status = r.status || "-";
 
-        // لو الراكب لغى: status = canceled
-        if(status === "done" || status === "canceled"){
+        // نهايات الرحلة
+        if(status === "completed" || status === "canceled"){
           currentTripCard.style.display = "block";
           currentTripCard.innerHTML = `<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
-          // تنظيف حالة السائق
           setDoc(statusRef, {
             available: !!isOnline,
             currentTripId: null,
@@ -440,6 +445,7 @@
           </div>
 
           <div class="actions" style="margin-top:12px">
+            <a class="btn primary" href="trip.html?id=${tripId}">متابعة الرحلة</a>
             ${pPhone ? `<a class="btn success" href="tel:${pPhone}">📞 اتصال بالراكب</a>` : `<button class="btn" disabled>📞 لا يوجد رقم</button>`}
             ${fromLink ? `<a class="btn" target="_blank" href="${fromLink}">فتح الانطلاق</a>` : `<button class="btn" disabled>فتح الانطلاق</button>`}
             ${toLink ? `<a class="btn" target="_blank" href="${toLink}">فتح الوصول</a>` : `<button class="btn" disabled>فتح الوصول</button>`}
@@ -457,6 +463,7 @@
         const cancelBtn = currentTripCard.querySelector("#cancelTripBtn");
         const tripMsgEl = currentTripCard.querySelector("#tripMsg");
 
+        // ✅ إنهاء = completed
         finishBtn.addEventListener("click", async ()=>{
           finishBtn.disabled = true; cancelBtn.disabled = true;
           tripMsgEl.textContent = "جارٍ إنهاء الرحلة…";
@@ -467,16 +474,14 @@
               if(!s.exists()) return { ok:false, msg:"الرحلة غير موجودة." };
 
               const cur = s.data();
-              if(cur.driverUid !== user.uid){
-                return { ok:false, msg:"❌ لا يمكنك إنهاء رحلة ليست لك." };
-              }
-              if(cur.status !== "accepted"){
+              if(cur.driverUid !== user.uid) return { ok:false, msg:"❌ لا يمكنك إنهاء رحلة ليست لك." };
+              if(cur.status !== "accepted" && cur.status !== "arrived" && cur.status !== "started"){
                 return { ok:false, msg:`لا يمكن إنهاء رحلة حالتها: ${cur.status}` };
               }
 
               tx.update(rideRef, {
-                status: "done",
-                doneAt: serverTimestamp()
+                status: "completed",
+                completedAt: serverTimestamp()
               });
 
               tx.set(statusRef, {
@@ -498,21 +503,19 @@
           }
         });
 
+        // ✅ إلغاء = canceled
         cancelBtn.addEventListener("click", async ()=>{
           cancelBtn.disabled = true; finishBtn.disabled = true;
           tripMsgEl.textContent = "جارٍ إلغاء الرحلة…";
 
           try{
-            // إلغاء الرحلة = canceled (نفس الراكب)
             const res = await runTransaction(db, async (tx)=>{
               const s = await tx.get(rideRef);
               if(!s.exists()) return { ok:false, msg:"الرحلة غير موجودة." };
-              const cur = s.data();
 
-              if(cur.driverUid !== user.uid){
-                return { ok:false, msg:"❌ لا يمكنك إلغاء رحلة ليست لك." };
-              }
-              if(cur.status !== "accepted"){
+              const cur = s.data();
+              if(cur.driverUid !== user.uid) return { ok:false, msg:"❌ لا يمكنك إلغاء رحلة ليست لك." };
+              if(cur.status !== "accepted" && cur.status !== "arrived" && cur.status !== "started"){
                 return { ok:false, msg:`لا يمكن إلغاء رحلة حالتها: ${cur.status}` };
               }
 
@@ -572,11 +575,11 @@
     function rideCard(r, gov, cen){
       const fromLat = safeNum(r.from?.lat);
       const fromLng = safeNum(r.from?.lng);
-      const toLat = safeNum(r.to?.lat);
-      const toLng = safeNum(r.to?.lng);
+      const toLat   = safeNum(r.to?.lat);
+      const toLng   = safeNum(r.to?.lng);
 
       const fromLink = mapLinkFor(fromLat, fromLng, 16);
-      const toLink = mapLinkFor(toLat, toLng, 16);
+      const toLink   = mapLinkFor(toLat, toLng, 16);
 
       const el = document.createElement("div");
       el.className = "card";
@@ -609,7 +612,6 @@
         try{
           m.textContent = "جارٍ القبول…";
 
-          // منع القبول لو فيه رحلة
           if(currentTripId){
             m.textContent = "❌ لديك رحلة حالية. أنهِ الرحلة أولاً.";
             return;
@@ -624,8 +626,6 @@
             if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
 
             const cur = snap.data();
-
-            // ✅ open فقط
             if(cur.status !== "open") return { ok:false, msg:"الطلب لم يعد مفتوح." };
             if(cur.driverUid) return { ok:false, msg:"الطلب اتقبل بالفعل." };
 
@@ -653,6 +653,14 @@
           });
 
           m.textContent = res.msg;
+
+          // ✅ افتح صفحة متابعة الرحلة فورًا
+          if(res.ok){
+            localStorage.setItem("currentTripId", r.id);
+            location.href = `trip.html?id=${r.id}`;
+            return;
+          }
+
           await load();
         }catch(e){
           console.error(e);
@@ -663,38 +671,48 @@
       return el;
     }
 
+    let loading = false;
     async function load(){
-      const ok = await ensureAreaSelected();
-      if(!ok){
-        listEl.innerHTML = `<div class="card">حدد منطقتك أولاً.</div>`;
-        return;
+      if(loading) return;
+      loading = true;
+      refreshBtn.disabled = true;
+
+      try{
+        const ok = await ensureAreaSelected();
+        if(!ok){
+          listEl.innerHTML = `<div class="card">حدد منطقتك أولاً.</div>`;
+          return;
+        }
+
+        const gov = driverProfile.governorate;
+        const cen = driverProfile.center;
+
+        listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
+
+        const q = query(
+          collection(db, "rides"),
+          where("status", "==", "open"),
+          where("governorate", "==", gov),
+          where("center", "==", cen),
+          orderBy("createdAt", "desc"),
+          limit(25)
+        );
+
+        const snap = await getDocs(q);
+
+        listEl.innerHTML = "";
+        if(snap.empty){
+          listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
+          return;
+        }
+
+        snap.forEach(d=>{
+          listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
+        });
+      } finally {
+        loading = false;
+        refreshBtn.disabled = false;
       }
-
-      const gov = driverProfile.governorate;
-      const cen = driverProfile.center;
-
-      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-
-      const q = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        where("governorate", "==", gov),
-        where("center", "==", cen),
-        orderBy("createdAt", "desc"),
-        limit(25)
-      );
-
-      const snap = await getDocs(q);
-
-      listEl.innerHTML = "";
-      if(snap.empty){
-        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
-        return;
-      }
-
-      snap.forEach(d=>{
-        listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
-      });
     }
 
     refreshBtn.addEventListener("click", load);
@@ -711,6 +729,7 @@
         available: isOnline && !currentTripId,
         governorate: gov,
         center: cen,
+        currentTripId: currentTripId || null,
         lastSeenAt: serverTimestamp(),
         ...extra
       };
@@ -794,7 +813,7 @@
       const okGps = startGPS();
       if(okGps){
         try{
-          await pushStatus({ online:true, available: !currentTripId, currentTripId: currentTripId || null });
+          await pushStatus({ online:true });
           msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
         }catch(e){
           console.error(e);
