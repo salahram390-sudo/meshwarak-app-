@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - متابعة الرحلة</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand">
+        <div class="logo">م</div>
+        <div>
+          <h1>متابعة الرحلة</h1>
+          <p id="who">جارٍ التحميل…</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a class="btn" href="./driver.html">رجوع</a>
+        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="padding-top:14px">
+    <div class="card">
+      <div class="pills" style="margin-top:0">
+        <span class="pill" id="statusPill">الحالة: -</span>
+        <span class="pill" id="areaPill">المنطقة: -</span>
+      </div>
+
+      <div class="hint" id="info" style="margin-top:10px"></div>
+
+      <div class="actions" style="margin-top:12px;flex-wrap:wrap">
+        <a class="btn" id="openPickupBtn" target="_blank" style="display:none">فتح الانطلاق</a>
+        <a class="btn" id="openDropBtn" target="_blank" style="display:none">فتح الوصول</a>
+
+        <button class="btn primary" id="arrivedBtn" type="button" style="display:none">وصلت ✅</button>
+        <button class="btn primary" id="startBtn" type="button" style="display:none">بدأت الرحلة ▶️</button>
+        <button class="btn danger" id="completeBtn" type="button" style="display:none">إنهاء الرحلة 🏁</button>
+
+        <button class="btn" id="backToListBtn" type="button" style="display:none">رجوع للطلبات</button>
+      </div>
+
+      <div class="hint" id="msg" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuthAndRole, doLogout, db, getUserDoc, qs } from "./app.js";
+
+    import {
+      doc, onSnapshot, runTransaction, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const { user } = await requireAuthAndRole("driver");
+    document.getElementById("who").textContent = user.email;
+    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+
+    const msg = document.getElementById("msg");
+    const info = document.getElementById("info");
+    const statusPill = document.getElementById("statusPill");
+    const areaPill = document.getElementById("areaPill");
+
+    const openPickupBtn = document.getElementById("openPickupBtn");
+    const openDropBtn   = document.getElementById("openDropBtn");
+    const arrivedBtn    = document.getElementById("arrivedBtn");
+    const startBtn      = document.getElementById("startBtn");
+    const completeBtn   = document.getElementById("completeBtn");
+    const backToListBtn = document.getElementById("backToListBtn");
+
+    // rideId من ?id=... أو من localStorage
+    const rideId = qs("id") || localStorage.getItem("currentTripId");
+    if(!rideId){
+      info.textContent = "لا يوجد رحلة حالياً.";
+      backToListBtn.style.display = "inline-flex";
+      backToListBtn.onclick = ()=> location.href = "driver.html";
+      throw new Error("no rideId");
+    }
+
+    localStorage.setItem("currentTripId", rideId);
+
+    const rideRef = doc(db, "rides", rideId);
+
+    function osmLink(lat,lng){
+      return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
+    }
+    function googleNavLink(lat,lng){
+      return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    }
+
+    // ✅ تحديث أزرار حسب حالة الرحلة
+    function render(r){
+      statusPill.textContent = `الحالة: ${r.status || "-"}`;
+      areaPill.textContent = `المنطقة: ${r.governorate || "-"} / ${r.center || "-"}`;
+
+      const pName = r.passengerName || "راكب";
+      const pEmail = r.passengerEmail || "-";
+      const pPhone = r.passengerPhone || null;
+
+      info.innerHTML = `
+        <b>رقم الطلب:</b> ${rideId}<br>
+        <b>الراكب:</b> ${pName} (${pEmail})<br>
+        <b>من:</b> ${r.fromText || "-"}<br>
+        <b>إلى:</b> ${r.toText || "-"}<br>
+        ${pPhone ? `<b>هاتف:</b> <a href="tel:${pPhone}">${pPhone}</a><br>` : ``}
+      `;
+
+      const fromLat = Number(r.from?.lat), fromLng = Number(r.from?.lng);
+      const toLat = Number(r.to?.lat), toLng = Number(r.to?.lng);
+
+      // روابط خرائط
+      if(Number.isFinite(fromLat) && Number.isFinite(fromLng)){
+        openPickupBtn.style.display = "inline-flex";
+        // لو عايز “ملاحة” بدل مشاهدة، بدّل osmLink بـ googleNavLink
+        openPickupBtn.href = googleNavLink(fromLat, fromLng);
+        openPickupBtn.textContent = "فتح الانطلاق (ملاحة)";
+      }else{
+        openPickupBtn.style.display = "none";
+      }
+
+      if(Number.isFinite(toLat) && Number.isFinite(toLng)){
+        openDropBtn.style.display = "inline-flex";
+        openDropBtn.href = googleNavLink(toLat, toLng);
+        openDropBtn.textContent = "فتح الوصول (ملاحة)";
+      }else{
+        openDropBtn.style.display = "none";
+      }
+
+      // شروط الأزرار حسب الحالة
+      arrivedBtn.style.display  = "none";
+      startBtn.style.display    = "none";
+      completeBtn.style.display = "none";
+      backToListBtn.style.display = "none";
+
+      if(r.status === "accepted"){
+        arrivedBtn.style.display = "inline-flex";
+      }
+      if(r.status === "arrived"){
+        startBtn.style.display = "inline-flex";
+      }
+      if(r.status === "started"){
+        completeBtn.style.display = "inline-flex";
+      }
+      if(r.status === "completed" || r.status === "canceled"){
+        backToListBtn.style.display = "inline-flex";
+        backToListBtn.onclick = ()=>{
+          localStorage.removeItem("currentTripId");
+          location.href = "driver.html";
+        };
+      }
+
+      // ✅ فتح الانطلاق تلقائي أول مرة بعد القبول
+      // (علشان “يفتح الخريطة مباشرة على موقع الراكب”)
+      if(r.status === "accepted" && !localStorage.getItem("autoOpenedPickup_"+rideId)){
+        localStorage.setItem("autoOpenedPickup_"+rideId, "1");
+        if(openPickupBtn.href) window.open(openPickupBtn.href, "_blank");
+      }
+    }
+
+    // أزرار تغيير الحالة (محمية بـ Rules)
+    async function updateStatus(next){
+      msg.textContent = "جارٍ التنفيذ…";
+      try{
+        await runTransaction(db, async (tx)=>{
+          const snap = await tx.get(rideRef);
+          if(!snap.exists()) throw new Error("الطلب غير موجود");
+          const r = snap.data();
+
+          // لازم السائق نفسه
+          if(r.driverUid !== user.uid) throw new Error("ليس لديك صلاحية");
+
+          // انتقالات صحيحة
+          const ok =
+            (r.status === "accepted" && next === "arrived") ||
+            (r.status === "arrived"  && next === "started") ||
+            (r.status === "started"  && next === "completed");
+
+          if(!ok) throw new Error("لا يمكن تغيير الحالة من هنا");
+
+          const patch = { status: next, updatedAt: serverTimestamp() };
+          if(next === "arrived")   patch.arrivedAt = serverTimestamp();
+          if(next === "started")   patch.startedAt = serverTimestamp();
+          if(next === "completed") patch.completedAt = serverTimestamp();
+
+          tx.update(rideRef, patch);
+        });
+        msg.textContent = "✅ تم.";
+      }catch(e){
+        console.error(e);
+        msg.textContent = `❌ ${e.message || e}`;
+      }
+    }
+
+    arrivedBtn.onclick  = ()=> updateStatus("arrived");
+    startBtn.onclick    = ()=> updateStatus("started");
+    completeBtn.onclick = ()=> updateStatus("completed");
+
+    // متابعة لحظية
+    onSnapshot(rideRef, (snap)=>{
+      if(!snap.exists()){
+        statusPill.textContent = "الطلب غير موجود";
+        info.textContent = "";
+        return;
+      }
+      render(snap.data());
+    });
+  </script>
+</body>
+</html>
