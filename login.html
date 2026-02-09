@@ -8,9 +8,7 @@
   <link rel="stylesheet" href="./styles.css" />
 
   <style>
-    /* ✅ login لازم يكون قابل للسكرول */
     html,body{overflow:auto}
-
     .box{
       width:92%;
       max-width:520px;
@@ -111,10 +109,7 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
     import {
-      doc,
-      getDoc,
-      setDoc,
-      serverTimestamp
+      doc, getDoc, setDoc, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const qs = (k) => new URLSearchParams(location.search).get(k);
@@ -135,10 +130,8 @@
     const otherWrap = document.getElementById("otherCenterWrap");
     const centerOtherEl = document.getElementById("centerOther");
 
-    // ✅ ثابت: قيمة "أخرى" (أضمن من كلمة "أخرى")
     const OTHER = "__other__";
 
-    // ✅ بيانات محافظات/مراكز
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -168,7 +161,6 @@
     };
 
     function fillGov(){
-      // ترتيب أبجدي + عربي
       const keys = Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar"));
       keys.forEach(k=>{
         const opt = document.createElement("option");
@@ -191,7 +183,6 @@
         centerEl.appendChild(opt);
       });
 
-      // ✅ إضافة "أخرى" كقيمة ثابتة
       const other = document.createElement("option");
       other.value = OTHER;
       other.textContent = "أخرى (إدخال يدوي)…";
@@ -218,9 +209,7 @@
       msg.textContent = "";
     });
 
-    // =========================
     // Roles
-    // =========================
     let selectedRole = null;
 
     function isGmail(email){
@@ -248,6 +237,9 @@
       govEl.disabled = locked;
       centerEl.disabled = locked || !govEl.value;
       centerOtherEl.disabled = locked;
+      nameEl.disabled = locked;
+      emailEl.disabled = locked;
+      passEl.disabled = locked;
     }
 
     function goAfterLogin(role){
@@ -284,17 +276,37 @@
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
     roleDriver.addEventListener("click", ()=> setRole("driver"));
 
-    // ✅ role من URL
+    // role من URL
     const roleFromUrl = qs("role");
     if(roleFromUrl === "passenger" || roleFromUrl === "driver"){
       setRole(roleFromUrl);
+      // (اختياري) اقفل تغيير الدور لو جاي من الرئيسية
+      // rolePassenger.disabled = true;
+      // roleDriver.disabled = true;
     }
 
-    // ✅ لو عامل login بالفعل
+    function mapAuthError(e){
+      const code = e?.code || "";
+      if(code.includes("auth/email-already-in-use")) return "❌ الإيميل مستخدم قبل كده.";
+      if(code.includes("auth/invalid-email")) return "❌ الإيميل غير صحيح.";
+      if(code.includes("auth/wrong-password")) return "❌ الإيميل أو الباسورد غلط.";
+      if(code.includes("auth/user-not-found")) return "❌ الحساب غير موجود.";
+      if(code.includes("auth/too-many-requests")) return "❌ محاولات كثيرة. جرّب بعد شوية.";
+      if(code.includes("auth/weak-password")) return "❌ الباسورد ضعيف.";
+      return "❌ حصل خطأ. جرّب تاني.";
+    }
+
+    // لو عامل login بالفعل
     onAuthStateChanged(auth, async (user) => {
       if(!user) return;
       try{
         const data = await getUserDoc(user.uid);
+        // لو فيه returnTo نرجع له مباشرة (بدون تعقيد)
+        const returnTo = qs("returnTo");
+        if(returnTo){
+          location.href = returnTo;
+          return;
+        }
         if(data?.role === "passenger" || data?.role === "driver"){
           goAfterLogin(data.role);
         }
@@ -303,9 +315,6 @@
       }
     });
 
-    // =========================
-    // Signup / Login
-    // =========================
     async function handleSignup(){
       msg.textContent = "";
 
@@ -339,7 +348,7 @@
         goAfterLogin(selectedRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
+        msg.innerHTML = `<span class="text-bad">${mapAuthError(e)}</span>`;
       }finally{
         lockUI(false);
       }
@@ -365,21 +374,28 @@
         const data = await getUserDoc(res.user.uid);
         let finalRole = data?.role || null;
 
+        // أول مرة: لازم يختار الدور
         if(!finalRole){
-          if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
+          if(!selectedRole){
+            msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
+            return;
+          }
           finalRole = selectedRole;
         }
 
+        // لازم منطقة لأول مرة
+        if((!data?.governorate || !data?.center) && (!area.governorate || !area.center)){
+          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
+          return;
+        }
+
         const patch = { email, role: finalRole };
+
         if(name && name.length >= 2) patch.name = name;
 
-        // المنطقة: لو اختارها الآن نخزنها، ولو مش مختار ولا مخزنة نلزمه
         if(area.governorate && area.center){
           patch.governorate = area.governorate;
           patch.center = area.center;
-        }else if(!data?.governorate || !data?.center){
-          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
-          return;
         }
 
         await upsertUser(res.user.uid, patch);
@@ -388,7 +404,7 @@
         goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ الإيميل أو الباسورد غلط.</span>`;
+        msg.innerHTML = `<span class="text-bad">${mapAuthError(e)}</span>`;
       }finally{
         lockUI(false);
       }
@@ -396,6 +412,13 @@
 
     signupBtn.addEventListener("click", handleSignup);
     loginBtn.addEventListener("click", handleLogin);
+
+    // Enter = login
+    [nameEl,emailEl,passEl,centerOtherEl].forEach(el=>{
+      el.addEventListener("keydown",(ev)=>{
+        if(ev.key === "Enter") handleLogin();
+      });
+    });
   </script>
 </body>
 </html>
