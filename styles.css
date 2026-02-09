@@ -17,8 +17,8 @@ html,body{
   height:100%;
   margin:0;
   padding:0;
-  /* خليها hidden للخرائط، والـ login هيعمل override */
-  overflow:hidden;
+  /* ❌ متخليش hidden هنا علشان login والصفحات الطويلة */
+  overflow:auto;
 }
 
 body{
@@ -99,6 +99,7 @@ a{color:inherit;text-decoration:none}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field{display:grid;gap:8px;margin-top:10px}
 label{font-size:12px;color:var(--muted)}
+
 input,select,textarea{
   width:100%;
   padding:12px 12px;
@@ -107,11 +108,21 @@ input,select,textarea{
   background: rgba(0,0,0,.18);
   color:var(--txt);
   outline:none;
+
+  /* تحسين للموبايل */
+  font-size:16px; /* يمنع zoom في iOS */
 }
+
 textarea{resize:none}
 .small{font-size:12px;color:var(--muted)}
 .text-ok{color:#bfffe0}
 .text-bad{color:#ffd0d8}
+
+/* ===== Lists (driver page) ===== */
+.list{
+  display:grid;
+  gap:12px;
+}
 
 /* ===== Pills ===== */
 .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
@@ -135,12 +146,15 @@ textarea{resize:none}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .actions .btn{flex:1; min-width:140px}
 
-/* ===== Map full screen ===== */
+/* =========================
+   MAP FULL SCREEN (only map pages)
+   ========================= */
 .map-wrap{
   position:relative;
   width:100%;
   height:calc(100vh - 64px);
   height:calc(100dvh - 64px);
+  overflow:hidden; /* هنا بس */
 }
 #map{
   position:absolute;
