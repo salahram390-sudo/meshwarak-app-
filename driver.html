@@ -20,12 +20,35 @@
       </div>
       <div style="display:flex;gap:8px">
         <a class="btn" href="./index.html">الرئيسية</a>
-        <button class="btn danger" id="logoutBtn">خروج</button>
+        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
       </div>
     </div>
   </div>
 
   <div class="container" style="padding-top:14px">
+    <!-- إعداد منطقة السائق -->
+    <div class="card" id="setupCard" style="display:none">
+      <div class="hint">لازم تحدد محافظتك ومركزك علشان تشوف الطلبات وتشتغل Online.</div>
+
+      <div class="grid2" style="margin-top:10px">
+        <div class="field" style="margin-top:0">
+          <label>المحافظة</label>
+          <select id="govSel"></select>
+        </div>
+        <div class="field" style="margin-top:0">
+          <label>المركز</label>
+          <select id="cenSel"></select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="saveAreaBtn" type="button">حفظ المنطقة</button>
+      </div>
+
+      <div class="hint" id="setupMsg" style="margin-top:10px"></div>
+    </div>
+
+    <!-- لوحة السائق -->
     <div class="card">
       <div class="pills" style="margin-top:0">
         <span class="pill" id="onlinePill">Offline</span>
@@ -50,7 +73,7 @@
 
     import {
       collection, query, where, orderBy, limit,
-      getDocs, doc, runTransaction, serverTimestamp, setDoc
+      getDocs, doc, runTransaction, serverTimestamp, setDoc, getDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const { user } = await requireAuthAndRole("driver");
@@ -66,7 +89,14 @@
     const gpsPill = document.getElementById("gpsPill");
     const areaPill = document.getElementById("areaPill");
 
+    const setupCard = document.getElementById("setupCard");
+    const setupMsg = document.getElementById("setupMsg");
+    const govSel = document.getElementById("govSel");
+    const cenSel = document.getElementById("cenSel");
+    const saveAreaBtn = document.getElementById("saveAreaBtn");
+
     const statusRef = doc(db, "driver_status", user.uid);
+    const userRef = doc(db, "users", user.uid);
 
     let isOnline = false;
     let watchId = null;
@@ -75,6 +105,127 @@
     let lastPos = null; // {lat,lng,heading,speed}
     let driverProfile = null; // users/{uid}
 
+    // =========================
+    // ✅ محافظات + مراكز (قائمة جاهزة — تقدر تزودها براحتك)
+    // =========================
+    const AREAS = {
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","المرج","شبرا","الزيتون","العباسية","الجيزة (حدود القاهرة)"],
+      "الجيزة": ["الهرم","فيصل","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","البدرشين","الحوامدية"],
+      "الإسكندرية": ["سيدي جابر","محرم بك","المنتزه","العجمي","ميامي","سموحة"],
+      "الدقهلية": ["المنصورة","طلخا","ميت غمر","أجا","دكرنس"],
+      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","ههيا"],
+      "الغربية": ["طنطا","المحلة الكبرى","زفتى","كفر الزيات"],
+      "المنوفية": ["شبين الكوم","السادات","منوف","الباجور"],
+      "القليوبية": ["بنها","شبرا الخيمة","قليوب","الخانكة"],
+      "الفيوم": ["الفيوم","سنورس","إطسا"],
+      "المنيا": ["المنيا","ملوي","سمالوط"],
+      "أسيوط": ["أسيوط","ديروط","منفلوط"],
+      "سوهاج": ["سوهاج","جرجا","طما"],
+      "قنا": ["قنا","نجع حمادي","قفط"],
+      "أسوان": ["أسوان","دراو","كوم أمبو"]
+    };
+
+    function fillGov(){
+      govSel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = ""; opt0.textContent = "اختر المحافظة";
+      govSel.appendChild(opt0);
+
+      Object.keys(AREAS).forEach(g=>{
+        const o = document.createElement("option");
+        o.value = g; o.textContent = g;
+        govSel.appendChild(o);
+      });
+    }
+
+    function fillCenter(gov, preselect=null){
+      cenSel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = ""; opt0.textContent = "اختر المركز";
+      cenSel.appendChild(opt0);
+
+      const arr = AREAS[gov] || [];
+      arr.forEach(c=>{
+        const o = document.createElement("option");
+        o.value = c; o.textContent = c;
+        cenSel.appendChild(o);
+      });
+
+      if(preselect){
+        cenSel.value = preselect;
+      }
+    }
+
+    govSel.addEventListener("change", ()=>{
+      fillCenter(govSel.value);
+    });
+
+    async function loadDriverProfile(){
+      driverProfile = await getUserDoc(user.uid);
+      return driverProfile;
+    }
+
+    async function ensureAreaSelected(){
+      if(!driverProfile) await loadDriverProfile();
+
+      const gov = driverProfile?.governorate || null;
+      const cen = driverProfile?.center || null;
+
+      if(!gov || !cen){
+        // show setup UI
+        setupCard.style.display = "block";
+        fillGov();
+
+        // حاول يملا لو محفوظ جزئيا
+        if(gov){
+          govSel.value = gov;
+          fillCenter(gov, cen || null);
+        }else{
+          fillCenter("");
+        }
+
+        areaPill.textContent = "منطقة: -";
+        return false;
+      }
+
+      setupCard.style.display = "none";
+      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
+      return true;
+    }
+
+    saveAreaBtn.addEventListener("click", async ()=>{
+      setupMsg.textContent = "";
+      const g = govSel.value;
+      const c = cenSel.value;
+      if(!g) return setupMsg.textContent = "❌ اختر المحافظة.";
+      if(!c) return setupMsg.textContent = "❌ اختر المركز.";
+
+      saveAreaBtn.disabled = true;
+      setupMsg.textContent = "جارٍ الحفظ…";
+
+      try{
+        await setDoc(userRef, {
+          governorate: g,
+          center: c,
+          updatedAt: serverTimestamp()
+        }, { merge:true });
+
+        await loadDriverProfile();
+        setupMsg.textContent = "✅ تم حفظ المنطقة.";
+        setupCard.style.display = "none";
+        areaPill.textContent = `منطقة: ${g} / ${c}`;
+        await load();
+      }catch(e){
+        console.error(e);
+        setupMsg.textContent = "❌ فشل الحفظ. راجع Firestore Rules.";
+      }finally{
+        saveAreaBtn.disabled = false;
+      }
+    });
+
+    // =========================
+    // UI helpers
+    // =========================
     function setOnlineUI(on){
       isOnline = on;
       onlinePill.classList.remove("ok","bad");
@@ -160,7 +311,6 @@
 
             const cur = snap.data();
 
-            // ✅ تأمين: لازم Open + نفس المنطقة
             if(cur.status !== "open" || cur.driverUid){
               return { ok:false, msg:"الطلب اتقبل بالفعل." };
             }
@@ -177,7 +327,6 @@
               driverPhone
             });
 
-            // السائق أصبح غير متاح مؤقتاً
             tx.set(statusRef, {
               online: true,
               available: false,
@@ -200,21 +349,17 @@
     }
 
     async function load(){
-      if(!driverProfile) driverProfile = await getUserDoc(user.uid);
-
-      const gov = driverProfile?.governorate || null;
-      const cen = driverProfile?.center || null;
-
-      if(!gov || !cen){
-        listEl.innerHTML = `<div class="card">❌ لازم تضيف governorate + center للسائق في users/{uid}.</div>`;
-        areaPill.textContent = "منطقة: -";
+      const ok = await ensureAreaSelected();
+      if(!ok){
+        listEl.innerHTML = `<div class="card">حدد منطقتك أولاً.</div>`;
         return;
       }
 
-      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
+      const gov = driverProfile.governorate;
+      const cen = driverProfile.center;
+
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
-      // ✅ فلترة احترافية حسب المنطقة
       const q = query(
         collection(db, "rides"),
         where("status", "==", "open"),
@@ -248,7 +393,7 @@
 
       const payload = {
         online: isOnline,
-        available: isOnline, // طالما Online ولسه مفيش Trip
+        available: isOnline,
         governorate: gov,
         center: cen,
         lastSeenAt: serverTimestamp(),
@@ -299,7 +444,7 @@
         }catch(e){
           console.error(e);
         }
-      }, 4000); // 4 ثواني (أخف على البطارية)
+      }, 4000);
 
       return true;
     }
@@ -321,22 +466,18 @@
       onlineBtn.disabled = true;
       msg.textContent = "جارٍ التشغيل Online…";
 
-      driverProfile = await getUserDoc(user.uid);
-
-      const gov = driverProfile?.governorate;
-      const cen = driverProfile?.center;
-
-      if(!gov || !cen){
-        msg.textContent = "❌ لازم تضيف governorate + center داخل users/{uid} للسائق.";
+      await loadDriverProfile();
+      const ok = await ensureAreaSelected();
+      if(!ok){
+        msg.textContent = "❌ لازم تحدد محافظتك ومركزك أولاً.";
         onlineBtn.disabled = false;
         return;
       }
 
-      areaPill.textContent = `منطقة: ${gov} / ${cen}`;
       setOnlineUI(true);
 
-      const ok = startGPS();
-      if(ok){
+      const okGps = startGPS();
+      if(okGps){
         try{
           await pushStatus({ online:true, available:true, currentTripId: null });
           msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
@@ -380,10 +521,12 @@
 
     window.addEventListener("beforeunload", ()=>{ try{ stopGPS(); }catch{} });
 
+    // init
     setOnlineUI(false);
     setGpsUI("unknown");
-    areaPill.textContent = "منطقة: -";
-    load();
+    await loadDriverProfile();
+    await ensureAreaSelected();
+    await load();
   </script>
 </body>
 </html>
