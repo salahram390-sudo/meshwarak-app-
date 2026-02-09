@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - حسابي</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand">
+        <div class="logo">م</div>
+        <div>
+          <h1>حسابي</h1>
+          <p id="who">جارٍ التحميل…</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a class="btn" href="./index.html">الرئيسية</a>
+        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="padding-top:14px">
+    <div class="card">
+      <div class="hint" id="info">جارٍ التحميل…</div>
+
+      <div class="field">
+        <label>الاسم</label>
+        <input id="name" placeholder="اسمك" />
+      </div>
+
+      <div class="field">
+        <label>رقم الهاتف</label>
+        <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" />
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>المحافظة</label>
+          <input id="gov" placeholder="مثال: القاهرة" />
+        </div>
+        <div class="field">
+          <label>المركز / الحي</label>
+          <input id="center" placeholder="مثال: مدينة نصر" />
+        </div>
+      </div>
+
+      <div id="driverOnly" style="display:none;margin-top:10px">
+        <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
+
+        <div class="grid2">
+          <div class="field" style="margin-top:0">
+            <label>نوع المركبة</label>
+            <select id="vehicle">
+              <option value="car">ملاكي</option>
+              <option value="microbus">ميكروباص</option>
+              <option value="tuktuk">توكتوك</option>
+              <option value="tmanya">تمناية</option>
+              <option value="trosikel">تروسيكل</option>
+            </select>
+          </div>
+          <div class="field" style="margin-top:0">
+            <label>موديل المركبة</label>
+            <input id="model" placeholder="مثال: 2020" inputmode="numeric" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>رقم اللوحة / كود (اختياري)</label>
+          <input id="plate" placeholder="مثال: ب س 1234" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="saveBtn" type="button">💾 حفظ</button>
+      </div>
+
+      <div class="hint" id="msg" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuthAndRole, getUserDoc, doLogout, db } from "./app.js";
+    import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const who = document.getElementById("who");
+    const info = document.getElementById("info");
+    const msg = document.getElementById("msg");
+
+    const nameEl = document.getElementById("name");
+    const phoneEl = document.getElementById("phone");
+    const govEl = document.getElementById("gov");
+    const centerEl = document.getElementById("center");
+
+    const driverOnly = document.getElementById("driverOnly");
+    const vehicleEl = document.getElementById("vehicle");
+    const modelEl = document.getElementById("model");
+    const plateEl = document.getElementById("plate");
+
+    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+
+    const { user, data } = await requireAuthAndRole(null);
+    who.textContent = user.email;
+
+    const role = data?.role || "passenger";
+    info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;
+    if(role === "driver") driverOnly.style.display = "block";
+
+    const u = await getUserDoc(user.uid);
+
+    nameEl.value = u?.name || "";
+    phoneEl.value = u?.phone || "";
+    govEl.value = u?.governorate || "";
+    centerEl.value = u?.center || "";
+
+    if(role === "driver"){
+      vehicleEl.value = u?.vehicle || "car";
+      modelEl.value = u?.model || "";
+      plateEl.value = u?.plate || "";
+    }
+
+    document.getElementById("saveBtn").addEventListener("click", async ()=>{
+      msg.textContent = "جارٍ الحفظ…";
+      try{
+        const payload = {
+          name: nameEl.value.trim() || null,
+          phone: phoneEl.value.trim() || null,
+          governorate: govEl.value.trim() || null,
+          center: centerEl.value.trim() || null,
+          updatedAt: serverTimestamp()
+        };
+
+        if(role === "driver"){
+          payload.vehicle = vehicleEl.value || null;
+          payload.model = modelEl.value.trim() || null;
+          payload.plate = plateEl.value.trim() || null;
+        }
+
+        await setDoc(doc(db, "users", user.uid), payload, { merge:true });
+        msg.textContent = "✅ تم الحفظ.";
+      }catch(e){
+        console.error(e);
+        msg.textContent = "❌ فشل الحفظ.";
+      }
+    });
+  </script>
+</body>
+</html>
