@@ -60,7 +60,7 @@
         <button class="btn roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
       </div>
       <div class="small" style="margin-top:8px">
-        أول مرة: اختر الدور. بعد كده تقدر تدخل بنفس الحساب.
+        أول مرة: اختر الدور. بعد كده هيتثبت تلقائيًا على نفس الحساب (مش هيتغير).
       </div>
     </div>
 
@@ -140,6 +140,17 @@
     const driverFields = $("driverFields");
 
     const loginBtn = $("loginBtn");
+
+    // ✅ اظهار سبب أي خطأ بدل “فشل وخلاص”
+    window.addEventListener("error", (e)=>{
+      try{ msg.textContent = "❌ خطأ: " + (e?.message || "unknown"); }catch{}
+    });
+    window.addEventListener("unhandledrejection", (e)=>{
+      try{
+        const r = e?.reason;
+        msg.textContent = "❌ خطأ: " + (r?.code || r?.message || String(r || "unknown"));
+      }catch{}
+    });
 
     const OTHER="__other__";
     let selectedRole = null;
@@ -253,6 +264,7 @@
       let v = String(x||"").trim();
       if(!v) return null;
 
+      // ✅ اسم بدون @ → ايميل وهمي “صالح”
       if(!v.includes("@")){
         v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
         if(!v) v = "user";
@@ -269,9 +281,9 @@
         localStorage.setItem(LS.center, centerEl?.value || "");
         localStorage.setItem(LS.centerOther, centerOtherEl?.value || "");
         localStorage.setItem(LS.role, selectedRole || "");
-        if(nameEl) localStorage.setItem(LS.name, nameEl.value || "");
-        if(vehicleEl) localStorage.setItem(LS.vehicle, vehicleEl.value || "");
-        if(modelEl) localStorage.setItem(LS.model, modelEl.value || "");
+        localStorage.setItem(LS.name, nameEl?.value || "");
+        localStorage.setItem(LS.vehicle, vehicleEl?.value || "");
+        localStorage.setItem(LS.model, modelEl?.value || "");
       }catch{}
     }
 
@@ -310,7 +322,12 @@
 
         if(g){
           govEl.value = g;
-          fillCenters(g, (c===OTHER ? (co||null) : (c||null)));
+
+          // ✅ لو كان OTHER احفظ اليدوي، غير كده استخدم قيمة center
+          const pre = (c===OTHER) ? (co||null) : (c||null);
+          fillCenters(g, pre);
+
+          // رجع center/other بشكل دقيق
           if(c){
             centerEl.value = c;
             if(c===OTHER){
@@ -352,6 +369,20 @@
       location.href = (role==="passenger") ? "passenger.html" : "driver.html";
     }
 
+    function lockUI(locked){
+      loginBtn.disabled = locked;
+      rolePassenger.disabled = locked;
+      roleDriver.disabled = locked;
+      govEl.disabled = locked;
+      centerEl.disabled = locked || !govEl.value;
+      centerOtherEl.disabled = locked;
+      emailEl.disabled = locked;
+      passEl.disabled = locked;
+      nameEl.disabled = locked;
+      vehicleEl.disabled = locked;
+      modelEl.disabled = locked;
+    }
+
     async function handleLogin(){
       msg.textContent = "";
       saveDraft();
@@ -369,6 +400,7 @@
         return;
       }
 
+      // ✅ لو أنت مختار سائق لأول مرة لازم بيانات المركبة
       if(selectedRole==="driver"){
         const v=(vehicleEl.value||"").trim();
         const m=(modelEl.value||"").trim();
@@ -376,53 +408,91 @@
         if(!m || m.length<2){ msg.textContent="❌ اكتب موديل المركبة."; return; }
       }
 
-      loginBtn.disabled = true;
+      lockUI(true);
       msg.textContent = "جارٍ الدخول…";
 
       try{
         const res = await emailLoginOrSignup(email, password);
         const uid = res.user.uid;
 
+        // ✅ لو الحساب له دور قديم: ثبّت الدور تلقائيًا (مايتغيرش)
+        const snap = await getDoc(doc(db,"users",uid)).catch(()=>null);
+        const existing = (snap && typeof snap.exists==="function" && snap.exists()) ? snap.data() : null;
+
+        const finalRole = (existing?.role === "passenger" || existing?.role === "driver")
+          ? existing.role
+          : selectedRole;
+
+        // ✅ لو كان موجود بدور مختلف: ما نغيرش دوره
+        if(existing?.role && existing.role !== selectedRole){
+          msg.textContent = "✅ تم الدخول (الدور ثابت على حسابك).";
+        }
+
+        // ✅ لو الدور النهائي سائق لكن بيانات المركبة ناقصة → اطلبها
+        if(finalRole === "driver"){
+          const vNeed = (existing?.vehicle || vehicleEl.value || "").trim();
+          const mNeed = (existing?.model || modelEl.value || "").trim();
+          if(!vNeed || !mNeed || mNeed.length < 2){
+            lockUI(false);
+            setRole("driver");
+            msg.textContent = "❌ أكمل بيانات المركبة أولاً (نوع + موديل) ثم اضغط تسجيل.";
+            return;
+          }
+        }
+
+        // users doc (create if not exists)
         await ensureUserDoc(uid, {
-          role: selectedRole,
+          role: finalRole,
           email: res.user.email || email,
-          name: (nameEl.value||"").trim() || null,
+          name: (nameEl.value||"").trim() || existing?.name || null,
           governorate: area.governorate,
           center: area.center,
-          vehicle: selectedRole==="driver" ? (vehicleEl.value||null) : null,
-          model: selectedRole==="driver" ? ((modelEl.value||"").trim()||null) : null,
+          vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
+          model: finalRole==="driver" ? ((existing?.model)||((modelEl.value||"").trim()||null)) : null,
         });
 
+        // update profile (merge)
         await saveUserProfile(uid, {
-          role: selectedRole,
+          role: finalRole,
           email: res.user.email || email,
-          name: (nameEl.value||"").trim() || null,
+          name: (nameEl.value||"").trim() || existing?.name || null,
           governorate: area.governorate,
           center: area.center,
-          vehicle: selectedRole==="driver" ? (vehicleEl.value||null) : null,
-          model: selectedRole==="driver" ? ((modelEl.value||"").trim()||null) : null,
+          vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
+          model: finalRole==="driver" ? ((existing?.model)||((modelEl.value||"").trim()||null)) : null,
           updatedAt: serverTimestamp()
         });
 
         msg.textContent = "✅ تم الدخول.";
-        goAfterLogin(selectedRole);
+        goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        const code = e?.code || "";
-        if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials"){
+        const code = e?.code || e?.message || "unknown";
+
+        // رسائل واضحة جداً
+        if(code === "bad-email"){
+          msg.textContent = "❌ اكتب الإيميل أو اسم فقط.";
+        }else if(code === "bad-pass"){
+          msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف.";
+        }else if(code==="auth/operation-not-allowed"){
+          msg.textContent = "❌ فعل Email/Password من Firebase Auth أولاً (Sign-in method).";
+        }else if(code==="auth/invalid-api-key" || code==="auth/configuration-not-found"){
+          msg.textContent = "❌ Firebase config غلط في app.js (apiKey/authDomain...).";
+        }else if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials"){
           msg.textContent = "❌ كلمة المرور غير صحيحة.";
-        }else if(code==="auth/invalid-email"){
-          msg.textContent = "❌ الإيميل غير صحيح.";
+        }else if(code==="auth/network-request-failed"){
+          msg.textContent = "❌ مشكلة شبكة/حظر/VPN. جرّب بدون VPN.";
         }else{
-          msg.textContent = "❌ فشل الدخول. جرّب مرة أخرى.";
+          msg.textContent = "❌ فشل الدخول: " + code;
         }
       }finally{
-        loginBtn.disabled = false;
+        lockUI(false);
       }
     }
 
     loginBtn.addEventListener("click", handleLogin);
 
+    // ✅ لو بالفعل مسجل دخول: دخله حسب role الحقيقي المخزن
     onAuthStateChanged(auth, async (user)=>{
       if(!user) return;
       const snap = await getDoc(doc(db,"users",user.uid)).catch(()=>null);
@@ -432,3 +502,4 @@
   </script>
 </body>
 </html>
+```0
