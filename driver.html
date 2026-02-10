@@ -127,7 +127,6 @@
     // ========= helpers
     const $ = (id)=>document.getElementById(id);
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
-    const clamp = (n,min,max)=> Math.max(min, Math.min(max, n));
     const toast = $("toast");
 
     function showToast(html, ms=2400){
@@ -135,41 +134,6 @@
       toast.classList.add("show");
       clearTimeout(showToast._t);
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
-    }
-
-    async function playSound(name, fallback="new"){
-      try{
-        const a = new Audio(`./sounds/${name}.mp3`);
-        a.volume = 0.9;
-        await a.play();
-      }catch{
-        beep(fallback);
-      }
-    }
-
-    function beep(type="new"){
-      try{
-        const ctx = new (window.AudioContext||window.webkitAudioContext)();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = "sine";
-        const now = ctx.currentTime;
-
-        const f1 = (type==="new") ? 880 : 660;
-        const f2 = (type==="new") ? 660 : 990;
-
-        o.frequency.setValueAtTime(f1, now);
-        o.frequency.linearRampToValueAtTime(f2, now+0.09);
-
-        g.gain.setValueAtTime(0.0001, now);
-        g.gain.exponentialRampToValueAtTime(0.25, now+0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, now+0.28);
-
-        o.start(now);
-        o.stop(now+0.32);
-        setTimeout(()=>ctx.close().catch(()=>{}), 450);
-      }catch{}
     }
 
     function safeNum(x){ const n=Number(x); return Number.isFinite(n)?n:null; }
@@ -213,6 +177,7 @@
     let unsubStatus = null;
     let unsubTrip = null;
     let currentTripId = null;
+    let unsubRides = null;
 
     // ====== خريطة السائق
     const dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
@@ -221,10 +186,7 @@
       attribution: "&copy; OpenStreetMap"
     }).addTo(dmap);
 
-    const fixMap = () => {
-      try{ dmap.invalidateSize(true);}catch{}
-      setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250);
-    };
+    const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
     setTimeout(fixMap, 450);
     window.addEventListener("load", ()=> setTimeout(fixMap, 250));
     document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
@@ -284,7 +246,7 @@
       fixMap();
     }
 
-    // ========= تحديد موقعي تلقائي
+    // ========= تحديد موقعي تلقائي عند فتح الصفحة (حتى Offline)
     function autoLocateOnce(){
       if(!navigator.geolocation){
         setGpsUI("denied");
@@ -315,7 +277,7 @@
       autoLocateOnce();
     });
 
-    // ====== مناطق (كاملة)
+    // ====== مناطق (قائمة كاملة)
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -617,10 +579,9 @@
             tripMsg.textContent="جارٍ التحديث…";
             await updateDoc(rideRef, { status:"arrived", arrivedAt: serverTimestamp() });
             tripMsg.textContent="✅ تم تسجيل الوصول.";
-            await playSound("arrived","ok");
           }catch(e){
             console.error(e);
-            tripMsg.textContent = `❌ فشل: ${e?.message||e}`;
+            tripMsg.textContent = `❌ فشل.`;
           }
         });
 
@@ -629,10 +590,9 @@
             tripMsg.textContent="جارٍ بدء الرحلة…";
             await updateDoc(rideRef, { status:"started", startedAt: serverTimestamp() });
             tripMsg.textContent="✅ بدأت الرحلة.";
-            await playSound("started","ok");
           }catch(e){
             console.error(e);
-            tripMsg.textContent = `❌ فشل: ${e?.message||e}`;
+            tripMsg.textContent = `❌ فشل.`;
           }
         });
 
@@ -641,11 +601,10 @@
             tripMsg.textContent="جارٍ إنهاء الرحلة…";
             await updateDoc(rideRef, { status:"completed", completedAt: serverTimestamp() });
             tripMsg.textContent="✅ تم إنهاء الرحلة.";
-            await playSound("completed","ok");
             await setDoc(statusRef, { currentTripId:null, available:!!isOnline, lastSeenAt:serverTimestamp() }, {merge:true}).catch(()=>{});
           }catch(e){
             console.error(e);
-            tripMsg.textContent = `❌ فشل: ${e?.message||e}`;
+            tripMsg.textContent = `❌ فشل.`;
           }
         });
       });
@@ -671,6 +630,8 @@
           currentTripCard.style.display = "none";
           currentTripCard.innerHTML = "";
         }
+      }, ()=>{
+        // لا تعرض Permissions
       });
     }
 
@@ -733,7 +694,7 @@
         w.style.display = (w.style.display==="none") ? "block" : "none";
       });
 
-      // إرسال عرض سعر (Rules تسمح)
+      // إرسال عرض سعر
       el.querySelector(`[data-send-offer="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -772,12 +733,10 @@
 
             tx.update(rideRef, {
               status: "offered",
-              driverUid: user.uid,
-
               offerPriceEGP: v,
               offerBy: "driver",
               offerAt: serverTimestamp(),
-
+              driverUid: user.uid,
               driverEmail: user.email,
               driverName,
               driverPhone,
@@ -790,16 +749,15 @@
 
           m.textContent = res.msg;
           if(res.ok){
-            await playSound("offer","new");
             showToast("💰 <b>تم اقتراح سعر</b> — في انتظار رد الراكب");
           }
         }catch(e){
           console.error(e);
-          m.textContent = `❌ فشل: ${e.message || e}`;
+          m.textContent = `❌ فشل.`;
         }
       });
 
-      // قبول مباشر (Rules تسمح)
+      // قبول مباشر
       el.querySelector(`[data-accept="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -865,55 +823,36 @@
 
           m.textContent = res.msg;
           if(res.ok){
-            await playSound("accepted","ok");
             showToast("✅ <b>تم قبول الطلب</b> — تم فتح الرحلة الحالية");
           }
         }catch(e){
           console.error(e);
-          m.textContent = `❌ فشل القبول: ${e.message || e}`;
+          m.textContent = `❌ فشل القبول.`;
         }
       });
 
-      // رفض دائم (Rules تسمح)
+      // رفض محلي
       el.querySelector(`[data-reject="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
-        const rideRef = doc(db, "rides", r.id);
-
-        try{
-          m.textContent = "جارٍ الرفض…";
-
-          await runTransaction(db, async (tx)=>{
-            const snap = await tx.get(rideRef);
-            if(!snap.exists()) throw new Error("الطلب اختفى.");
-
-            const cur = snap.data();
-            if(cur.status !== "open") throw new Error("الطلب لم يعد مفتوح.");
-
-            const arr = Array.isArray(cur.rejectedByDrivers) ? cur.rejectedByDrivers : [];
-            if(arr.includes(user.uid)) return;
-
-            tx.update(rideRef, {
-              rejectedByDrivers: [...arr, user.uid]
-            });
-          });
-
-          el.style.display = "none";
-          showToast("❌ تم رفض الطلب");
-          m.textContent = "";
-        }catch(e){
-          console.error(e);
-          m.textContent = "تعذر الرفض الآن.";
-          el.style.display = "none";
-        }
+        m.textContent = "تم الرفض. لن يظهر لك هذا الطلب الآن.";
+        el.style.display = "none";
       });
 
       return el;
     }
 
     // ====== Live Subscribe للطلبات
-    let unsubRides = null;
     let firstRidesLoad = true;
     let knownIds = new Set();
+
+    function showSoftLoadError(){
+      listEl.innerHTML = `
+        <div class="card">
+          <div class="hint">⚠️ لا يمكن تحميل الطلبات الآن.</div>
+          <div class="hint" style="margin-top:8px">تأكد من حفظ المحافظة + المركز في حساب السائق ثم اضغط تحديث.</div>
+        </div>
+      `;
+    }
 
     async function subscribeRides(reset=false){
       if(unsubRides){ try{unsubRides()}catch{} unsubRides=null; }
@@ -950,38 +889,24 @@
           return;
         }
 
-        // فلترة رفض دائم
-        const docs = snap.docs.filter(d=>{
-          const r = d.data();
-          const arr = Array.isArray(r.rejectedByDrivers) ? r.rejectedByDrivers : [];
-          return !arr.includes(user.uid);
+        let newCount = 0;
+        snap.forEach(d=>{
+          if(!knownIds.has(d.id)) newCount++;
         });
 
-        if(docs.length === 0){
-          listEl.innerHTML = `<div class="card">لا توجد طلبات جديدة حالياً.</div>`;
-          firstRidesLoad = false;
-          return;
-        }
-
-        let newCount = 0;
-        docs.forEach(d=>{ if(!knownIds.has(d.id)) newCount++; });
-
         if(!firstRidesLoad && newCount > 0){
-          playSound("new_request","new");
           showToast(`🔔 <b>طلب جديد وصل</b> (${newCount})`);
         }
 
-        knownIds = new Set(docs.map(x=>x.id));
+        knownIds = new Set(snap.docs.map(x=>x.id));
         firstRidesLoad = false;
 
-        docs.forEach(d=>{
+        snap.forEach(d=>{
           listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
         });
-      }, (e)=>{
-        console.error(e);
-
-        // ✅ ممنوع إظهار Missing permissions للمستخدم
-        listEl.innerHTML = `<div class="card">لا توجد طلبات حالياً.</div>`;
+      }, ()=>{
+        // ✅ هنا حل مشكلة Missing permissions: لا نعرضها للمستخدم
+        showSoftLoadError();
       });
     }
 
@@ -1079,7 +1004,7 @@
           showToast("✅ <b>أنت Online</b> — موقعك بيتبعت");
         }catch(e){
           console.error(e);
-          msg.textContent = "⚠️ Online اشتغل لكن تعذر تحديث الحالة.";
+          msg.textContent = `⚠️ Online اشتغل لكن في مشكلة في الحفظ.`;
         }
       }
 
@@ -1103,7 +1028,7 @@
         showToast("⚪ <b>أنت Offline</b>");
       }catch(e){
         console.error(e);
-        msg.textContent = "⚠️ تم الإيقاف لكن تعذر تحديث الحالة.";
+        msg.textContent = `⚠️ Offline اتعمل لكن حصل خطأ.`;
       }
 
       onlineBtn.disabled = false;
@@ -1125,10 +1050,7 @@
     subscribeRides(true);
     autoLocateOnce();
 
-    window.addEventListener("error", (e)=>{
-      console.error("JS Error:", e?.error || e?.message || e);
-      msg.textContent = "⚠️ حصل خطأ في الصفحة.";
-    });
+    window.addEventListener("error", ()=>{ msg.textContent = "⚠️ حصل خطأ في الصفحة."; });
   </script>
 </body>
 </html>
