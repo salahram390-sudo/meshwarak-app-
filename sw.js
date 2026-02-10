@@ -1,5 +1,5 @@
-// sw.js (FINAL - SAFE)
-const CACHE = "meshwarak-v4"; // ✅ غيّر الرقم عند كل تحديث
+// sw.js (FINAL SAFE)
+const CACHE = "meshwarak-v9"; // غيّر الرقم كل تحديث
 
 const ASSETS = [
   "./",
@@ -16,15 +16,30 @@ const ASSETS = [
   "./icon-512.png"
 ];
 
+// ملفات خارجية ما نكاشّهاش (Firebase/CDN/APIs)
+function isBypass(url) {
+  return (
+    url.startsWith("https://www.gstatic.com/") ||
+    url.startsWith("https://unpkg.com/") ||
+    url.startsWith("https://nominatim.openstreetmap.org/") ||
+    url.startsWith("https://www.openstreetmap.org/") ||
+    url.startsWith("https://{s}.tile.openstreetmap.org/") ||
+    url.includes("tile.openstreetmap.org")
+  );
+}
+
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // ✅ لو ملف ناقص: ما تفشلش التثبيت (بدون شاشة بيضا)
-    await Promise.allSettled(
-      ASSETS.map((u) =>
-        cache.add(new Request(u, { cache: "reload" }))
-      )
+    // ✅ بدل addAll (اللي بيفشل كله لو ملف واحد ناقص)
+    await Promise.all(
+      ASSETS.map(async (path) => {
+        try {
+          const res = await fetch(path, { cache: "no-store" });
+          if (res.ok) await cache.put(path, res);
+        } catch {}
+      })
     );
 
     await self.skipWaiting();
@@ -41,24 +56,19 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-  const url = new URL(req.url);
+  const url = req.url;
 
-  // ✅ تجاهل أي طلبات مش http(s)
-  if (url.protocol !== "http:" && url.protocol !== "https:") return;
+  if (isBypass(url)) return; // ✅ سيبها Network عادي
 
-  const isHTML =
-    req.mode === "navigate" ||
-    (req.headers.get("accept") || "").includes("text/html") ||
-    url.pathname.endsWith(".html");
-
-  // ✅ HTML: Network-first (علشان ما يعلقش على نسخة قديمة)
-  if (isHTML) {
+  // صفحات HTML: network-first
+  if (req.mode === "navigate") {
     e.respondWith((async () => {
       try {
-        const fresh = await fetch(req);
+        const res = await fetch(req);
+        const copy = res.clone();
         const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
-        return fresh;
+        cache.put(req, copy);
+        return res;
       } catch {
         const cached = await caches.match(req);
         return cached || caches.match("./index.html");
@@ -67,27 +77,19 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // ✅ باقي الملفات: Cache-first + تحديث بالخلفية
+  // باقي الملفات: cache-first
   e.respondWith((async () => {
     const cached = await caches.match(req);
-    if (cached) {
-      e.waitUntil((async () => {
-        try {
-          const fresh = await fetch(req);
-          const cache = await caches.open(CACHE);
-          cache.put(req, fresh.clone());
-        } catch {}
-      })());
-      return cached;
-    }
+    if (cached) return cached;
 
     try {
-      const fresh = await fetch(req);
+      const res = await fetch(req);
+      const copy = res.clone();
       const cache = await caches.open(CACHE);
-      cache.put(req, fresh.clone());
-      return fresh;
+      cache.put(req, copy);
+      return res;
     } catch {
-      return new Response("", { status: 504, statusText: "offline" });
+      return cached;
     }
   })());
 });
