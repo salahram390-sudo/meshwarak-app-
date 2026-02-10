@@ -1,4 +1,4 @@
-// app.js — Email/Password FINAL (Auto SignUp if not exists)
+// app.js — FINAL (Email/Password + Auto Signup + Persistence)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -17,21 +17,21 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ ضع إعدادات Firebase الحقيقية هنا
+// ✅ لازم تحط القيم الصح من Firebase Project settings
 const firebaseConfig = {
-  apiKey: "PUT_REAL_VALUE",
-  authDomain: "PUT_REAL_VALUE",
-  projectId: "PUT_REAL_VALUE",
-  storageBucket: "PUT_REAL_VALUE",
-  messagingSenderId: "PUT_REAL_VALUE",
-  appId: "PUT_REAL_VALUE",
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",           // مثال: meshwark-8adf8.firebaseapp.com
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME",
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ خلي الجلسة محفوظة
+// ✅ خلي الجلسة محفوظة على طول
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -44,23 +44,25 @@ export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
 
-  // لو المستخدم كتب بدون @ → اعمله ايميل وهمي “صالح”
+  // اسم بدون @ => ايميل وهمي صالح
   if (!x.includes("@")) {
     x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
     if (!x) x = "user";
-    x = `${x}@meshwarak.local`;
+    return `${x}@meshwarak.local`;
   }
 
-  if (/^[^@]+@$/.test(x)) x = x + "meshwarak.local";
+  // لو كتب "name@" بس
+  if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
+
   return x;
 }
 
 export function normalizePassword(input) {
-  const x = String(input || "");
+  const x = String(input || "").trim();
   return x.length >= 6 ? x : null;
 }
 
-// ========= Firestore helpers
+// ========= users helpers
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -70,7 +72,6 @@ export async function getUserDoc(uid) {
 export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
-
   if (!snap.exists()) {
     await setDoc(
       ref,
@@ -100,48 +101,34 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ========= ✅ Auto Login: signIn else createUser
+// ========= ✅ Auto: signIn else create
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-  if (!email) throw Object.assign(new Error("bad-email"), { code: "bad-email" });
-  if (!password) throw Object.assign(new Error("bad-pass"), { code: "bad-pass" });
+  if (!email) throw { code: "bad-email" };
+  if (!password) throw { code: "bad-pass" };
 
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (e) {
     const code = e?.code || "";
 
-    // لو الحساب مش موجود → أنشئه
-    if (
-      code === "auth/user-not-found" ||
-      code === "auth/invalid-credential" ||
-      code === "auth/invalid-login-credentials"
-    ) {
+    // لو مش موجود -> أنشئه
+    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
       return await createUserWithEmailAndPassword(auth, email, password);
-    }
-
-    // لو الإيميل موجود بس أنت كنت بتحاول create في مكان ما
-    if (code === "auth/email-already-in-use") {
-      return await signInWithEmailAndPassword(auth, email, password);
     }
 
     throw e;
   }
 }
 
+// ========= auth guard
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => {
-        unsub();
-        resolve(u);
-      },
-      (e) => {
-        unsub();
-        reject(e);
-      }
+      (u) => { unsub(); resolve(u); },
+      (e) => { unsub(); reject(e); }
     );
   });
 
@@ -151,7 +138,6 @@ export async function requireAuthAndRole(requiredRole = null) {
   }
 
   let data = await getUserDoc(user.uid).catch(() => null);
-
   if (!data) {
     await ensureUserDoc(user.uid, {
       role: "passenger",
@@ -162,7 +148,6 @@ export async function requireAuthAndRole(requiredRole = null) {
   }
 
   const role = data?.role || null;
-
   if (requiredRole && role !== requiredRole) {
     location.href = "./index.html";
     throw new Error("wrong role");
