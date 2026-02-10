@@ -95,7 +95,7 @@
         <span class="pill" id="onlinePill">Offline</span>
         <span class="pill" id="gpsPill">GPS: غير معروف</span>
         <span class="pill" id="areaPill">منطقة: -</span>
-         <span class="pill" id="vehPill">مركبة: -</span>
+        <span class="pill" id="vehPill">مركبة: -</span>
         <span class="pill" id="tripPill">لا يوجد رحلة</span>
       </div>
 
@@ -153,7 +153,7 @@
     const onlinePill = $("onlinePill");
     const gpsPill = $("gpsPill");
     const areaPill = $("areaPill");
-     const vehPill = $("vehPill");
+    const vehPill = $("vehPill");
     const tripPill = $("tripPill");
     const currentTripCard = $("currentTripCard");
 
@@ -181,33 +181,52 @@
     let currentTripId = null;
     let unsubRides = null;
 
-    // ====== خريطة السائق
+    // =========================================================
+    // ✅ FIX: الخريطة Safe (مفيش شاشة بيضا حتى لو Leaflet فشل)
+    // =========================================================
+    let fixMap = ()=>{};
+    let leafletOK = false;
+
     let dmap = null;
+    let divPin = ()=>null;
+
     try{
-      if(!window.L) throw new Error('Leaflet not loaded');
+      if(!window.L) throw new Error("Leaflet not loaded");
+
       dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
       }).addTo(dmap);
-      
-      const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
+
+      leafletOK = true;
+
+      fixMap = () => {
+        try{ dmap.invalidateSize(true); }catch{}
+        setTimeout(()=>{ try{ dmap.invalidateSize(true); }catch{} }, 250);
+      };
+
+      divPin = (emoji) => L.divIcon({
+        className: "pin-emoji",
+        html: `<div class="pin-bubble">${emoji}</div>`,
+        iconSize: [44,44],
+        iconAnchor: [22,44],
+        popupAnchor: [0,-36]
+      });
+
       setTimeout(fixMap, 450);
       window.addEventListener("load", ()=> setTimeout(fixMap, 250));
       document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
-      
-      
+
     }catch(e){
       console.error(e);
-      try{ msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`; }catch{}
+      leafletOK = false;
+      fixMap = ()=>{};
+      divPin = ()=>null;
+      try{
+        msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`;
+      }catch{}
     }
-const divPin = (emoji) => L.divIcon({
-      className: "pin-emoji",
-      html: `<div class="pin-bubble">${emoji}</div>`,
-      iconSize: [44,44],
-      iconAnchor: [22,44],
-      popupAnchor: [0,-36]
-    });
 
     let meMarker = null;
     let passengerMarker = null;
@@ -215,6 +234,7 @@ const divPin = (emoji) => L.divIcon({
     let routeLine = null;
 
     function setMeOnMap(lat,lng){
+      if(!leafletOK || !dmap) return;
       if(!meMarker){
         meMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 })
           .addTo(dmap).bindPopup("📍 أنت");
@@ -222,18 +242,21 @@ const divPin = (emoji) => L.divIcon({
     }
 
     function setPassengerOnMap(lat,lng){
+      if(!leafletOK || !dmap) return;
       if(!passengerMarker){
         passengerMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(dmap).bindPopup("🚩 الراكب");
       }else passengerMarker.setLatLng([lat,lng]);
     }
 
     function setToOnMap(lat,lng){
+      if(!leafletOK || !dmap) return;
       if(!toMarker){
         toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(dmap).bindPopup("🏁 الوصول");
       }else toMarker.setLatLng([lat,lng]);
     }
 
     function drawRouteSimple(){
+      if(!leafletOK || !dmap) return;
       if(!meMarker || !passengerMarker) return;
       const a = meMarker.getLatLng();
       const b = passengerMarker.getLatLng();
@@ -242,6 +265,8 @@ const divPin = (emoji) => L.divIcon({
     }
 
     function focusAll(){
+      if(!leafletOK || !dmap) return;
+
       const layers = [];
       if(meMarker) layers.push(meMarker);
       if(passengerMarker) layers.push(passengerMarker);
@@ -268,8 +293,11 @@ const divPin = (emoji) => L.divIcon({
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setMeOnMap(lat,lng);
-        dmap.setView([lat,lng], 16, { animate:false });
-        fixMap();
+
+        if(leafletOK && dmap){
+          dmap.setView([lat,lng], 16, { animate:false });
+          fixMap();
+        }
       }, (err)=>{
         console.error(err);
         if(err?.code === 1){
@@ -427,29 +455,36 @@ const divPin = (emoji) => L.divIcon({
 
       const gov = clean(driverProfile?.governorate || "");
       const cen = clean(driverProfile?.center || "");
-
       const veh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
 
-       if(!veh){
-         setupCard.style.display = "block";
-         setupMsg.textContent = "❌ لازم تختار نوع المركبة من صفحة حسابي.";
-         vehPill.textContent = "مركبة: -";
-         return false;
-       }
+      if(!veh){
+        setupCard.style.display = "block";
+        setupMsg.textContent = "❌ لازم تختار نوع المركبة من صفحة حسابي.";
+        vehPill.textContent = "مركبة: -";
+        return false;
+      }
 
-       if(!gov || !cen){
+      if(!gov || !cen){
         setupCard.style.display = "block";
         restoreAreaLS();
         areaPill.textContent = "منطقة: -";
-         vehPill.textContent = "مركبة: -";
+        vehPill.textContent = "مركبة: -";
         return false;
       }
 
       setupCard.style.display = "none";
       areaPill.textContent = `منطقة: ${gov} / ${cen}`;
-       const v = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || "-";
-       const vText = (v==="tuktuk")?"توكتوك":(v==="motor_delivery")?"موتسيكل دليفري":(v==="car")?"ملاكي":(v==="microbus")?"ميكروباص":(v==="tamanya")?"تمناية":(v==="caboot")?"عربية كابوت":v;
-       vehPill.textContent = `مركبة: ${vText}`;
+
+      const v = veh || "-";
+      const vText =
+        (v==="tuktuk")?"توكتوك":
+        (v==="motor_delivery")?"موتسيكل دليفري":
+        (v==="car")?"ملاكي":
+        (v==="microbus")?"ميكروباص":
+        (v==="tamanya")?"تمناية":
+        (v==="caboot")?"عربية كابوت": v;
+
+      vehPill.textContent = `مركبة: ${vText}`;
       return true;
     }
 
@@ -510,6 +545,7 @@ const divPin = (emoji) => L.divIcon({
     // ====== متابعة الرحلة الحالية
     function stopWatchTrip(){
       if(unsubTrip){ try{ unsubTrip(); }catch{} unsubTrip=null; }
+      if(!leafletOK || !dmap) return;
       if(passengerMarker){ try{ dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
       if(toMarker){ try{ dmap.removeLayer(toMarker);}catch{} toMarker=null; }
       if(routeLine){ try{ dmap.removeLayer(routeLine);}catch{} routeLine=null; }
@@ -702,6 +738,7 @@ const divPin = (emoji) => L.divIcon({
       const focusBtn = el.querySelector(`[data-focus="${r.id}"]`);
       if(focusBtn){
         focusBtn.addEventListener("click", ()=>{
+          if(!leafletOK || !dmap) return;
           if(fromLat!=null && fromLng!=null){
             setPassengerOnMap(fromLat, fromLng);
             dmap.setView([fromLat, fromLng], 16, { animate:false });
@@ -713,10 +750,6 @@ const divPin = (emoji) => L.divIcon({
       el.querySelector(`[data-offer="${r.id}"]`)?.addEventListener("click", ()=>{
         const w = el.querySelector(`#offerWrap_${r.id}`);
         w.style.display = (w.style.display==="none") ? "block" : "none";
-      }, (err)=>{
-        console.error(err);
-        // ✅ لا تظهر Missing permissions للمستخدم
-        listEl.innerHTML = `<div class=\"card\">لا توجد طلبات الآن.</div>`;
       });
 
       // إرسال عرض سعر
@@ -902,14 +935,16 @@ const divPin = (emoji) => L.divIcon({
 
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
-      // ✅ مهم جداً مع الـ Rules: لازم نضيف driverUid == null في الاستعلام
+      const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || null;
+
+      // ✅ مهم جداً: driverUid == null
       const qy = query(
         collection(db, "rides"),
         where("status", "==", "open"),
         where("driverUid", "==", null),
         where("governorate", "==", gov),
         where("center", "==", cen),
-        where("requestedVehicle", "==", (clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || null)),
+        where("requestedVehicle", "==", myVeh),
         limit(25)
       );
 
@@ -1086,4 +1121,3 @@ const divPin = (emoji) => L.divIcon({
   </script>
 </body>
 </html>
-sala
