@@ -28,14 +28,13 @@
     .btns{display:grid;gap:10px;margin-top:12px}
     .sep{height:1px;background:var(--stroke);margin:14px 0}
     #driverFields{display:none}
-    #otpWrap{display:none}
   </style>
 </head>
 
 <body>
   <div class="box">
     <h1>🔐 مشوارك — تسجيل / دخول</h1>
-    <p>رقم موبايل فقط + اسمك + رقم الهاتف + (راكب/سائق) + المحافظة + المركز</p>
+    <p>بـ الإيميل + الباسورد + اسمك + (راكب/سائق) + المحافظة + المركز</p>
 
     <div class="field" style="margin-top:0">
       <label>الاسم</label>
@@ -43,9 +42,14 @@
     </div>
 
     <div class="field">
-      <label>رقم الموبايل (مصري)</label>
-      <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" autocomplete="tel"/>
-      <div class="small" style="margin-top:6px">مثال: 01xxxxxxxxx</div>
+      <label>البريد الإلكتروني</label>
+      <input id="email" placeholder="example@gmail.com" inputmode="email" autocomplete="email"/>
+    </div>
+
+    <div class="field">
+      <label>كلمة المرور</label>
+      <input id="password" type="password" placeholder="********" autocomplete="current-password"/>
+      <div class="small" style="margin-top:6px">اقل شيء 6 أحرف.</div>
     </div>
 
     <div class="field">
@@ -55,7 +59,7 @@
         <button class="btn roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
       </div>
       <div class="small" style="margin-top:8px">
-        أول مرة تسجل على الرقم ده: اختر الدور. بعد كده تقدر تدخل راكب أو سائق.
+        أول مرة تسجل بالإيميل ده: اختر الدور. بعد كده الدور يفضل ثابت.
       </div>
     </div>
 
@@ -104,31 +108,19 @@
     </div>
 
     <div class="btns">
-      <button class="btn primary" id="sendOtpBtn" type="button">إرسال كود SMS</button>
-    </div>
-
-    <div id="otpWrap">
-      <div class="field">
-        <label>كود التفعيل</label>
-        <input id="otp" placeholder="اكتب الكود" inputmode="numeric" />
-      </div>
-      <div class="btns">
-        <button class="btn success" id="verifyBtn" type="button">تأكيد الدخول</button>
-        <button class="btn secondary" id="resendBtn" type="button">إعادة إرسال</button>
-      </div>
+      <button class="btn primary" id="loginBtn" type="button">تسجيل / دخول</button>
     </div>
 
     <div class="hint" id="msg" style="margin-top:12px"></div>
-
-    <!-- required for Firebase Phone Auth -->
-    <div id="recaptcha-container"></div>
   </div>
 
   <script type="module">
-    import { auth, db, qs, normalizeEgyptPhone, startPhoneLogin } from "./app.js";
+    import { auth, db, qs } from "./app.js";
 
     import {
-      onAuthStateChanged
+      onAuthStateChanged,
+      createUserWithEmailAndPassword,
+      signInWithEmailAndPassword
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
     import {
@@ -138,13 +130,11 @@
     const $ = (id)=>document.getElementById(id);
 
     const nameEl  = $("name");
-    const phoneEl = $("phone");
-    const otpEl   = $("otp");
+    const emailEl = $("email");
+    const passEl  = $("password");
     const msg     = $("msg");
 
-    const sendOtpBtn = $("sendOtpBtn");
-    const verifyBtn  = $("verifyBtn");
-    const resendBtn  = $("resendBtn");
+    const loginBtn = $("loginBtn");
 
     const rolePassenger = $("rolePassenger");
     const roleDriver = $("roleDriver");
@@ -156,8 +146,6 @@
     const centerEl = $("center");
     const otherWrap = $("otherCenterWrap");
     const centerOtherEl = $("centerOther");
-
-    const otpWrap = $("otpWrap");
 
     const OTHER = "__other__";
 
@@ -189,6 +177,18 @@
       "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
 
+    // ===== حفظ/استرجاع بيانات الفورم حتى بعد Logout =====
+    const LS = {
+      name: "mw_reg_name",
+      email: "mw_reg_email",
+      role: "mw_reg_role",
+      gov: "mw_reg_gov",
+      center: "mw_reg_center",
+      centerOther: "mw_reg_center_other",
+      vehicle: "mw_reg_vehicle",
+      model: "mw_reg_model"
+    };
+
     function fillGov(){
       Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar")).forEach(k=>{
         const opt = document.createElement("option");
@@ -196,7 +196,7 @@
         govEl.appendChild(opt);
       });
     }
-    function fillCenters(gov){
+    function fillCenters(gov, pre=null){
       centerEl.innerHTML = `<option value="">اختر المركز…</option>`;
       otherWrap.style.display = "none";
       centerOtherEl.value = "";
@@ -214,24 +214,19 @@
       centerEl.appendChild(other);
 
       centerEl.disabled = !gov;
+
+      if(pre){
+        const exists=[...centerEl.options].some(o=>o.value===pre);
+        if(exists){
+          centerEl.value=pre;
+        }else{
+          centerEl.value=OTHER;
+          otherWrap.style.display="block";
+          centerOtherEl.value=pre;
+        }
+      }
     }
     fillGov();
-
-    govEl.addEventListener("change", ()=>{
-      fillCenters(govEl.value);
-      msg.textContent = "";
-    });
-
-    centerEl.addEventListener("change", ()=>{
-      if(centerEl.value === OTHER){
-        otherWrap.style.display = "block";
-        centerOtherEl.focus();
-      }else{
-        otherWrap.style.display = "none";
-        centerOtherEl.value = "";
-      }
-      msg.textContent = "";
-    });
 
     function getArea(){
       const governorate = (govEl.value || "").trim() || null;
@@ -259,18 +254,77 @@
         roleDriver.classList.add("active","driver");
         driverFields.style.display = "block";
       }
+      localStorage.setItem(LS.role, role || "");
     }
 
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
     roleDriver.addEventListener("click", ()=> setRole("driver"));
 
-    const roleFromUrl = qs("role");
-    if(roleFromUrl === "passenger" || roleFromUrl === "driver") setRole(roleFromUrl);
+    govEl.addEventListener("change", ()=>{
+      fillCenters(govEl.value);
+      localStorage.setItem(LS.gov, govEl.value||"");
+      localStorage.setItem(LS.center, "");
+      localStorage.setItem(LS.centerOther, "");
+      msg.textContent = "";
+    });
+
+    centerEl.addEventListener("change", ()=>{
+      if(centerEl.value === OTHER){
+        otherWrap.style.display = "block";
+        centerOtherEl.focus();
+      }else{
+        otherWrap.style.display = "none";
+        centerOtherEl.value = "";
+      }
+      localStorage.setItem(LS.center, centerEl.value||"");
+      localStorage.setItem(LS.centerOther, centerOtherEl.value||"");
+      msg.textContent = "";
+    });
+
+    centerOtherEl.addEventListener("input", ()=>{
+      localStorage.setItem(LS.centerOther, centerOtherEl.value||"");
+    });
+
+    nameEl.addEventListener("input", ()=>localStorage.setItem(LS.name, nameEl.value));
+    emailEl.addEventListener("input", ()=>localStorage.setItem(LS.email, emailEl.value));
+    vehicleEl.addEventListener("change", ()=>localStorage.setItem(LS.vehicle, vehicleEl.value||""));
+    modelEl.addEventListener("input", ()=>localStorage.setItem(LS.model, modelEl.value||""));
+
+    // Restore
+    (function restore(){
+      const n = localStorage.getItem(LS.name)||"";
+      const e = localStorage.getItem(LS.email)||"";
+      const r = localStorage.getItem(LS.role)||"";
+      const g = localStorage.getItem(LS.gov)||"";
+      const c = localStorage.getItem(LS.center)||"";
+      const co = localStorage.getItem(LS.centerOther)||"";
+      const v = localStorage.getItem(LS.vehicle)||"";
+      const m = localStorage.getItem(LS.model)||"";
+
+      if(n) nameEl.value=n;
+      if(e) emailEl.value=e;
+
+      if(v) vehicleEl.value=v;
+      if(m) modelEl.value=m;
+
+      if(g){
+        govEl.value=g;
+        fillCenters(g, (c && c!==OTHER) ? c : (co||null));
+        if(c===OTHER){
+          centerEl.value=OTHER;
+          otherWrap.style.display="block";
+          centerOtherEl.value=co;
+        }
+      }
+
+      if(r==="passenger" || r==="driver") setRole(r);
+
+      const roleFromUrl = qs("role");
+      if(roleFromUrl === "passenger" || roleFromUrl === "driver") setRole(roleFromUrl);
+    })();
 
     function lockUI(locked){
-      sendOtpBtn.disabled = locked;
-      verifyBtn.disabled  = locked;
-      resendBtn.disabled  = locked;
+      loginBtn.disabled = locked;
       rolePassenger.disabled = locked;
       roleDriver.disabled = locked;
 
@@ -279,8 +333,8 @@
       centerOtherEl.disabled = locked;
 
       nameEl.disabled = locked;
-      phoneEl.disabled = locked;
-      otpEl.disabled = locked;
+      emailEl.disabled = locked;
+      passEl.disabled = locked;
 
       vehicleEl.disabled = locked;
       modelEl.disabled = locked;
@@ -310,27 +364,17 @@
       return v;
     }
 
-    function getVehicleText(v){
-      return (v==="tuktuk")?"توكتوك":
-        (v==="motor_delivery")?"موتسيكل دليفري":
-        (v==="car")?"ملاكي":
-        (v==="microbus")?"ميكروباص":
-        (v==="tamanya")?"تمناية":
-        (v==="caboot")?"عربية كابوت": v;
-    }
-
-    let confirmationResult = null;
-    let lastPhone = null;
-
-    async function handleSendOtp(){
+    async function handleEmailLogin(){
       msg.textContent = "";
-      const name  = nameEl.value.trim();
-      const phoneRaw = phoneEl.value;
-      const phone = normalizeEgyptPhone(phoneRaw);
-      const area  = getArea();
+
+      const name = nameEl.value.trim();
+      const email = (emailEl.value||"").trim();
+      const password = (passEl.value||"").trim();
+      const area = getArea();
 
       if(!name || name.length < 2) return msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
-      if(!phone) return msg.innerHTML = `<span class="text-bad">❌ اكتب رقم مصري صحيح (مثال: 01xxxxxxxxx).</span>`;
+      if(!email || !email.includes("@")) return msg.innerHTML = `<span class="text-bad">❌ اكتب بريد صحيح.</span>`;
+      if(!password || password.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور أقل شيء 6.</span>`;
       if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
       if(!area.governorate || !area.center) return msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
 
@@ -343,83 +387,62 @@
       }
 
       lockUI(true);
-      msg.textContent = "جارٍ إرسال الكود…";
+      msg.textContent = "جارٍ التسجيل / الدخول…";
 
       try{
-        confirmationResult = await startPhoneLogin(phone, "recaptcha-container");
-        lastPhone = phone;
+        // جرّب تسجيل دخول أولاً
+        let cred = null;
+        try{
+          cred = await signInWithEmailAndPassword(auth, email, password);
+        }catch(e){
+          // لو غير موجود، اعمل إنشاء حساب
+          cred = await createUserWithEmailAndPassword(auth, email, password);
+        }
 
-        otpWrap.style.display = "block";
-        msg.innerHTML = `<span class="text-ok">✅ تم إرسال الكود إلى ${phone}</span>`;
-      }catch(e){
-        console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ فشل إرسال الكود. جرّب مرة أخرى.</span>`;
-      }finally{
-        lockUI(false);
-      }
-    }
+        const uid = cred.user.uid;
 
-    async function handleVerify(){
-      msg.textContent = "";
-      if(!confirmationResult) return msg.innerHTML = `<span class="text-bad">❌ اضغط إرسال كود أولاً.</span>`;
-
-      const code = (otpEl.value||"").trim();
-      if(code.length < 4) return msg.innerHTML = `<span class="text-bad">❌ اكتب الكود.</span>`;
-
-      lockUI(true);
-      msg.textContent = "جارٍ التأكيد…";
-
-      try{
-        const res = await confirmationResult.confirm(code);
-        const uid = res.user.uid;
-
-        // لو الحساب موجود: يسمح بالدخول راكب/سائق بدون تغيير role
         const existing = await getUserDoc2(uid).catch(()=>null);
 
-        // دور نهائي
+        // الدور ثابت بعد أول مرة
         let finalRole = existing?.role || selectedRole;
-
-        // ممنوع تغيير الدور بعد الإنشاء
-        if(existing?.role && selectedRole && existing.role !== selectedRole){
+        if(existing?.role && existing.role !== selectedRole){
           finalRole = existing.role;
         }
 
-        const area = getArea();
         const payload = {
-          name: nameEl.value.trim() || null,
-          phone: lastPhone || res.user.phoneNumber || null,
+          name: name || null,
+          email: email || cred.user.email || null,
           role: finalRole,
           governorate: area.governorate,
           center: area.center,
           createdAt: existing?.createdAt || serverTimestamp()
         };
 
-        // بيانات السائق
         if(finalRole === "driver"){
           payload.vehicle = vehicleEl.value || existing?.vehicle || null;
           payload.model = normalizeModel(modelEl.value) || existing?.model || null;
+        }else{
+          payload.vehicle = null;
+          payload.model = null;
         }
 
         await upsertUser(uid, payload);
 
-        msg.innerHTML = `<span class="text-ok">✅ تم تسجيل الدخول.</span>`;
+        msg.innerHTML = `<span class="text-ok">✅ تم الدخول.</span>`;
         goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ الكود غير صحيح.</span>`;
+        // رسائل شائعة
+        const code = e?.code || "";
+        if(code.includes("auth/wrong-password")) msg.innerHTML = `<span class="text-bad">❌ كلمة المرور غير صحيحة.</span>`;
+        else if(code.includes("auth/too-many-requests")) msg.innerHTML = `<span class="text-bad">❌ محاولات كثيرة.. جرّب لاحقًا.</span>`;
+        else msg.innerHTML = `<span class="text-bad">❌ فشل الدخول. تأكد من البيانات.</span>`;
       }finally{
         lockUI(false);
       }
     }
 
-    async function handleResend(){
-      otpEl.value = "";
-      await handleSendOtp();
-    }
-
-    sendOtpBtn.addEventListener("click", handleSendOtp);
-    verifyBtn.addEventListener("click", handleVerify);
-    resendBtn.addEventListener("click", handleResend);
+    loginBtn.addEventListener("click", handleEmailLogin);
 
     onAuthStateChanged(auth, async (user)=>{
       if(!user) return;
