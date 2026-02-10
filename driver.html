@@ -105,6 +105,7 @@
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
+
       <div class="hint" style="margin-top:10px">
         يعرض طلبات منطقتك فقط (Live). القبول Transaction لمنع القبول المزدوج ✅
       </div>
@@ -127,8 +128,8 @@
     const $ = (id)=>document.getElementById(id);
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
     const clamp = (n,min,max)=> Math.max(min, Math.min(max, n));
-
     const toast = $("toast");
+
     function showToast(html, ms=2400){
       toast.innerHTML = html;
       toast.classList.add("show");
@@ -136,7 +137,6 @@
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
     }
 
-    // ✅ صوت: لو حطيت MP3 في sounds/ هيشتغل، لو مش موجود هيعمل beep
     async function playSound(name, fallback="new"){
       try{
         const a = new Audio(`./sounds/${name}.mp3`);
@@ -208,7 +208,7 @@
     let isOnline = false;
     let watchId = null;
     let pushTimer = null;
-    let lastPos = null; // {lat,lng,heading,speed}
+    let lastPos = null;
     let driverProfile = null;
     let unsubStatus = null;
     let unsubTrip = null;
@@ -221,7 +221,10 @@
       attribution: "&copy; OpenStreetMap"
     }).addTo(dmap);
 
-    const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
+    const fixMap = () => {
+      try{ dmap.invalidateSize(true);}catch{}
+      setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250);
+    };
     setTimeout(fixMap, 450);
     window.addEventListener("load", ()=> setTimeout(fixMap, 250));
     document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
@@ -281,7 +284,7 @@
       fixMap();
     }
 
-    // ========= تحديد موقعي تلقائي عند فتح الصفحة (حتى Offline)
+    // ========= تحديد موقعي تلقائي
     function autoLocateOnce(){
       if(!navigator.geolocation){
         setGpsUI("denied");
@@ -312,23 +315,33 @@
       autoLocateOnce();
     });
 
-    // ====== مناطق
+    // ====== مناطق (كاملة)
     const AREAS = {
-      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","المرج","شبرا","الزيتون","العباسية","التجمع"],
-      "الجيزة": ["الهرم","فيصل","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","البدرشين","الحوامدية"],
-      "الإسكندرية": ["سيدي جابر","محرم بك","المنتزه","العجمي","ميامي","سموحة"],
-      "الدقهلية": ["المنصورة","طلخا","ميت غمر","أجا","دكرنس"],
-      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","ههيا"],
-      "الغربية": ["طنطا","المحلة الكبرى","زفتى","كفر الزيات"],
-      "المنوفية": ["شبين الكوم","السادات","منوف","الباجور"],
-      "القليوبية": ["بنها","شبرا الخيمة","قليوب","الخانكة"],
-      "الفيوم": ["الفيوم","سنورس","إطسا"],
-      "المنيا": ["المنيا","ملوي","سمالوط"],
-      "أسيوط": ["أسيوط","ديروط","منفلوط"],
-      "سوهاج": ["سوهاج","جرجا","طما"],
-      "قنا": ["قنا","نجع حمادي","قفط"],
-      "أسوان": ["أسوان","دراو","كوم أمبو"],
-      "الأقصر": ["الأقصر","إسنا","أرمنت"]
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
+      "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
+      "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي"],
+      "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة"],
+      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية"],
+      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة"],
+      "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا"],
+      "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
+      "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن"],
+      "المنيا": ["المنيا","ملوي","سمالوط","مطاي","بني مزار"],
+      "أسيوط": ["أسيوط","ديروط","منفلوط","القوصية","أبو تيج"],
+      "سوهاج": ["سوهاج","جرجا","أخميم","طهطا","البلينا"],
+      "قنا": ["قنا","نجع حمادي","قفط","قوص","أبو تشت"],
+      "أسوان": ["أسوان","دراو","كوم أمبو","إدفو"],
+      "البحيرة": ["دمنهور","كفر الدوار","إيتاي البارود","رشيد","أبو حمص"],
+      "كفر الشيخ": ["كفر الشيخ","دسوق","بلطيم","الحامول","فوه"],
+      "دمياط": ["دمياط","فارسكور","كفر سعد","الزرقا"],
+      "بورسعيد": ["شرق","غرب","الزهور","المناخ"],
+      "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة","التل الكبير"],
+      "السويس": ["السويس","الجناين","عتاقة"],
+      "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد"],
+      "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء"],
+      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني"],
+      "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم"],
+      "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
 
     function fillGov(){
@@ -346,11 +359,12 @@
 
     function fillCenter(gov, preselect=null){
       cenSel.innerHTML = `<option value="">اختر المركز</option>`;
-      (AREAS[gov] || []).forEach(c=>{
+      (AREAS[gov] || []).slice().sort((a,b)=>a.localeCompare(b,"ar")).forEach(c=>{
         const o = document.createElement("option");
         o.value = c; o.textContent = c;
         cenSel.appendChild(o);
       });
+
       const other = document.createElement("option");
       other.value = OTHER;
       other.textContent = "أخرى (إدخال يدوي)…";
@@ -517,7 +531,6 @@
     }
 
     function openGoogleMapsNav(lat, lng){
-      // يفتح الملاحة في الموبايل
       const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
       window.open(url, "_blank");
     }
@@ -542,15 +555,9 @@
         const toLat = safeNum(r.to?.lat);
         const toLng = safeNum(r.to?.lng);
 
-        if(pLat!=null && pLng!=null){
-          setPassengerOnMap(pLat,pLng);
-        }
-        if(toLat!=null && toLng!=null){
-          setToOnMap(toLat,toLng);
-        }
-        if(meMarker && passengerMarker){
-          drawRouteSimple();
-        }
+        if(pLat!=null && pLng!=null) setPassengerOnMap(pLat,pLng);
+        if(toLat!=null && toLng!=null) setToOnMap(toLat,toLng);
+        if(meMarker && passengerMarker) drawRouteSimple();
         focusAll();
 
         if(["completed","canceled","done"].includes(status)){
@@ -563,7 +570,6 @@
         const pName = r.passengerName || "راكب";
         const pEmail = r.passengerEmail || "-";
         const pPhone = r.passengerPhone || "";
-
         const price = (r.priceEGP ?? r.offerPriceEGP ?? "-");
 
         const canArrive = (status === "accepted");
@@ -601,7 +607,6 @@
         `;
 
         const tripMsg = currentTripCard.querySelector("#tripMsg");
-
         const navPickupBtn = currentTripCard.querySelector("#navPickupBtn");
         const navToBtn = currentTripCard.querySelector("#navToBtn");
         navPickupBtn?.addEventListener("click", ()=> openGoogleMapsNav(pLat, pLng));
@@ -637,7 +642,6 @@
             await updateDoc(rideRef, { status:"completed", completedAt: serverTimestamp() });
             tripMsg.textContent="✅ تم إنهاء الرحلة.";
             await playSound("completed","ok");
-            // statusRef هيتحدث تلقائي من watchDriverStatus بعد snapshot
             await setDoc(statusRef, { currentTripId:null, available:!!isOnline, lastSeenAt:serverTimestamp() }, {merge:true}).catch(()=>{});
           }catch(e){
             console.error(e);
@@ -670,7 +674,7 @@
       });
     }
 
-    // ====== كروت الطلبات + قبول/رفض/اقتراح سعر
+    // ====== كروت الطلبات
     function rideCard(r, gov, cen){
       const fromLat = safeNum(r.from?.lat);
       const fromLng = safeNum(r.from?.lng);
@@ -724,16 +728,16 @@
         });
       }
 
-      // عرض صندوق العرض
       el.querySelector(`[data-offer="${r.id}"]`)?.addEventListener("click", ()=>{
         const w = el.querySelector(`#offerWrap_${r.id}`);
         w.style.display = (w.style.display==="none") ? "block" : "none";
       });
 
-      // إرسال عرض سعر => status = offered + driverUid = me
+      // إرسال عرض سعر (Rules تسمح)
       el.querySelector(`[data-send-offer="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
+
         try{
           if(currentTripId){
             m.textContent = "❌ لديك رحلة حالية. أنهِ الرحلة أولاً.";
@@ -749,8 +753,8 @@
           const d = driverProfile || await getUserDoc(user.uid);
           const driverName  = d?.name || "سائق";
           const driverPhone = d?.phone || null;
-          const driverVehicle = d?.vehicleType || d?.vehicle || null;
-          const driverModel = d?.vehicleModel || d?.model || null;
+          const driverVehicle = d?.vehicle || null;
+          const driverModel = d?.model || null;
 
           m.textContent = "جارٍ إرسال العرض…";
 
@@ -768,10 +772,12 @@
 
             tx.update(rideRef, {
               status: "offered",
+              driverUid: user.uid,
+
               offerPriceEGP: v,
               offerBy: "driver",
               offerAt: serverTimestamp(),
-              driverUid: user.uid,
+
               driverEmail: user.email,
               driverName,
               driverPhone,
@@ -779,7 +785,6 @@
               driverModel: driverModel || null,
             });
 
-            // ما تحجزهاش كـ currentTripId إلا بعد accepted
             return { ok:true, msg:`✅ تم إرسال العرض: ${v} EG` };
           });
 
@@ -794,7 +799,7 @@
         }
       });
 
-      // قبول مباشر => accepted
+      // قبول مباشر (Rules تسمح)
       el.querySelector(`[data-accept="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -810,8 +815,8 @@
           const d = driverProfile || await getUserDoc(user.uid);
           const driverName  = d?.name || "سائق";
           const driverPhone = d?.phone || null;
-          const driverVehicle = d?.vehicleType || d?.vehicle || null;
-          const driverModel = d?.vehicleModel || d?.model || null;
+          const driverVehicle = d?.vehicle || null;
+          const driverModel = d?.model || null;
 
           const res = await runTransaction(db, async (tx)=>{
             const snap = await tx.get(rideRef);
@@ -819,10 +824,10 @@
 
             const cur = snap.data();
 
-            // ممكن يكون open أو offered (لو offered لازم يكون driverUid أنا)
             if(cur.status === "offered" && cur.driverUid !== user.uid){
               return { ok:false, msg:"هذا الطلب محجوز لسائق آخر." };
             }
+
             if(cur.status !== "open" && cur.status !== "offered"){
               return { ok:false, msg:"الطلب لم يعد قابل للقبول." };
             }
@@ -869,24 +874,43 @@
         }
       });
 
-      // رفض => نخفيه محليًا (وأفضل حل بدون تعقيد Rules: نخليه local فقط)
-      // لو عايز رفض دائم في Firestore (rejectedByDrivers) قولي وأنا أضيفه مع Rule متوافق.
+      // رفض دائم (Rules تسمح)
       el.querySelector(`[data-reject="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
+        const rideRef = doc(db, "rides", r.id);
+
         try{
-          m.textContent = "تم الرفض. لن يظهر لك هذا الطلب الآن.";
+          m.textContent = "جارٍ الرفض…";
+
+          await runTransaction(db, async (tx)=>{
+            const snap = await tx.get(rideRef);
+            if(!snap.exists()) throw new Error("الطلب اختفى.");
+
+            const cur = snap.data();
+            if(cur.status !== "open") throw new Error("الطلب لم يعد مفتوح.");
+
+            const arr = Array.isArray(cur.rejectedByDrivers) ? cur.rejectedByDrivers : [];
+            if(arr.includes(user.uid)) return;
+
+            tx.update(rideRef, {
+              rejectedByDrivers: [...arr, user.uid]
+            });
+          });
+
           el.style.display = "none";
-          // ملاحظة: رفض دائم يحتاج rejectedByDrivers + Rule موافق (هنفعله لو تحب)
+          showToast("❌ تم رفض الطلب");
+          m.textContent = "";
         }catch(e){
           console.error(e);
-          m.textContent = `❌ فشل: ${e.message || e}`;
+          m.textContent = "تعذر الرفض الآن.";
+          el.style.display = "none";
         }
       });
 
       return el;
     }
 
-    // ====== Live Subscribe للطلبات (بدون orderBy لتجنب index)
+    // ====== Live Subscribe للطلبات
     let unsubRides = null;
     let firstRidesLoad = true;
     let knownIds = new Set();
@@ -909,7 +933,6 @@
 
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
-      // ✅ بدون orderBy => لا يحتاج Index غالبًا
       const qy = query(
         collection(db, "rides"),
         where("status", "==", "open"),
@@ -927,33 +950,38 @@
           return;
         }
 
-        let newCount = 0;
-        snap.forEach(d=>{
-          if(!knownIds.has(d.id)) newCount++;
+        // فلترة رفض دائم
+        const docs = snap.docs.filter(d=>{
+          const r = d.data();
+          const arr = Array.isArray(r.rejectedByDrivers) ? r.rejectedByDrivers : [];
+          return !arr.includes(user.uid);
         });
+
+        if(docs.length === 0){
+          listEl.innerHTML = `<div class="card">لا توجد طلبات جديدة حالياً.</div>`;
+          firstRidesLoad = false;
+          return;
+        }
+
+        let newCount = 0;
+        docs.forEach(d=>{ if(!knownIds.has(d.id)) newCount++; });
 
         if(!firstRidesLoad && newCount > 0){
           playSound("new_request","new");
           showToast(`🔔 <b>طلب جديد وصل</b> (${newCount})`);
         }
 
-        knownIds = new Set(snap.docs.map(x=>x.id));
+        knownIds = new Set(docs.map(x=>x.id));
         firstRidesLoad = false;
 
-        // عرض
-        snap.forEach(d=>{
+        docs.forEach(d=>{
           listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
         });
-
       }, (e)=>{
         console.error(e);
-        listEl.innerHTML = `
-          <div class="card">
-            <div class="hint">❌ حصل خطأ في تحميل الطلبات</div>
-            <div class="hint mono" style="margin-top:8px">${e?.message || e}</div>
-            <div class="hint" style="margin-top:8px">لو لسه لا تظهر: تأكد أن السائق محدد المحافظة/المركز وتم حفظهم في users.</div>
-          </div>
-        `;
+
+        // ✅ ممنوع إظهار Missing permissions للمستخدم
+        listEl.innerHTML = `<div class="card">لا توجد طلبات حالياً.</div>`;
       });
     }
 
@@ -1051,7 +1079,7 @@
           showToast("✅ <b>أنت Online</b> — موقعك بيتبعت");
         }catch(e){
           console.error(e);
-          msg.textContent = `⚠️ Online اشتغل لكن مشكلة driver_status: ${e.message || e}`;
+          msg.textContent = "⚠️ Online اشتغل لكن تعذر تحديث الحالة.";
         }
       }
 
@@ -1075,7 +1103,7 @@
         showToast("⚪ <b>أنت Offline</b>");
       }catch(e){
         console.error(e);
-        msg.textContent = `⚠️ Offline اتعمل لكن مشكلة driver_status: ${e.message || e}`;
+        msg.textContent = "⚠️ تم الإيقاف لكن تعذر تحديث الحالة.";
       }
 
       onlineBtn.disabled = false;
@@ -1095,11 +1123,11 @@
     await ensureAreaSelected();
     watchDriverStatus();
     subscribeRides(true);
-    autoLocateOnce(); // ✅ تلقائي أول ما يفتح كسائق
+    autoLocateOnce();
 
     window.addEventListener("error", (e)=>{
       console.error("JS Error:", e?.error || e?.message || e);
-      msg.textContent = "⚠️ حصل خطأ في الصفحة (افتح Console على PC لو بتجرب).";
+      msg.textContent = "⚠️ حصل خطأ في الصفحة.";
     });
   </script>
 </body>
