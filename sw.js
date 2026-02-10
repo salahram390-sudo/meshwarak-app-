@@ -1,5 +1,5 @@
 // sw.js (FINAL SAFE)
-const CACHE = "meshwarak-v9"; // غيّر الرقم كل تحديث
+const CACHE = "meshwarak-v10"; // ✅ غيّر الرقم كل تحديث
 
 const ASSETS = [
   "./",
@@ -23,7 +23,6 @@ function isBypass(url) {
     url.startsWith("https://unpkg.com/") ||
     url.startsWith("https://nominatim.openstreetmap.org/") ||
     url.startsWith("https://www.openstreetmap.org/") ||
-    url.startsWith("https://{s}.tile.openstreetmap.org/") ||
     url.includes("tile.openstreetmap.org")
   );
 }
