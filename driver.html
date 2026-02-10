@@ -13,6 +13,17 @@
   <style>
     .map-wrap-driver{height:48vh; position:relative; border-radius:18px; overflow:hidden; border:1px solid var(--stroke)}
     #dmap{height:100%; width:100%}
+    .toast{
+      position:fixed; left:12px; right:12px; top:76px; z-index:9999;
+      display:none;
+      background: linear-gradient(180deg, rgba(12,18,32,.95), rgba(10,18,34,.82));
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:16px;
+      padding:12px 12px;
+      box-shadow:0 18px 55px rgba(0,0,0,.35);
+    }
+    .toast.show{display:block; animation:pop .22s ease}
+    @keyframes pop{from{transform:translateY(-8px);opacity:.0}to{transform:none;opacity:1}}
   </style>
 </head>
 
@@ -33,8 +44,7 @@
     </div>
   </div>
 
-  <!-- Toast -->
-  <div class="toast-wrap" id="toasts"></div>
+  <div class="toast" id="toast"></div>
 
   <div class="container" style="padding-top:14px">
 
@@ -84,12 +94,12 @@
 
       <div class="actions" style="margin-top:12px">
         <button class="btn primary" id="onlineBtn" type="button">Go Online</button>
-        <button class="btn" id="refreshBtn" type="button">تحديث الطلبات</button>
+        <button class="btn" id="myLocBtn" type="button">📍 موقعي</button>
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
       <div class="hint" style="margin-top:10px">
-        يعرض طلبات منطقتك فقط ✅ — القبول Transaction لمنع القبول المزدوج
+        يعرض طلبات منطقتك فقط. القبول Transaction لمنع القبول المزدوج ✅
       </div>
     </div>
 
@@ -102,64 +112,93 @@
 
     import {
       collection, query, where, orderBy, limit,
-      getDocs, doc, runTransaction, serverTimestamp, setDoc,
-      onSnapshot, updateDoc
+      getDocs, doc, runTransaction, serverTimestamp, setDoc, updateDoc,
+      onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    const { user } = await requireAuthAndRole("driver");
-    document.getElementById("who").textContent = user.email;
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
-
-    // Toast
-    const toasts = document.getElementById("toasts");
-    function toast(text, type="ok", icon="✅", ms=2600){
-      const el = document.createElement("div");
-      el.className = `toast ${type}`;
-      el.innerHTML = `<div class="t-ic">${icon}</div><div class="t-txt">${text}</div>`;
-      toasts.appendChild(el);
-      setTimeout(()=>{ try{ el.remove(); }catch{} }, ms);
+    const $ = (id)=>document.getElementById(id);
+    const toast = $("toast");
+    function showToast(html, ms=2600){
+      toast.innerHTML = html;
+      toast.classList.add("show");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
+    }
+    function beep(type="new"){
+      try{
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine";
+        const now = ctx.currentTime;
+        const seq = (type==="new") ? [880,660,880] : [660,990];
+        let t = now;
+        seq.forEach((f,i)=>{
+          o.frequency.setValueAtTime(f, t);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.24, t+0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
+          t += 0.20;
+        });
+        o.start(now);
+        o.stop(now+0.65);
+        setTimeout(()=>ctx.close().catch(()=>{}), 800);
+      }catch{}
     }
 
-    const listEl = document.getElementById("list");
-    const refreshBtn = document.getElementById("refreshBtn");
+    const { user } = await requireAuthAndRole("driver");
+    $("who").textContent = user.email;
+    $("logoutBtn").addEventListener("click", doLogout);
 
-    const msg = document.getElementById("msg");
-    const onlineBtn = document.getElementById("onlineBtn");
-    const onlinePill = document.getElementById("onlinePill");
-    const gpsPill = document.getElementById("gpsPill");
-    const areaPill = document.getElementById("areaPill");
-    const tripPill = document.getElementById("tripPill");
-    const currentTripCard = document.getElementById("currentTripCard");
+    const listEl = $("list");
+    const msg = $("msg");
+    const onlineBtn = $("onlineBtn");
+    const myLocBtn = $("myLocBtn");
 
-    const setupCard = document.getElementById("setupCard");
-    const setupMsg = document.getElementById("setupMsg");
-    const govSel = document.getElementById("govSel");
-    const cenSel = document.getElementById("cenSel");
-    const cenOtherWrap = document.getElementById("cenOtherWrap");
-    const cenOtherInput = document.getElementById("cenOtherInput");
-    const saveAreaBtn = document.getElementById("saveAreaBtn");
+    const onlinePill = $("onlinePill");
+    const gpsPill = $("gpsPill");
+    const areaPill = $("areaPill");
+    const tripPill = $("tripPill");
+    const currentTripCard = $("currentTripCard");
+
+    const setupCard = $("setupCard");
+    const setupMsg = $("setupMsg");
+    const govSel = $("govSel");
+    const cenSel = $("cenSel");
+    const cenOtherWrap = $("cenOtherWrap");
+    const cenOtherInput = $("cenOtherInput");
+    const saveAreaBtn = $("saveAreaBtn");
 
     const statusRef = doc(db, "driver_status", user.uid);
     const userRef = doc(db, "users", user.uid);
 
     const OTHER = "__other__";
-    const LS = { gov:"mw_driver_gov", cen:"mw_driver_cen", cenOther:"mw_driver_cen_other" };
+    const LS = { gov:"mw_driver_gov", cen:"mw_driver_cen", cenOther:"mw_driver_cen_other", ignored:"mw_driver_ignored" };
 
-    let isOnline=false;
-    let watchId=null;
-    let pushTimer=null;
-    let lastPos=null; // {lat,lng,heading,speed}
-    let driverProfile=null;
-    let unsubStatus=null;
-    let unsubTrip=null;
-    let currentTripId=null;
+    let isOnline = false;
+    let watchId = null;
+    let pushTimer = null;
+    let lastPos = null; // {lat,lng,heading,speed}
+    let driverProfile = null;
+    let unsubStatus = null;
+    let unsubTrip = null;
+    let currentTripId = null;
 
-    // =========================
-    // خريطة السائق
-    // =========================
+    // realtime list listener
+    let unsubOpenList = null;
+    let lastOpenIds = new Set();
+    let ignoredIds = new Set(JSON.parse(localStorage.getItem(LS.ignored) || "[]"));
+
+    function persistIgnored(){
+      localStorage.setItem(LS.ignored, JSON.stringify(Array.from(ignoredIds)));
+    }
+
+    // ====== خريطة السائق
     const dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom:19, attribution:"&copy; OpenStreetMap"
+    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
     }).addTo(dmap);
 
     const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
@@ -168,14 +207,16 @@
     document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
 
     const divPin = (emoji) => L.divIcon({
-      className:"pin-emoji",
-      html:`<div class="pin-bubble">${emoji}</div>`,
-      iconSize:[44,44], iconAnchor:[22,44], popupAnchor:[0,-36]
+      className: "pin-emoji",
+      html: `<div class="pin-bubble">${emoji}</div>`,
+      iconSize: [44,44],
+      iconAnchor: [22,44],
+      popupAnchor: [0,-36]
     });
 
-    let meMarker=null;
-    let passengerMarker=null;
-    let routeLine=null;
+    let meMarker = null;
+    let passengerMarker = null;
+    let routeLine = null;
 
     function setMeOnMap(lat,lng){
       if(!meMarker){
@@ -183,13 +224,11 @@
           .addTo(dmap).bindPopup("📍 أنت");
       }else meMarker.setLatLng([lat,lng]);
     }
-
     function setPassengerOnMap(lat,lng){
       if(!passengerMarker){
         passengerMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(dmap).bindPopup("🚩 الراكب");
       }else passengerMarker.setLatLng([lat,lng]);
     }
-
     function drawRoute(){
       if(!meMarker || !passengerMarker) return;
       const a = meMarker.getLatLng();
@@ -200,9 +239,16 @@
       fixMap();
     }
 
-    // =========================
-    // مناطق
-    // =========================
+    myLocBtn.addEventListener("click", ()=>{
+      if(lastPos){
+        dmap.setView([lastPos.lat,lastPos.lng], 16, { animate:false });
+        fixMap();
+      }else{
+        msg.textContent = "⚠️ لم يتم تحديد موقعك بعد. فعّل GPS ثم جرّب.";
+      }
+    });
+
+    // ====== مناطق
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","المرج","شبرا","الزيتون","العباسية","التجمع"],
       "الجيزة": ["الهرم","فيصل","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","البدرشين","الحوامدية"],
@@ -227,55 +273,55 @@
       govSel.appendChild(keep0);
 
       Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar")).forEach(g=>{
-        const o=document.createElement("option");
-        o.value=g; o.textContent=g;
+        const o = document.createElement("option");
+        o.value = g; o.textContent = g;
         govSel.appendChild(o);
       });
     }
 
     function fillCenter(gov, preselect=null){
       cenSel.innerHTML = `<option value="">اختر المركز</option>`;
-      (AREAS[gov]||[]).forEach(c=>{
-        const o=document.createElement("option");
-        o.value=c; o.textContent=c;
+      (AREAS[gov] || []).forEach(c=>{
+        const o = document.createElement("option");
+        o.value = c; o.textContent = c;
         cenSel.appendChild(o);
       });
-      const other=document.createElement("option");
-      other.value=OTHER;
-      other.textContent="أخرى (إدخال يدوي)…";
+      const other = document.createElement("option");
+      other.value = OTHER;
+      other.textContent = "أخرى (إدخال يدوي)…";
       cenSel.appendChild(other);
 
       cenSel.disabled = !gov;
-      cenOtherWrap.style.display="none";
-      cenOtherInput.value="";
+      cenOtherWrap.style.display = "none";
+      cenOtherInput.value = "";
 
       if(preselect){
         const exists = Array.from(cenSel.options).some(o=>o.value===preselect);
-        if(exists) cenSel.value=preselect;
+        if(exists){ cenSel.value = preselect; }
         else{
-          cenSel.value=OTHER;
-          cenOtherWrap.style.display="block";
-          cenOtherInput.value=preselect;
+          cenSel.value = OTHER;
+          cenOtherWrap.style.display = "block";
+          cenOtherInput.value = preselect;
         }
       }
     }
 
     function getSelectedArea(){
-      const gov = govSel.value.trim() || null;
+      const g = govSel.value.trim() || null;
       const cVal = cenSel.value;
-      if(!gov) return { gov:null, cen:null };
-      if(!cVal) return { gov, cen:null };
-      if(cVal===OTHER){
+      if(!g) return { gov:null, cen:null };
+      if(!cVal) return { gov:g, cen:null };
+      if(cVal === OTHER){
         const manual = cenOtherInput.value.trim();
-        return { gov, cen: manual.length>=2 ? manual : null };
+        return { gov:g, cen: (manual.length >= 2 ? manual : null) };
       }
-      return { gov, cen: cVal.trim() || null };
+      return { gov:g, cen:cVal.trim() || null };
     }
 
     function saveAreaLS(){
       const { gov, cen } = getSelectedArea();
       if(gov) localStorage.setItem(LS.gov, gov);
-      if(cenSel.value===OTHER){
+      if(cenSel.value === OTHER){
         localStorage.setItem(LS.cen, OTHER);
         localStorage.setItem(LS.cenOther, cenOtherInput.value || "");
       }else{
@@ -292,30 +338,32 @@
         fillGov();
         govSel.value = g;
         fillCenter(g, (c && c !== OTHER) ? c : (co || null));
-        if(c===OTHER){
-          cenSel.value=OTHER;
-          cenOtherWrap.style.display="block";
-          cenOtherInput.value=co;
+        if(c === OTHER){
+          cenSel.value = OTHER;
+          cenOtherWrap.style.display = "block";
+          cenOtherInput.value = co;
         }
       }
     }
 
     govSel.addEventListener("change", ()=>{
       fillCenter(govSel.value.trim());
-      setupMsg.textContent="";
+      setupMsg.textContent = "";
       saveAreaLS();
     });
+
     cenSel.addEventListener("change", ()=>{
-      if(cenSel.value===OTHER){
-        cenOtherWrap.style.display="block";
+      if(cenSel.value === OTHER){
+        cenOtherWrap.style.display = "block";
         cenOtherInput.focus();
       }else{
-        cenOtherWrap.style.display="none";
-        cenOtherInput.value="";
+        cenOtherWrap.style.display = "none";
+        cenOtherInput.value = "";
       }
-      setupMsg.textContent="";
+      setupMsg.textContent = "";
       saveAreaLS();
     });
+
     cenOtherInput.addEventListener("input", saveAreaLS);
 
     async function loadDriverProfile(){
@@ -330,98 +378,85 @@
       const cen = driverProfile?.center || null;
 
       if(!gov || !cen){
-        setupCard.style.display="block";
+        setupCard.style.display = "block";
         fillGov();
         restoreAreaLS();
-
-        if(gov){
-          govSel.value=gov;
-          fillCenter(gov, cen||null);
-        }else if(govSel.value){
-          fillCenter(govSel.value, null);
-        }
-
-        areaPill.textContent="منطقة: -";
+        areaPill.textContent = "منطقة: -";
         return false;
       }
 
-      setupCard.style.display="none";
+      setupCard.style.display = "none";
       areaPill.textContent = `منطقة: ${gov} / ${cen}`;
       return true;
     }
 
     saveAreaBtn.addEventListener("click", async ()=>{
-      setupMsg.textContent="";
+      setupMsg.textContent = "";
       const { gov, cen } = getSelectedArea();
-      if(!gov) return setupMsg.textContent="❌ اختر المحافظة.";
-      if(!cen) return setupMsg.textContent="❌ اختر المركز (أو اكتب يدويًا).";
+      if(!gov) return setupMsg.textContent = "❌ اختر المحافظة.";
+      if(!cen) return setupMsg.textContent = "❌ اختر المركز (أو اكتب يدويًا).";
 
-      saveAreaBtn.disabled=true;
-      setupMsg.textContent="جارٍ الحفظ…";
+      saveAreaBtn.disabled = true;
+      setupMsg.textContent = "جارٍ الحفظ…";
 
       try{
-        await setDoc(userRef, { governorate:gov, center:cen, updatedAt:serverTimestamp() }, { merge:true });
+        await setDoc(userRef, { governorate: gov, center: cen, updatedAt: serverTimestamp() }, { merge:true });
         saveAreaLS();
         await loadDriverProfile();
-        setupMsg.textContent="✅ تم حفظ المنطقة.";
-        setupCard.style.display="none";
+        setupMsg.textContent = "✅ تم حفظ المنطقة.";
+        setupCard.style.display = "none";
         areaPill.textContent = `منطقة: ${gov} / ${cen}`;
-        await load();
-        toast("تم حفظ المنطقة ✅","ok","📍",2200);
+        await startOpenListListener(); // ✅ فوراً
       }catch(e){
         console.error(e);
-        setupMsg.textContent=`❌ فشل الحفظ: ${e?.message||e}`;
-        toast("فشل حفظ المنطقة","bad","❌");
+        setupMsg.textContent = `❌ فشل الحفظ: ${e.message || e}`;
       }finally{
-        saveAreaBtn.disabled=false;
+        saveAreaBtn.disabled = false;
       }
     });
 
-    // =========================
-    // UI
-    // =========================
+    // ====== UI helpers
     function setOnlineUI(on){
       isOnline = on;
       onlinePill.classList.remove("ok","bad");
       if(on){
-        onlinePill.textContent="Online ✅";
+        onlinePill.textContent = "Online ✅";
         onlinePill.classList.add("ok");
-        onlineBtn.textContent="Go Offline";
+        onlineBtn.textContent = "Go Offline";
         onlineBtn.classList.remove("primary");
         onlineBtn.classList.add("danger");
       }else{
-        onlinePill.textContent="Offline";
+        onlinePill.textContent = "Offline";
         onlinePill.classList.add("bad");
-        onlineBtn.textContent="Go Online";
+        onlineBtn.textContent = "Go Online";
         onlineBtn.classList.remove("danger");
         onlineBtn.classList.add("primary");
       }
     }
+
     function setGpsUI(state){
       gpsPill.classList.remove("ok","bad");
-      if(state==="ok"){ gpsPill.textContent="GPS: شغال ✅"; gpsPill.classList.add("ok"); }
-      else if(state==="denied"){ gpsPill.textContent="GPS: مرفوض ❌"; gpsPill.classList.add("bad"); }
-      else gpsPill.textContent="GPS: غير معروف";
+      if(state === "ok"){ gpsPill.textContent = "GPS: شغال ✅"; gpsPill.classList.add("ok"); }
+      else if(state === "denied"){ gpsPill.textContent = "GPS: مرفوض ❌"; gpsPill.classList.add("bad"); }
+      else { gpsPill.textContent = "GPS: غير معروف"; }
     }
 
-    // =========================
-    // متابعة الرحلة + اظهار الراكب على الخريطة
-    // =========================
+    // ====== متابعة الرحلة الحالية
     function stopWatchTrip(){
-      if(unsubTrip){ try{unsubTrip();}catch{} unsubTrip=null; }
-      if(passengerMarker){ try{dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
-      if(routeLine){ try{dmap.removeLayer(routeLine);}catch{} routeLine=null; }
+      if(unsubTrip){ try{ unsubTrip(); }catch{} unsubTrip=null; }
+      if(passengerMarker){ try{ dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
+      if(routeLine){ try{ dmap.removeLayer(routeLine);}catch{} routeLine=null; }
     }
 
     function watchTrip(tripId){
       if(!tripId) return;
       if(unsubTrip) unsubTrip();
 
-      const rideRef = doc(db,"rides",tripId);
+      const rideRef = doc(db, "rides", tripId);
       unsubTrip = onSnapshot(rideRef, (snap)=>{
         if(!snap.exists()){
-          currentTripCard.style.display="block";
-          currentTripCard.innerHTML=`<div class="hint">⚠️ الرحلة غير موجودة.</div>`;
+          currentTripCard.style.display = "block";
+          currentTripCard.innerHTML = `<div class="hint">⚠️ الرحلة غير موجودة.</div>`;
           return;
         }
 
@@ -433,28 +468,26 @@
         if(Number.isFinite(pLat) && Number.isFinite(pLng)){
           setPassengerOnMap(pLat,pLng);
           if(meMarker) drawRoute();
-
-          if(status==="accepted" && !localStorage.getItem("autoFocusPickup_"+tripId)){
-            localStorage.setItem("autoFocusPickup_"+tripId,"1");
+          if((status === "accepted" || status==="started") && !localStorage.getItem("autoFocusPickup_"+tripId)){
+            localStorage.setItem("autoFocusPickup_"+tripId, "1");
             dmap.setView([pLat,pLng], 16, { animate:false });
             fixMap();
           }
         }
 
-        if(status==="done" || status==="canceled"){
-          currentTripCard.style.display="block";
-          currentTripCard.innerHTML=`<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
-          setDoc(statusRef, { available: !!isOnline, currentTripId:null, lastSeenAt:serverTimestamp() }, { merge:true }).catch(()=>{});
-          toast("تم إنهاء/إلغاء الرحلة","bad","ℹ️");
+        if(status === "done" || status === "canceled"){
+          currentTripCard.style.display = "block";
+          currentTripCard.innerHTML = `<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
+          setDoc(statusRef, { available: !!isOnline, currentTripId: null, lastSeenAt: serverTimestamp() }, { merge:true }).catch(()=>{});
           return;
         }
 
         const pName = r.passengerName || "راكب";
         const pEmail = r.passengerEmail || "-";
         const pPhone = r.passengerPhone || "";
-        const fare = r.fareEGP || null;
+        const price = r.priceEGP ?? "-";
 
-        currentTripCard.style.display="block";
+        currentTripCard.style.display = "block";
         currentTripCard.innerHTML = `
           <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
             <div><b>🚖 الرحلة الحالية</b></div>
@@ -464,7 +497,7 @@
           <div class="hint" style="margin-top:10px">
             <b>الراكب:</b> ${pName} (${pEmail})
             <br><b>هاتف:</b> ${pPhone || "لا يوجد"}
-            <br><b>السعر:</b> ${fare ? (fare+" EG") : "-"}
+            <br><b>السعر:</b> <b>${price}</b> EG
             <br><b>من:</b> ${r.fromText ?? "-"}
             <br><b>إلى:</b> ${r.toText ?? "-"}
             <br><b>المنطقة:</b> ${r.governorate ?? "-"} / ${r.center ?? "-"}
@@ -473,79 +506,51 @@
           <div class="actions" style="margin-top:12px">
             ${pPhone ? `<a class="btn success" href="tel:${pPhone}">📞 اتصال بالراكب</a>` : `<button class="btn" disabled>📞 لا يوجد رقم</button>`}
             ${(Number.isFinite(pLat) && Number.isFinite(pLng)) ? `<button class="btn" id="focusPickupBtn" type="button">تركيز على الراكب</button>` : ``}
+            ${(status==="accepted") ? `<button class="btn primary" id="startTripBtn" type="button">🚖 بدء الرحلة</button>` : ``}
+            ${(status==="started") ? `<button class="btn danger" id="endTripBtn" type="button">✅ إنهاء الرحلة</button>` : ``}
           </div>
-
-          <div class="actions" style="margin-top:10px">
-            <button class="btn danger" id="cancelTripBtn" type="button">إلغاء الرحلة ❌</button>
-            <button class="btn success" id="finishTripBtn" type="button">إنهاء الرحلة ✅</button>
-          </div>
-
-          <div class="hint" id="tripMsg" style="margin-top:10px"></div>
         `;
 
         const focusBtn = currentTripCard.querySelector("#focusPickupBtn");
-        focusBtn?.addEventListener("click", ()=>{
-          dmap.setView([pLat,pLng], 16, { animate:false });
-          fixMap();
-        });
+        if(focusBtn){
+          focusBtn.addEventListener("click", ()=>{
+            dmap.setView([pLat,pLng], 16, { animate:false });
+            fixMap();
+          });
+        }
 
-        const finishBtn = currentTripCard.querySelector("#finishTripBtn");
-        const cancelBtn = currentTripCard.querySelector("#cancelTripBtn");
-        const tripMsgEl = currentTripCard.querySelector("#tripMsg");
+        const startBtn = currentTripCard.querySelector("#startTripBtn");
+        if(startBtn){
+          startBtn.addEventListener("click", async ()=>{
+            try{
+              startBtn.disabled = true;
+              await updateDoc(doc(db,"rides",tripId), { status:"started", startedAt: serverTimestamp() });
+              showToast("🚖 <b>تم بدء الرحلة</b>", 1700);
+            }catch(e){
+              console.error(e);
+              showToast("❌ فشل بدء الرحلة");
+            }finally{
+              try{ startBtn.disabled=false; }catch{}
+            }
+          });
+        }
 
-        finishBtn?.addEventListener("click", async ()=>{
-          finishBtn.disabled=true; cancelBtn.disabled=true;
-          tripMsgEl.textContent="جارٍ إنهاء الرحلة…";
-          try{
-            const res = await runTransaction(db, async (tx)=>{
-              const s = await tx.get(rideRef);
-              if(!s.exists()) return { ok:false, msg:"الرحلة غير موجودة." };
-              const cur = s.data();
-              if(cur.driverUid !== user.uid) return { ok:false, msg:"❌ ليست رحلتك." };
-              if(cur.status !== "accepted") return { ok:false, msg:`لا يمكن إنهاء حالة: ${cur.status}` };
-
-              tx.update(rideRef, { status:"done", doneAt:serverTimestamp() });
-              tx.set(statusRef, { available: !!isOnline, currentTripId:null, lastSeenAt:serverTimestamp() }, { merge:true });
-              return { ok:true, msg:"✅ تم إنهاء الرحلة." };
-            });
-            tripMsgEl.textContent = res.msg;
-            toast(res.msg, res.ok?"ok":"bad", res.ok?"✅":"❌", 2400);
-            await load();
-          }catch(e){
-            console.error(e);
-            tripMsgEl.textContent = `❌ فشل الإنهاء: ${e?.message||e}`;
-            toast("فشل إنهاء الرحلة","bad","❌");
-          }finally{
-            finishBtn.disabled=false; cancelBtn.disabled=false;
-          }
-        });
-
-        cancelBtn?.addEventListener("click", async ()=>{
-          cancelBtn.disabled=true; finishBtn.disabled=true;
-          tripMsgEl.textContent="جارٍ إلغاء الرحلة…";
-          try{
-            const res = await runTransaction(db, async (tx)=>{
-              const s = await tx.get(rideRef);
-              if(!s.exists()) return { ok:false, msg:"الرحلة غير موجودة." };
-              const cur = s.data();
-              if(cur.driverUid !== user.uid) return { ok:false, msg:"❌ ليست رحلتك." };
-              if(cur.status !== "accepted") return { ok:false, msg:`لا يمكن إلغاء حالة: ${cur.status}` };
-
-              tx.update(rideRef, { status:"canceled", canceledBy:"driver", canceledAt:serverTimestamp() });
-              tx.set(statusRef, { available: !!isOnline, currentTripId:null, lastSeenAt:serverTimestamp() }, { merge:true });
-              return { ok:true, msg:"✅ تم إلغاء الرحلة." };
-            });
-            tripMsgEl.textContent = res.msg;
-            toast(res.msg, res.ok?"ok":"bad", res.ok?"✅":"❌", 2400);
-            await load();
-          }catch(e){
-            console.error(e);
-            tripMsgEl.textContent = `❌ فشل الإلغاء: ${e?.message||e}`;
-            toast("فشل إلغاء الرحلة","bad","❌");
-          }finally{
-            cancelBtn.disabled=false; finishBtn.disabled=false;
-          }
-        });
+        const endBtn = currentTripCard.querySelector("#endTripBtn");
+        if(endBtn){
+          endBtn.addEventListener("click", async ()=>{
+            try{
+              endBtn.disabled = true;
+              await updateDoc(doc(db,"rides",tripId), { status:"done", doneAt: serverTimestamp() });
+              await setDoc(statusRef, { currentTripId:null, available: !!isOnline, lastSeenAt: serverTimestamp() }, { merge:true });
+              showToast("✅ <b>تم إنهاء الرحلة</b>", 1700);
+            }catch(e){
+              console.error(e);
+              showToast("❌ فشل إنهاء الرحلة");
+            }finally{
+              try{ endBtn.disabled=false; }catch{}
+            }
+          });
+        }
       });
     }
 
@@ -553,9 +558,11 @@
       if(unsubStatus) unsubStatus();
       unsubStatus = onSnapshot(statusRef, (snap)=>{
         const st = snap.exists() ? snap.data() : null;
-        setOnlineUI(!!st?.online);
-
+        const online = !!st?.online;
         const tripId = st?.currentTripId || null;
+
+        setOnlineUI(online);
+
         if(tripId){
           tripPill.textContent = `🚖 رحلة: ${tripId}`;
           currentTripId = tripId;
@@ -564,26 +571,30 @@
           tripPill.textContent = "لا يوجد رحلة";
           currentTripId = null;
           stopWatchTrip();
-          currentTripCard.style.display="none";
-          currentTripCard.innerHTML="";
+          currentTripCard.style.display = "none";
+          currentTripCard.innerHTML = "";
         }
       });
     }
 
-    // =========================
-    // كروت الطلبات (قبول + رفض)
-    // =========================
-    function safeNum(x){ const n=Number(x); return Number.isFinite(n)?n:null; }
+    // ====== cards
+    function safeNum(x){
+      const n = Number(x);
+      return Number.isFinite(n) ? n : null;
+    }
+    function mapLinkFor(lat, lng, zoom=16){
+      if(lat === null || lng === null) return null;
+      return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=${zoom}/${lat}/${lng}`;
+    }
 
     function rideCard(r, gov, cen){
-      // لو مرفوض من السائق ده قبل كده: اخفيه
-      if(r?.ignoredBy?.[user.uid]) return null;
-
       const fromLat = safeNum(r.from?.lat);
       const fromLng = safeNum(r.from?.lng);
+      const fromLink = mapLinkFor(fromLat, fromLng, 16);
+      const price = r.priceEGP ?? "-";
 
       const el = document.createElement("div");
-      el.className="card";
+      el.className = "card";
 
       el.innerHTML = `
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -594,7 +605,7 @@
         <div class="hint" style="margin-top:8px">
           <b>الراكب:</b> ${r.passengerName ?? "-"} (${r.passengerEmail ?? "-"})
           <br><b>هاتف:</b> ${r.passengerPhone ?? "لا يوجد"}
-          <br><b>السعر:</b> ${(r.fareEGP ?? "-")} EG
+          <br><b>السعر:</b> <b>${price}</b> EG
           <br><b>من:</b> ${r.fromText ?? "-"}
           <br><b>إلى:</b> ${r.toText ?? "-"}
           <br><b>المنطقة:</b> ${r.governorate ?? "-"} / ${r.center ?? "-"}
@@ -603,68 +614,70 @@
         <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn primary" data-accept="${r.id}" type="button">قبول</button>
           <button class="btn danger" data-reject="${r.id}" type="button">رفض</button>
-          ${(fromLat!==null && fromLng!==null) ? `<button class="btn" data-focus="${r.id}" type="button">عرض على الخريطة</button>` : ``}
+          ${fromLink ? `<a class="btn" target="_blank" href="${fromLink}">فتح الانطلاق</a>` : ``}
+          ${fromLat!==null && fromLng!==null ? `<button class="btn" data-focus="${r.id}" type="button">عرض على الخريطة</button>` : ``}
         </div>
         <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
       `;
 
-      // focus
-      el.querySelector(`[data-focus="${r.id}"]`)?.addEventListener("click", ()=>{
-        if(fromLat!==null && fromLng!==null){
-          setPassengerOnMap(fromLat, fromLng);
-          dmap.setView([fromLat,fromLng], 16, { animate:false });
-          fixMap();
-        }
+      const focusBtn = el.querySelector(`[data-focus="${r.id}"]`);
+      if(focusBtn){
+        focusBtn.addEventListener("click", ()=>{
+          if(fromLat!==null && fromLng!==null){
+            setPassengerOnMap(fromLat, fromLng);
+            dmap.setView([fromLat, fromLng], 16, { animate:false });
+            fixMap();
+          }
+        });
+      }
+
+      const rejectBtn = el.querySelector(`[data-reject="${r.id}"]`);
+      rejectBtn.addEventListener("click", ()=>{
+        ignoredIds.add(r.id);
+        persistIgnored();
+        el.remove();
+        showToast("تم رفض الطلب (مخفي عندك فقط)", 1600);
       });
 
-      // reject (يخفي الطلب عندك فقط)
-      el.querySelector(`[data-reject="${r.id}"]`)?.addEventListener("click", async ()=>{
+      el.querySelector(`[data-accept="${r.id}"]`).addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
-        try{
-          m.textContent="جارٍ الرفض…";
-          await updateDoc(doc(db,"rides",r.id), {
-            [`ignoredBy.${user.uid}`]: true,
-            ignoredAt: serverTimestamp()
-          });
-          m.textContent="تم الرفض ✅";
-          toast("تم رفض الطلب (مخفي عندك)","ok","🚫",2000);
-          try{ el.remove(); }catch{}
-        }catch(e){
-          console.error(e);
-          m.textContent=`فشل الرفض: ${e?.message||e}`;
-          toast("فشل الرفض","bad","❌");
-        }
-      });
-
-      // accept
-      el.querySelector(`[data-accept="${r.id}"]`)?.addEventListener("click", async ()=>{
-        const m = el.querySelector(`#m_${r.id}`);
-        const rideRef = doc(db,"rides",r.id);
+        const rideRef = doc(db, "rides", r.id);
 
         try{
-          m.textContent="جارٍ القبول…";
-          if(currentTripId){ m.textContent="❌ لديك رحلة حالية."; return; }
+          m.textContent = "جارٍ القبول…";
+
+          if(currentTripId){
+            m.textContent = "❌ لديك رحلة حالية. أنهِ الرحلة أولاً.";
+            return;
+          }
 
           const d = driverProfile || await getUserDoc(user.uid);
           const driverName  = d?.name || "سائق";
           const driverPhone = d?.phone || null;
+          const driverVehicle = d?.vehicle || null;
+          const driverModel = d?.model || null;
 
           const res = await runTransaction(db, async (tx)=>{
             const snap = await tx.get(rideRef);
             if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
-            const cur = snap.data();
 
+            const cur = snap.data();
             if(cur.status !== "open") return { ok:false, msg:"الطلب لم يعد مفتوح." };
             if(cur.driverUid) return { ok:false, msg:"الطلب اتقبل بالفعل." };
-            if(cur.governorate !== gov || cur.center !== cen) return { ok:false, msg:"❌ خارج منطقتك." };
+
+            if(cur.governorate !== gov || cur.center !== cen){
+              return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
+            }
 
             tx.update(rideRef, {
-              status:"accepted",
+              status: "accepted",
               acceptedAt: serverTimestamp(),
               driverUid: user.uid,
               driverEmail: user.email,
               driverName,
-              driverPhone
+              driverPhone,
+              driverVehicle: driverVehicle || null,
+              driverModel: driverModel || null
             });
 
             tx.set(statusRef, {
@@ -678,32 +691,33 @@
           });
 
           m.textContent = res.msg;
-          toast(res.msg, res.ok?"ok":"bad", res.ok?"✅":"❌", 2400);
-          await load();
+          if(res.ok){
+            showToast("✅ <b>تم قبول الطلب</b>", 1800);
+            beep("ok");
+          }
         }catch(e){
           console.error(e);
-          m.textContent=`❌ فشل القبول: ${e?.message||e}`;
-          toast("فشل القبول","bad","❌");
+          m.textContent = `❌ فشل القبول: ${e.message || e}`;
         }
       });
 
       return el;
     }
 
-    async function load(){
+    // ====== realtime open list listener
+    async function startOpenListListener(){
       const ok = await ensureAreaSelected();
       if(!ok){
         listEl.innerHTML = `<div class="card">حدد منطقتك أولاً.</div>`;
         return;
       }
+      if(unsubOpenList){ try{unsubOpenList()}catch{} unsubOpenList=null; }
 
       const gov = driverProfile.governorate;
       const cen = driverProfile.center;
 
-      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
-
-      const q = query(
-        collection(db,"rides"),
+      const qy = query(
+        collection(db, "rides"),
         where("status","==","open"),
         where("governorate","==",gov),
         where("center","==",cen),
@@ -711,27 +725,41 @@
         limit(25)
       );
 
-      const snap = await getDocs(q);
+      listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
-      listEl.innerHTML = "";
-      if(snap.empty){
-        listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
-        return;
-      }
+      unsubOpenList = onSnapshot(qy, (snap)=>{
+        const newIds = new Set();
+        const items = [];
+        snap.forEach(d=>{
+          const id = d.id;
+          newIds.add(id);
+          if(!ignoredIds.has(id)) items.push({ id, ...d.data() });
+        });
 
-      snap.forEach(d=>{
-        const card = rideCard({ id:d.id, ...d.data() }, gov, cen);
-        if(card) listEl.appendChild(card);
+        // new notification
+        let hasNew = false;
+        newIds.forEach(id=>{
+          if(!lastOpenIds.has(id)) hasNew = true;
+        });
+        lastOpenIds = newIds;
+
+        if(hasNew && isOnline){
+          try{ navigator.vibrate?.([80,40,80]); }catch{}
+          beep("new");
+          showToast("🔔 <b>طلب جديد وصل</b>", 2000);
+        }
+
+        listEl.innerHTML = "";
+        if(items.length === 0){
+          listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
+          return;
+        }
+
+        items.forEach(r=> listEl.appendChild(rideCard(r, gov, cen)));
       });
     }
 
-    refreshBtn.addEventListener("click", load);
-
-    // =========================
-    // GPS: تحديد تلقائي عند الدخول
-    // - مهم: نتابع الموقع ونحط marker حتى لو Offline
-    // - لكن push لفايرستور فقط لما Online
-    // =========================
+    // ====== Online / Offline + GPS Push
     async function pushStatus(extra = {}){
       const gov = driverProfile?.governorate || null;
       const cen = driverProfile?.center || null;
@@ -756,9 +784,10 @@
     }
 
     function startGPS(){
+      msg.textContent = "";
       if(!navigator.geolocation){
         setGpsUI("denied");
-        msg.textContent="❌ جهازك لا يدعم GPS.";
+        msg.textContent = "❌ جهازك لا يدعم GPS.";
         return false;
       }
 
@@ -773,58 +802,54 @@
           speed: (pos.coords.speed ?? null),
         };
 
+        // ✅ يظهر تلقائي على الخريطة
         setMeOnMap(lastPos.lat, lastPos.lng);
-        if(passengerMarker) drawRoute();
 
-        // push فقط لو Online
-        // (علشان ما نعملش writes كتير وهو Offline)
+        // اول مرة ركّز الخريطة على مكان السائق
+        if(!localStorage.getItem("mw_driver_autofocus")){
+          localStorage.setItem("mw_driver_autofocus","1");
+          dmap.setView([lastPos.lat,lastPos.lng], 16, { animate:false });
+          fixMap();
+        }
+
+        if(passengerMarker) drawRoute();
       }, (err)=>{
         console.error(err);
-        if(err?.code===1){
+        if(err?.code === 1){
           setGpsUI("denied");
           msg.innerHTML = "❌ لازم تفعّل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
-          toast("فعّل إذن الموقع","bad","📍",3200);
         }else{
           setGpsUI("unknown");
-          msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
+          msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
         }
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
 
-      // مؤقت push (Online فقط)
-      if(!pushTimer){
-        pushTimer = setInterval(async ()=>{
-          try{
-            if(!isOnline) return;
-            await pushStatus();
-          }catch(e){ console.error(e); }
-        }, 4000);
-      }
+      pushTimer = setInterval(async ()=>{
+        try{
+          if(!isOnline) return;
+          await pushStatus();
+        }catch(e){ console.error(e); }
+      }, 4000);
 
       return true;
     }
 
     function stopGPS(){
-      if(watchId !== null){
-        try{ navigator.geolocation.clearWatch(watchId); }catch{}
-        watchId=null;
-      }
-      if(pushTimer){
-        clearInterval(pushTimer);
-        pushTimer=null;
-      }
-      lastPos=null;
+      if(watchId !== null){ try{ navigator.geolocation.clearWatch(watchId); }catch{} watchId = null; }
+      if(pushTimer){ clearInterval(pushTimer); pushTimer = null; }
+      lastPos = null;
       setGpsUI("unknown");
     }
 
     async function goOnline(){
-      onlineBtn.disabled=true;
-      msg.textContent="جارٍ التشغيل Online…";
+      onlineBtn.disabled = true;
+      msg.textContent = "جارٍ التشغيل Online…";
 
       await loadDriverProfile();
       const ok = await ensureAreaSelected();
       if(!ok){
-        msg.textContent="❌ لازم تحدد محافظتك ومركزك أولاً.";
-        onlineBtn.disabled=false;
+        msg.textContent = "❌ لازم تحدد محافظتك ومركزك أولاً.";
+        onlineBtn.disabled = false;
         return;
       }
 
@@ -833,33 +858,32 @@
 
       try{
         await pushStatus({ online:true, available: !currentTripId, currentTripId: currentTripId || null });
-        msg.textContent="✅ Online شغال.. يتم إرسال موقعك.";
-        toast("Online ✅","ok","🟢",2000);
+        msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
+        await startOpenListListener();
       }catch(e){
         console.error(e);
-        msg.textContent=`⚠️ Online اشتغل لكن مشكلة driver_status: ${e?.message||e}`;
-        toast("مشكلة إرسال الحالة","bad","⚠️",2600);
+        msg.textContent = `⚠️ Online اشتغل لكن مشكلة driver_status: ${e.message || e}`;
       }
 
-      onlineBtn.disabled=false;
+      onlineBtn.disabled = false;
     }
 
     async function goOffline(){
-      onlineBtn.disabled=true;
-      msg.textContent="جارٍ الإيقاف Offline…";
+      onlineBtn.disabled = true;
+      msg.textContent = "جارٍ الإيقاف Offline…";
 
       setOnlineUI(false);
+      stopGPS();
 
       try{
-        await setDoc(statusRef, { online:false, available:false, lastSeenAt:serverTimestamp() }, { merge:true });
-        msg.textContent="✅ تم الإيقاف Offline.";
-        toast("Offline","bad","🔴",2000);
+        await setDoc(statusRef, { online:false, available:false, lastSeenAt: serverTimestamp() }, { merge:true });
+        msg.textContent = "✅ تم الإيقاف Offline.";
       }catch(e){
         console.error(e);
-        msg.textContent=`⚠️ Offline اتعمل لكن مشكلة driver_status: ${e?.message||e}`;
+        msg.textContent = `⚠️ Offline اتعمل لكن مشكلة driver_status: ${e.message || e}`;
       }
 
-      onlineBtn.disabled=false;
+      onlineBtn.disabled = false;
     }
 
     onlineBtn.addEventListener("click", async ()=>{
@@ -875,8 +899,16 @@
     await loadDriverProfile();
     await ensureAreaSelected();
     watchDriverStatus();
-    startGPS(); // ✅ تحديد موقع تلقائي حتى لو Offline (لخريطة السائق)
-    await load();
+
+    // ✅ أهم نقطة: السائق يشوف نفسه على الخريطة تلقائيًا حتى وهو Offline
+    startGPS();
+    // ✅ استمع للطلبات لو المنطقة متحددة (حتى قبل Online: هتظهر الطلبات بس من غير صوت إلا لو Online)
+    await startOpenListListener();
+
+    window.addEventListener("error", (e)=>{
+      console.error("JS Error:", e?.error || e?.message || e);
+      msg.textContent = "⚠️ حصل خطأ في الصفحة. افتح Console لو بتجرب على PC.";
+    });
   </script>
 </body>
 </html>
