@@ -1,5 +1,5 @@
-// sw.js (FINAL SAFE) — no missing assets
-const CACHE = "meshwarak-v10"; // غيّر الرقم كل تحديث
+// sw.js (FINAL SAFE)
+const CACHE = "meshwarak-v10"; // ✅ غيّر الرقم كل تحديث
 
 const ASSETS = [
   "./",
@@ -11,7 +11,9 @@ const ASSETS = [
   "./profile.html",
   "./styles.css",
   "./app.js",
-  "./manifest.json"
+  "./manifest.json",
+  "./icon-192.png",
+  "./icon-512.png"
 ];
 
 // ملفات خارجية ما نكاشّهاش (Firebase/CDN/APIs)
@@ -20,8 +22,8 @@ function isBypass(url) {
     url.startsWith("https://www.gstatic.com/") ||
     url.startsWith("https://unpkg.com/") ||
     url.startsWith("https://nominatim.openstreetmap.org/") ||
-    url.includes("tile.openstreetmap.org") ||
-    url.startsWith("https://www.openstreetmap.org/")
+    url.startsWith("https://www.openstreetmap.org/") ||
+    url.includes("tile.openstreetmap.org")
   );
 }
 
@@ -29,7 +31,7 @@ self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // cache what exists only
+    // ✅ بدل addAll (اللي بيفشل كله لو ملف واحد ناقص)
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
@@ -55,15 +57,17 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
+  // ✅ سيب أي CDN / API Network عادي
   if (isBypass(url)) return;
 
-  // HTML: network-first
+  // صفحات HTML: network-first
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       try {
-        const res = await fetch(req);
+        const res = await fetch(req, { cache: "no-store" });
+        const copy = res.clone();
         const cache = await caches.open(CACHE);
-        cache.put(req, res.clone());
+        cache.put(req, copy);
         return res;
       } catch {
         const cached = await caches.match(req);
@@ -73,14 +77,19 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // assets: cache-first
+  // باقي الملفات: cache-first + تحديث عند أول تحميل
   e.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;
 
-    const res = await fetch(req);
-    const cache = await caches.open(CACHE);
-    cache.put(req, res.clone());
-    return res;
+    try {
+      const res = await fetch(req);
+      const copy = res.clone();
+      const cache = await caches.open(CACHE);
+      cache.put(req, copy);
+      return res;
+    } catch {
+      return cached;
+    }
   })());
 });
