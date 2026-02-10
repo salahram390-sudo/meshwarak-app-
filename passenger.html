@@ -25,6 +25,7 @@
     }
     .toast.show{display:block; animation:pop .22s ease}
     @keyframes pop{from{transform:translateY(-8px);opacity:.0}to{transform:none;opacity:1}}
+
     .rangeWrap{
       padding:12px;
       border-radius:16px;
@@ -152,6 +153,8 @@
 
     // ========= helpers
     const $ = (id)=>document.getElementById(id);
+    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
+
     const toast = $("toast");
     function showToast(html, ms=2400){
       toast.innerHTML = html;
@@ -159,6 +162,8 @@
       clearTimeout(showToast._t);
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
     }
+
+    // Beep صوت سريع احترافي
     function beep(type="ok"){
       try{
         const ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -167,13 +172,17 @@
         o.connect(g); g.connect(ctx.destination);
         o.type = "sine";
         const now = ctx.currentTime;
+
         const f1 = (type==="new") ? 880 : 660;
         const f2 = (type==="new") ? 660 : 990;
+
         o.frequency.setValueAtTime(f1, now);
         o.frequency.linearRampToValueAtTime(f2, now+0.08);
+
         g.gain.setValueAtTime(0.0001, now);
         g.gain.exponentialRampToValueAtTime(0.25, now+0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, now+0.25);
+
         o.start(now);
         o.stop(now+0.28);
         setTimeout(()=>ctx.close().catch(()=>{}), 350);
@@ -274,15 +283,15 @@
     }
 
     function getSelectedArea(){
-      const gov = govSelect.value.trim();
+      const gov = clean(govSelect.value);
       if(!gov) return { gov:null, center:null };
       const cVal = centerSelect.value;
       if(!cVal) return { gov, center:null };
       if(cVal === OTHER){
-        const manual = centerOtherInput.value.trim();
+        const manual = clean(centerOtherInput.value);
         return { gov, center: manual.length >= 2 ? manual : null };
       }
-      return { gov, center: cVal.trim() };
+      return { gov, center: clean(cVal) };
     }
 
     function renderAreaPill(){
@@ -320,7 +329,7 @@
     }
 
     govSelect.addEventListener("change", ()=>{
-      const g = govSelect.value.trim();
+      const g = clean(govSelect.value);
       if(!g){
         centerSelect.disabled = true;
         centerSelect.innerHTML = `<option value="">اختر المركز/الحي…</option>`;
@@ -364,14 +373,15 @@
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
     };
 
-    let passengerName  = passengerProfile?.name?.trim() || fallbackNameFromEmail(user.email);
-    let passengerPhone = passengerProfile?.phone?.trim() || null;
+    let passengerName  = clean(passengerProfile?.name) || fallbackNameFromEmail(user.email);
+    let passengerPhone = clean(passengerProfile?.phone) || null;
 
     whoEl.textContent = `${passengerName} • ${user.email}`;
 
+    // لو عنده منطقة محفوظة في users استخدمها، غير كده LS
     if(passengerProfile?.governorate){
-      govSelect.value = passengerProfile.governorate;
-      fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
+      govSelect.value = clean(passengerProfile.governorate);
+      fillCenters(clean(passengerProfile.governorate), clean(passengerProfile?.center) || null);
       renderAreaPill();
     }else{
       restoreAreaFromLS();
@@ -383,7 +393,9 @@
     const priceRange = $("priceRange");
     const priceVal = $("priceVal");
     const savedPrice = Number(localStorage.getItem(LS.price) || "15");
-    priceRange.value = String([15,300].includes(savedPrice) ? savedPrice : (savedPrice>=15 && savedPrice<=300 ? savedPrice : 15));
+    const initialPrice =
+      (savedPrice>=15 && savedPrice<=300 && savedPrice%5===0) ? savedPrice : 15;
+    priceRange.value = String(initialPrice);
     priceVal.textContent = priceRange.value;
     priceRange.addEventListener("input", ()=>{
       priceVal.textContent = priceRange.value;
@@ -394,7 +406,7 @@
     // الخريطة
     // =========================
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
@@ -570,7 +582,7 @@
     // ✅ بحث قريب منك + داخل مصر + تحيز للمنطقة
     async function geocode(q){
       const { gov, center } = getSelectedArea();
-      let queryText = (q||"").trim();
+      let queryText = clean(q);
       if(gov) queryText += `, ${gov}`;
       if(center) queryText += `, ${center}`;
       queryText += `, Egypt`;
@@ -602,7 +614,7 @@
 
     async function search(type){
       msg.textContent="";
-      const text = (type==="from"?fromText.value:toText.value).trim();
+      const text = clean(type==="from"?fromText.value:toText.value);
       if(!text) return msg.textContent="اكتب اسم المكان ثم اضغط بحث.";
       try{
         msg.textContent="جارٍ البحث…";
@@ -637,7 +649,6 @@
 
     function updateUI(){
       renderAreaPill();
-
       if(currentRideId) return;
 
       const areaOk = hasAreaReady();
@@ -669,7 +680,6 @@
           contactBox.style.display="none"; contactBox.innerHTML="";
           currentRideId=null;
           localStorage.removeItem(LS.lastRideId);
-          // امسح currentRideId من users
           await setDoc(doc(db,"users",user.uid), { currentRideId: null, updatedAt: serverTimestamp() }, { merge:true }).catch(()=>{});
           setRideUI("none");
           stopDriverWatch();
@@ -741,8 +751,8 @@
           return;
         }
 
-        if(r.status === "canceled" || r.status === "done"){
-          ridePill.textContent = (r.status==="done") ? "✅ الرحلة انتهت" : "❌ تم إلغاء الطلب";
+        if(r.status === "canceled" || r.status === "completed" || r.status === "done"){
+          ridePill.textContent = (r.status==="completed" || r.status==="done") ? "✅ الرحلة انتهت" : "❌ تم إلغاء الطلب";
           contactBox.style.display="none"; contactBox.innerHTML="";
           stopDriverWatch();
           currentRideId=null;
@@ -771,12 +781,14 @@
           return;
         }
 
-        const { gov, center } = getSelectedArea();
+        const area = getSelectedArea();
+        const gov = clean(area.gov);
+        const center = clean(area.center);
+
         if(!gov || !center){ msg.textContent="❌ لازم تختار المحافظة + المركز."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول أولاً."; updateUI(); return; }
-
         if(!passengerPhone){
-          msg.textContent="❌ رقم الهاتف غير مسجل في حسابك. ادخل صفحة حسابي واحفظه.";
+          msg.textContent="❌ رقم الهاتف غير مسجل في حسابك.";
           return;
         }
 
@@ -787,9 +799,10 @@
         msg.textContent="جارٍ إنشاء الطلب…";
         showToast("🚖 <b>تم طلب المشوار</b>… جاري البحث عن سائق", 2200);
 
-        // حفظ المنطقة + currentRideId لاحقًا
+        // حفظ المنطقة بشكل منضبط
         await setDoc(doc(db,"users",user.uid), {
-          governorate: gov, center: center,
+          governorate: gov,
+          center: center,
           updatedAt: serverTimestamp()
         }, { merge:true });
 
@@ -802,8 +815,8 @@
           center: center,
 
           from, to,
-          fromText: fromText.value.trim() || null,
-          toText: toText.value.trim() || null,
+          fromText: clean(fromText.value) || null,
+          toText: clean(toText.value) || null,
 
           priceEGP,
 
@@ -812,13 +825,14 @@
           passengerName: passengerName || null,
           passengerPhone: passengerPhone || null,
 
-          paymentMethod: "cash"
+          paymentMethod: "cash",
+          driverUid: null
         });
 
         currentRideId = docRef.id;
         localStorage.setItem(LS.lastRideId, docRef.id);
 
-        // ✅ مهم للـ Rules: اربط currentRideId في users
+        // ✅ مهم للـ Rules
         await setDoc(doc(db,"users",user.uid), { currentRideId: docRef.id, updatedAt: serverTimestamp() }, { merge:true });
 
         watchRide(docRef.id);
