@@ -1,228 +1,434 @@
-<script type="module">
-  import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile } from "./app.js";
-  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import { doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-  const $ = (id)=>document.getElementById(id);
-
-  const emailEl = $("email");
-  const passEl  = $("password");
-  const msg     = $("msg");
-
-  const rolePassenger = $("rolePassenger");
-  const roleDriver = $("roleDriver");
-
-  const govEl = $("gov");
-  const centerEl = $("center");
-  const centerOtherEl = $("centerOther");
-  const otherWrap = $("otherCenterWrap");
-
-  const nameEl = $("name"); // لو موجود
-  const vehicleEl = $("vehicle");
-  const modelEl = $("model");
-  const driverFields = $("driverFields");
-
-  const loginBtn = $("loginBtn");
-
-  const OTHER="__other__";
-  let selectedRole = null;
-
-  // ✅ حفظ الإدخالات حتى بعد تسجيل خروج
-  const LS = {
-    email:"mw_login_email",
-    gov:"mw_login_gov",
-    center:"mw_login_center",
-    centerOther:"mw_login_center_other",
-    role:"mw_login_role",
-    name:"mw_login_name",
-    vehicle:"mw_login_vehicle",
-    model:"mw_login_model",
-  };
-
-  function normalizeEmail(x){
-    let v = String(x||"").trim();
-    if(!v) return null;
-
-    // لو كتب اسم بدون @ -> ايميل وهمي
-    if(!v.includes("@")){
-      v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
-      if(!v) v = "user";
-      v = `${v}@meshwarak.local`;
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - تسجيل / دخول</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    html,body{overflow:auto}
+    .box{
+      width:92%;max-width:520px;margin:18px auto;padding:18px;
+      background: linear-gradient(180deg, rgba(12,18,32,.95), rgba(10,18,34,.82));
+      border:1px solid var(--stroke);border-radius:22px;
+      box-shadow:0 18px 55px rgba(0,0,0,.35);
     }
-    if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
-
-    return v.toLowerCase();
-  }
-
-  function saveDraft(){
-    try{
-      localStorage.setItem(LS.email, emailEl?.value || "");
-      localStorage.setItem(LS.gov, govEl?.value || "");
-      localStorage.setItem(LS.center, centerEl?.value || "");
-      localStorage.setItem(LS.centerOther, centerOtherEl?.value || "");
-      localStorage.setItem(LS.role, selectedRole || "");
-      if(nameEl) localStorage.setItem(LS.name, nameEl.value || "");
-      if(vehicleEl) localStorage.setItem(LS.vehicle, vehicleEl.value || "");
-      if(modelEl) localStorage.setItem(LS.model, modelEl.value || "");
-    }catch{}
-  }
-
-  function setRole(role){
-    selectedRole = role;
-    rolePassenger?.classList.remove("active");
-    roleDriver?.classList.remove("active","driver");
-    if(driverFields) driverFields.style.display="none";
-
-    if(role==="passenger"){
-      rolePassenger?.classList.add("active");
-    }else if(role==="driver"){
-      roleDriver?.classList.add("active","driver");
-      if(driverFields) driverFields.style.display="block";
+    h1{margin:0 0 10px;font-size:18px;text-align:center}
+    p{margin:0 0 12px;opacity:.85;text-align:center;color:var(--muted)}
+    .roleBtn{background: rgba(255,255,255,.06)}
+    .roleBtn.active{
+      background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(43,108,255,.72));
+      border:1px solid rgba(43,108,255,.35);
     }
-    saveDraft();
-  }
+    .roleBtn.active.driver{
+      background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.62));
+      border:1px solid rgba(34,197,94,.35);
+      color:#04110a;
+    }
+    .btns{display:grid;gap:10px;margin-top:12px}
+    .sep{height:1px;background:var(--stroke);margin:14px 0}
+    #driverFields{display:none}
+    #otherCenterWrap{display:none}
+  </style>
+</head>
 
-  rolePassenger?.addEventListener("click", ()=> setRole("passenger"));
-  roleDriver?.addEventListener("click", ()=> setRole("driver"));
+<body>
+  <div class="box">
+    <h1>🔐 مشوارك — تسجيل / دخول</h1>
+    <p>إيميل + كلمة مرور + (راكب/سائق) + المحافظة + المركز</p>
 
-  function restoreDraft(){
-    try{
-      if(emailEl) emailEl.value = localStorage.getItem(LS.email) || "";
-      if(nameEl) nameEl.value = localStorage.getItem(LS.name) || "";
+    <div class="field" style="margin-top:0">
+      <label>الاسم</label>
+      <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
+    </div>
 
-      const role = localStorage.getItem(LS.role) || "";
-      if(role==="passenger" || role==="driver") setRole(role);
+    <div class="field">
+      <label>الإيميل (ممكن تكتب اسم فقط)</label>
+      <input id="email" placeholder="مثال: salah@gmail.com أو: salah" autocomplete="email"/>
+      <div class="small" style="margin-top:6px">لو كتبت اسم بدون @ هيتحول لإيميل وهمي تلقائيًا.</div>
+    </div>
 
-      if(vehicleEl) vehicleEl.value = localStorage.getItem(LS.vehicle) || vehicleEl.value;
-      if(modelEl) modelEl.value = localStorage.getItem(LS.model) || "";
+    <div class="field">
+      <label>كلمة المرور</label>
+      <input id="password" type="password" placeholder="6 أحرف أو أكثر" autocomplete="current-password"/>
+    </div>
 
-      // gov ثم change عشان fillCenters يحصل من كودك الأساسي
-      const g = localStorage.getItem(LS.gov) || "";
-      if(govEl && g){
-        govEl.value = g;
-        govEl.dispatchEvent(new Event("change"));
-      }
+    <div class="field">
+      <label>اختر نوع الحساب</label>
+      <div class="row">
+        <button class="btn roleBtn" id="rolePassenger" type="button">🚕 راكب</button>
+        <button class="btn roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
+      </div>
+      <div class="small" style="margin-top:8px">
+        أول مرة: اختر الدور. بعد كده تقدر تدخل بنفس الحساب.
+      </div>
+    </div>
 
-      // بعد ما centers اتملا
-      const c = localStorage.getItem(LS.center) || "";
-      const co = localStorage.getItem(LS.centerOther) || "";
-      if(centerEl && c){
-        centerEl.value = c;
-        if(c===OTHER){
-          if(otherWrap) otherWrap.style.display="block";
-          if(centerOtherEl) centerOtherEl.value = co || "";
+    <!-- حقول السائق -->
+    <div id="driverFields" class="card" style="margin-top:10px">
+      <div class="field" style="margin-top:0">
+        <label>نوع المركبة</label>
+        <select id="vehicle">
+          <option value="tuktuk">توكتوك</option>
+          <option value="motor_delivery">موتسيكل دليفري</option>
+          <option value="car">سيارة ملاكي</option>
+          <option value="microbus">ميكروباص</option>
+          <option value="tamanya">تمناية</option>
+          <option value="caboot">عربية كابوت</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>موديل المركبة</label>
+        <input id="model" placeholder="مثال: 2020" />
+      </div>
+      <div class="small">سيظهر النوع + الموديل للراكب بعد قبول الطلب.</div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grid2">
+      <div class="field" style="margin-top:0">
+        <label>المحافظة</label>
+        <select id="gov">
+          <option value="">اختر المحافظة…</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-top:0">
+        <label>المركز / الحي</label>
+        <select id="center" disabled>
+          <option value="">اختر المركز…</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="otherCenterWrap" class="field">
+      <label>اكتب المركز (لو اخترت "أخرى")</label>
+      <input id="centerOther" placeholder="مثال: مركز جديد…" />
+      <div class="small" style="margin-top:6px">اكتب على الأقل حرفين.</div>
+    </div>
+
+    <div class="btns">
+      <button class="btn primary" id="loginBtn" type="button">تسجيل / دخول</button>
+    </div>
+
+    <div class="hint" id="msg" style="margin-top:12px"></div>
+  </div>
+
+  <script type="module">
+    import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile } from "./app.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const $ = (id)=>document.getElementById(id);
+
+    const emailEl = $("email");
+    const passEl  = $("password");
+    const msg     = $("msg");
+
+    const rolePassenger = $("rolePassenger");
+    const roleDriver = $("roleDriver");
+
+    const govEl = $("gov");
+    const centerEl = $("center");
+    const centerOtherEl = $("centerOther");
+    const otherWrap = $("otherCenterWrap");
+
+    const nameEl = $("name");
+    const vehicleEl = $("vehicle");
+    const modelEl = $("model");
+    const driverFields = $("driverFields");
+
+    const loginBtn = $("loginBtn");
+
+    const OTHER="__other__";
+    let selectedRole = null;
+
+    const LS = {
+      email:"mw_login_email",
+      gov:"mw_login_gov",
+      center:"mw_login_center",
+      centerOther:"mw_login_center_other",
+      role:"mw_login_role",
+      name:"mw_login_name",
+      vehicle:"mw_login_vehicle",
+      model:"mw_login_model",
+    };
+
+    const AREAS = {
+      "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
+      "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
+      "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي"],
+      "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة"],
+      "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية"],
+      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة"],
+      "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا"],
+      "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
+      "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن"],
+      "المنيا": ["المنيا","ملوي","سمالوط","مطاي","بني مزار"],
+      "أسيوط": ["أسيوط","ديروط","منفلوط","القوصية","أبو تيج"],
+      "سوهاج": ["سوهاج","جرجا","أخميم","طهطا","البلينا"],
+      "قنا": ["قنا","نجع حمادي","قفط","قوص","أبو تشت"],
+      "أسوان": ["أسوان","دراو","كوم أمبو","إدفو"],
+      "البحيرة": ["دمنهور","كفر الدوار","إيتاي البارود","رشيد","أبو حمص"],
+      "كفر الشيخ": ["كفر الشيخ","دسوق","بلطيم","الحامول","فوه"],
+      "دمياط": ["دمياط","فارسكور","كفر سعد","الزرقا"],
+      "بورسعيد": ["شرق","غرب","الزهور","المناخ"],
+      "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة","التل الكبير"],
+      "السويس": ["السويس","الجناين","عتاقة"],
+      "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد"],
+      "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء"],
+      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني"],
+      "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم"],
+      "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
+    };
+
+    function fillGov(){
+      Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar")).forEach(g=>{
+        const opt=document.createElement("option");
+        opt.value=g; opt.textContent=g;
+        govEl.appendChild(opt);
+      });
+    }
+
+    function fillCenters(gov, pre=null){
+      centerEl.innerHTML = `<option value="">اختر المركز…</option>`;
+      otherWrap.style.display="none";
+      centerOtherEl.value="";
+
+      const arr=(AREAS[gov]||[]).slice().sort((a,b)=>a.localeCompare(b,"ar"));
+      arr.forEach(c=>{
+        const opt=document.createElement("option");
+        opt.value=c; opt.textContent=c;
+        centerEl.appendChild(opt);
+      });
+
+      const other=document.createElement("option");
+      other.value=OTHER;
+      other.textContent="أخرى (إدخال يدوي)…";
+      centerEl.appendChild(other);
+
+      centerEl.disabled = !gov;
+
+      if(pre){
+        const exists=[...centerEl.options].some(o=>o.value===pre);
+        if(exists){
+          centerEl.value=pre;
         }else{
-          if(otherWrap) otherWrap.style.display="none";
-          if(centerOtherEl) centerOtherEl.value = "";
+          centerEl.value=OTHER;
+          otherWrap.style.display="block";
+          centerOtherEl.value=pre;
         }
       }
-    }catch{}
-  }
+    }
 
-  [emailEl, passEl, govEl, centerEl, centerOtherEl, nameEl, vehicleEl, modelEl]
-    .filter(Boolean)
-    .forEach(el => {
-      el.addEventListener("input", saveDraft);
-      el.addEventListener("change", saveDraft);
+    fillGov();
+
+    govEl.addEventListener("change", ()=>{
+      const g=(govEl.value||"").trim();
+      if(!g){
+        centerEl.disabled=true;
+        centerEl.innerHTML=`<option value="">اختر المركز…</option>`;
+        otherWrap.style.display="none";
+        centerOtherEl.value="";
+        saveDraft();
+        return;
+      }
+      fillCenters(g);
+      saveDraft();
     });
 
-  restoreDraft();
-
-  function getArea(){
-    const governorate = (govEl?.value || "").trim() || null;
-    const cVal = (centerEl?.value || "").trim();
-    if(!governorate) return { governorate:null, center:null };
-    if(!cVal) return { governorate, center:null };
-    if(cVal===OTHER){
-      const manual = (centerOtherEl?.value || "").trim();
-      return { governorate, center: (manual.length>=2 ? manual : null) };
-    }
-    return { governorate, center: cVal || null };
-  }
-
-  function goAfterLogin(role){
-    const returnTo = qs("returnTo");
-    if(returnTo){ location.href = returnTo; return; }
-    location.href = (role==="passenger") ? "passenger.html" : "driver.html";
-  }
-
-  async function handleLogin(){
-    msg.textContent = "";
-    saveDraft();
-
-    const email = normalizeEmail(emailEl?.value || "");
-    const password = String(passEl?.value || "");
-
-    if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اكتب اسم فقط وسيُحوَّل لوهمي)."; return; }
-    if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
-
-    if(!selectedRole) { msg.textContent = "❌ اختر راكب أو سائق."; return; }
-
-    const area = getArea();
-    if(!area.governorate || !area.center){
-      msg.textContent = "❌ اختر المحافظة + المركز.";
-      return;
-    }
-
-    if(selectedRole==="driver"){
-      const v = (vehicleEl?.value || "").trim();
-      const m = (modelEl?.value || "").trim();
-      if(!v){ msg.textContent="❌ اختر نوع المركبة."; return; }
-      if(!m || m.length<2){ msg.textContent="❌ اكتب موديل المركبة."; return; }
-    }
-
-    loginBtn.disabled = true;
-    msg.textContent = "جارٍ الدخول…";
-
-    try{
-      const res = await emailLoginOrSignup(email, password);
-      const uid = res.user.uid;
-
-      await ensureUserDoc(uid, {
-        role: selectedRole,
-        email: res.user.email || email,
-        name: nameEl?.value?.trim() || null,
-        governorate: area.governorate,
-        center: area.center,
-        vehicle: selectedRole==="driver" ? (vehicleEl?.value||null) : null,
-        model: selectedRole==="driver" ? (modelEl?.value?.trim()||null) : null,
-      });
-
-      await saveUserProfile(uid, {
-        role: selectedRole,
-        email: res.user.email || email,
-        name: nameEl?.value?.trim() || null,
-        governororate: area.governorate, // (لو عندك typo قديم تجاهله) 
-        governorate: area.governorate,
-        center: area.center,
-        vehicle: selectedRole==="driver" ? (vehicleEl?.value||null) : null,
-        model: selectedRole==="driver" ? (modelEl?.value?.trim()||null) : null,
-        updatedAt: serverTimestamp()
-      });
-
-      msg.textContent = "✅ تم الدخول.";
-      goAfterLogin(selectedRole);
-    }catch(e){
-      console.error(e);
-      const code = e?.code || "";
-      if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials"){
-        msg.textContent = "❌ كلمة المرور غير صحيحة.";
-      }else if(code==="auth/invalid-email"){
-        msg.textContent = "❌ الإيميل غير صحيح.";
+    centerEl.addEventListener("change", ()=>{
+      if(centerEl.value===OTHER){
+        otherWrap.style.display="block";
+        centerOtherEl.focus();
       }else{
-        msg.textContent = "❌ فشل الدخول. جرّب مرة أخرى.";
+        otherWrap.style.display="none";
+        centerOtherEl.value="";
       }
-    }finally{
-      loginBtn.disabled = false;
+      saveDraft();
+    });
+
+    function normalizeEmail(x){
+      let v = String(x||"").trim();
+      if(!v) return null;
+
+      if(!v.includes("@")){
+        v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
+        if(!v) v = "user";
+        v = `${v}@meshwarak.local`;
+      }
+      if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
+      return v.toLowerCase();
     }
-  }
 
-  loginBtn?.addEventListener("click", handleLogin);
+    function saveDraft(){
+      try{
+        localStorage.setItem(LS.email, emailEl?.value || "");
+        localStorage.setItem(LS.gov, govEl?.value || "");
+        localStorage.setItem(LS.center, centerEl?.value || "");
+        localStorage.setItem(LS.centerOther, centerOtherEl?.value || "");
+        localStorage.setItem(LS.role, selectedRole || "");
+        if(nameEl) localStorage.setItem(LS.name, nameEl.value || "");
+        if(vehicleEl) localStorage.setItem(LS.vehicle, vehicleEl.value || "");
+        if(modelEl) localStorage.setItem(LS.model, modelEl.value || "");
+      }catch{}
+    }
 
-  onAuthStateChanged(auth, async (user)=>{
-    if(!user) return;
-    const snap = await getDoc(doc(db,"users",user.uid)).catch(()=>null);
-    const role = (snap && typeof snap.exists === "function" && snap.exists()) ? (snap.data().role || null) : null;
-    if(role==="passenger" || role==="driver") goAfterLogin(role);
-  });
-</script>
+    function setRole(role){
+      selectedRole = role;
+      rolePassenger.classList.remove("active");
+      roleDriver.classList.remove("active","driver");
+      driverFields.style.display="none";
+
+      if(role==="passenger"){
+        rolePassenger.classList.add("active");
+      }else if(role==="driver"){
+        roleDriver.classList.add("active","driver");
+        driverFields.style.display="block";
+      }
+      saveDraft();
+    }
+
+    rolePassenger.addEventListener("click", ()=> setRole("passenger"));
+    roleDriver.addEventListener("click", ()=> setRole("driver"));
+
+    function restoreDraft(){
+      try{
+        emailEl.value = localStorage.getItem(LS.email) || "";
+        nameEl.value = localStorage.getItem(LS.name) || "";
+
+        const role = localStorage.getItem(LS.role) || "";
+        if(role==="passenger" || role==="driver") setRole(role);
+
+        vehicleEl.value = localStorage.getItem(LS.vehicle) || vehicleEl.value;
+        modelEl.value = localStorage.getItem(LS.model) || "";
+
+        const g = localStorage.getItem(LS.gov) || "";
+        const c = localStorage.getItem(LS.center) || "";
+        const co = localStorage.getItem(LS.centerOther) || "";
+
+        if(g){
+          govEl.value = g;
+          fillCenters(g, (c===OTHER ? (co||null) : (c||null)));
+          if(c){
+            centerEl.value = c;
+            if(c===OTHER){
+              otherWrap.style.display="block";
+              centerOtherEl.value = co || "";
+            }else{
+              otherWrap.style.display="none";
+              centerOtherEl.value = "";
+            }
+          }
+        }
+      }catch{}
+    }
+
+    [emailEl, passEl, govEl, centerEl, centerOtherEl, nameEl, vehicleEl, modelEl]
+      .filter(Boolean)
+      .forEach(el => {
+        el.addEventListener("input", saveDraft);
+        el.addEventListener("change", saveDraft);
+      });
+
+    restoreDraft();
+
+    function getArea(){
+      const governorate = (govEl.value || "").trim() || null;
+      const cVal = (centerEl.value || "").trim();
+      if(!governorate) return { governorate:null, center:null };
+      if(!cVal) return { governorate, center:null };
+      if(cVal===OTHER){
+        const manual = (centerOtherEl.value || "").trim();
+        return { governorate, center: (manual.length>=2 ? manual : null) };
+      }
+      return { governorate, center: cVal || null };
+    }
+
+    function goAfterLogin(role){
+      const returnTo = qs("returnTo");
+      if(returnTo){ location.href = returnTo; return; }
+      location.href = (role==="passenger") ? "passenger.html" : "driver.html";
+    }
+
+    async function handleLogin(){
+      msg.textContent = "";
+      saveDraft();
+
+      const email = normalizeEmail(emailEl.value || "");
+      const password = String(passEl.value || "");
+
+      if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط وسيُحوَّل لوهمي)."; return; }
+      if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
+      if(!selectedRole){ msg.textContent = "❌ اختر راكب أو سائق."; return; }
+
+      const area = getArea();
+      if(!area.governorate || !area.center){
+        msg.textContent = "❌ اختر المحافظة + المركز.";
+        return;
+      }
+
+      if(selectedRole==="driver"){
+        const v=(vehicleEl.value||"").trim();
+        const m=(modelEl.value||"").trim();
+        if(!v){ msg.textContent="❌ اختر نوع المركبة."; return; }
+        if(!m || m.length<2){ msg.textContent="❌ اكتب موديل المركبة."; return; }
+      }
+
+      loginBtn.disabled = true;
+      msg.textContent = "جارٍ الدخول…";
+
+      try{
+        const res = await emailLoginOrSignup(email, password);
+        const uid = res.user.uid;
+
+        await ensureUserDoc(uid, {
+          role: selectedRole,
+          email: res.user.email || email,
+          name: (nameEl.value||"").trim() || null,
+          governorate: area.governorate,
+          center: area.center,
+          vehicle: selectedRole==="driver" ? (vehicleEl.value||null) : null,
+          model: selectedRole==="driver" ? ((modelEl.value||"").trim()||null) : null,
+        });
+
+        await saveUserProfile(uid, {
+          role: selectedRole,
+          email: res.user.email || email,
+          name: (nameEl.value||"").trim() || null,
+          governorate: area.governorate,
+          center: area.center,
+          vehicle: selectedRole==="driver" ? (vehicleEl.value||null) : null,
+          model: selectedRole==="driver" ? ((modelEl.value||"").trim()||null) : null,
+          updatedAt: serverTimestamp()
+        });
+
+        msg.textContent = "✅ تم الدخول.";
+        goAfterLogin(selectedRole);
+      }catch(e){
+        console.error(e);
+        const code = e?.code || "";
+        if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials"){
+          msg.textContent = "❌ كلمة المرور غير صحيحة.";
+        }else if(code==="auth/invalid-email"){
+          msg.textContent = "❌ الإيميل غير صحيح.";
+        }else{
+          msg.textContent = "❌ فشل الدخول. جرّب مرة أخرى.";
+        }
+      }finally{
+        loginBtn.disabled = false;
+      }
+    }
+
+    loginBtn.addEventListener("click", handleLogin);
+
+    onAuthStateChanged(auth, async (user)=>{
+      if(!user) return;
+      const snap = await getDoc(doc(db,"users",user.uid)).catch(()=>null);
+      const role = (snap && typeof snap.exists === "function" && snap.exists()) ? (snap.data().role || null) : null;
+      if(role==="passenger" || role==="driver") goAfterLogin(role);
+    });
+  </script>
+</body>
+</html>
