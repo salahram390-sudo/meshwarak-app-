@@ -1,4 +1,4 @@
-// app.js — FINAL (Email/Password + Auto Signup + Persistence)
+// app.js — FINAL (Email/Password) + Firestore helpers
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -9,6 +9,7 @@ import {
   setPersistence,
   browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
 import {
   getFirestore,
   doc,
@@ -17,21 +18,22 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ لازم تحط القيم الصح من Firebase Project settings
+// ✅ Firebase config (بتاعك)
 const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME",           // مثال: meshwark-8adf8.firebaseapp.com
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME",
+  apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
+  authDomain: "meshwark-8adf8.firebaseapp.com",
+  projectId: "meshwark-8adf8",
+  storageBucket: "meshwark-8adf8.appspot.com", // ✅ صح
+  messagingSenderId: "450060838946",
+  appId: "1:450060838946:web:963cacdd125b253fa1827b",
 };
 
+// ========= init
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ خلي الجلسة محفوظة على طول
+// ✅ خلي الجلسة تفضل محفوظة (حتى بعد إغلاق المتصفح)
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -40,18 +42,19 @@ export function qs(key) {
   return u.searchParams.get(key);
 }
 
+// ✅ لو المستخدم كتب "salah" فقط بدون @
+// يتحول تلقائيًا لـ salah@meshwarak.local
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
 
-  // اسم بدون @ => ايميل وهمي صالح
   if (!x.includes("@")) {
     x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
     if (!x) x = "user";
     return `${x}@meshwarak.local`;
   }
 
-  // لو كتب "name@" بس
+  // لو كتب salah@
   if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
 
   return x;
@@ -72,6 +75,7 @@ export async function getUserDoc(uid) {
 export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
+
   if (!snap.exists()) {
     await setDoc(
       ref,
@@ -83,9 +87,12 @@ export async function ensureUserDoc(uid, patch = {}) {
         governorate: patch.governorate || null,
         center: patch.center || null,
         currentRideId: null,
+
+        // driver
         vehicle: patch.vehicle || null,
         model: patch.model || null,
         plate: patch.plate || null,
+
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -93,6 +100,7 @@ export async function ensureUserDoc(uid, patch = {}) {
     );
     return true;
   }
+
   return false;
 }
 
@@ -101,20 +109,25 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ========= ✅ Auto: signIn else create
+// ========= ✅ Auto Login: signIn else createUser
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-  if (!email) throw { code: "bad-email" };
-  if (!password) throw { code: "bad-pass" };
+
+  if (!email) throw new Error("bad-email");
+  if (!password) throw new Error("bad-pass");
 
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (e) {
     const code = e?.code || "";
 
-    // لو مش موجود -> أنشئه
-    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
+    // لو الحساب مش موجود -> اعمله Signup
+    if (
+      code === "auth/user-not-found" ||
+      code === "auth/invalid-credential" ||
+      code === "auth/invalid-login-credentials"
+    ) {
       return await createUserWithEmailAndPassword(auth, email, password);
     }
 
@@ -127,8 +140,14 @@ export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => { unsub(); resolve(u); },
-      (e) => { unsub(); reject(e); }
+      (u) => {
+        unsub();
+        resolve(u);
+      },
+      (e) => {
+        unsub();
+        reject(e);
+      }
     );
   });
 
@@ -138,6 +157,8 @@ export async function requireAuthAndRole(requiredRole = null) {
   }
 
   let data = await getUserDoc(user.uid).catch(() => null);
+
+  // لو مفيش doc لأول مرة
   if (!data) {
     await ensureUserDoc(user.uid, {
       role: "passenger",
@@ -148,6 +169,7 @@ export async function requireAuthAndRole(requiredRole = null) {
   }
 
   const role = data?.role || null;
+
   if (requiredRole && role !== requiredRole) {
     location.href = "./index.html";
     throw new Error("wrong role");
