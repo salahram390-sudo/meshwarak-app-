@@ -452,7 +452,7 @@
         subscribeRides(true);
       }catch(e){
         console.error(e);
-        setupMsg.textContent = `❌ فشل الحفظ: ${e.message || e}`;
+        setupMsg.textContent = `❌ فشل الحفظ.`;
       }finally{
         saveAreaBtn.disabled = false;
       }
@@ -630,9 +630,7 @@
           currentTripCard.style.display = "none";
           currentTripCard.innerHTML = "";
         }
-      }, ()=>{
-        // لا تعرض Permissions
-      });
+      }, ()=>{});
     }
 
     // ====== كروت الطلبات
@@ -848,8 +846,7 @@
     function showSoftLoadError(){
       listEl.innerHTML = `
         <div class="card">
-          <div class="hint">⚠️ لا يمكن تحميل الطلبات الآن.</div>
-          <div class="hint" style="margin-top:8px">تأكد من حفظ المحافظة + المركز في حساب السائق ثم اضغط تحديث.</div>
+          <div class="hint">لا يمكن تحميل الطلبات الآن.</div>
         </div>
       `;
     }
@@ -872,9 +869,11 @@
 
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
+      // ✅ مهم جداً مع الـ Rules: لازم نضيف driverUid == null في الاستعلام
       const qy = query(
         collection(db, "rides"),
         where("status", "==", "open"),
+        where("driverUid", "==", null),
         where("governorate", "==", gov),
         where("center", "==", cen),
         limit(25)
@@ -905,7 +904,6 @@
           listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
         });
       }, ()=>{
-        // ✅ هنا حل مشكلة Missing permissions: لا نعرضها للمستخدم
         showSoftLoadError();
       });
     }
