@@ -1,6 +1,6 @@
-// sw.js (FINAL SAFE v11 - GitHub Pages Fix)
+// sw.js (FINAL SAFE v12 - GitHub Pages Fix)
 // ✅ غيّر الرقم عند أي تحديث كبير لتفريغ كاش الأجهزة القديمة
-const CACHE = "meshwarak-v11";
+const CACHE = "meshwarak-v12";
 
 const ASSETS = [
   "./",
@@ -117,3 +117,4 @@ self.addEventListener("fetch", (e) => {
     return res || cached;
   })());
 });
+```0
