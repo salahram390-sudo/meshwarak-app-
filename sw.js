@@ -1,5 +1,5 @@
-// sw.js (FINAL SAFE)
-const CACHE = "meshwarak-v10"; // ✅ غيّر الرقم كل تحديث
+// sw.js (FINAL SAFE) — no missing assets
+const CACHE = "meshwarak-v10"; // غيّر الرقم كل تحديث
 
 const ASSETS = [
   "./",
@@ -11,9 +11,7 @@ const ASSETS = [
   "./profile.html",
   "./styles.css",
   "./app.js",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png"
+  "./manifest.json"
 ];
 
 // ملفات خارجية ما نكاشّهاش (Firebase/CDN/APIs)
@@ -21,9 +19,9 @@ function isBypass(url) {
   return (
     url.startsWith("https://www.gstatic.com/") ||
     url.startsWith("https://unpkg.com/") ||
+    url.startsWith("https://nominatim.openstreetmap.org/") ||
     url.includes("tile.openstreetmap.org") ||
-    url.includes("openstreetmap.org") ||
-    url.includes("nominatim.openstreetmap.org")
+    url.startsWith("https://www.openstreetmap.org/")
   );
 }
 
@@ -31,7 +29,7 @@ self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // بدل addAll عشان لو ملف ناقص مايفشلش كله
+    // cache what exists only
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
@@ -59,7 +57,7 @@ self.addEventListener("fetch", (e) => {
 
   if (isBypass(url)) return;
 
-  // صفحات HTML: network-first
+  // HTML: network-first
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       try {
@@ -75,18 +73,14 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // باقي الملفات: cache-first
+  // assets: cache-first
   e.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;
 
-    try {
-      const res = await fetch(req);
-      const cache = await caches.open(CACHE);
-      cache.put(req, res.clone());
-      return res;
-    } catch {
-      return cached;
-    }
+    const res = await fetch(req);
+    const cache = await caches.open(CACHE);
+    cache.put(req, res.clone());
+    return res;
   })());
 });
