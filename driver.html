@@ -182,18 +182,26 @@
     let unsubRides = null;
 
     // ====== خريطة السائق
-    const dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    let dmap = null;
+    try{
+      if(!window.L) throw new Error('Leaflet not loaded');
+      dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap"
-    }).addTo(dmap);
-
-    const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
-    setTimeout(fixMap, 450);
-    window.addEventListener("load", ()=> setTimeout(fixMap, 250));
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
-
-    const divPin = (emoji) => L.divIcon({
+      }).addTo(dmap);
+      
+      const fixMap = () => { try{ dmap.invalidateSize(true);}catch{} setTimeout(()=>{try{dmap.invalidateSize(true)}catch{}},250); };
+      setTimeout(fixMap, 450);
+      window.addEventListener("load", ()=> setTimeout(fixMap, 250));
+      document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
+      
+      
+    }catch(e){
+      console.error(e);
+      try{ msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`; }catch{}
+    }
+const divPin = (emoji) => L.divIcon({
       className: "pin-emoji",
       html: `<div class="pin-bubble">${emoji}</div>`,
       iconSize: [44,44],

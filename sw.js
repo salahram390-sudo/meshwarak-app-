@@ -1,5 +1,6 @@
-// sw.js (FINAL SAFE)
-const CACHE = "meshwarak-v10"; // غيّر الرقم كل تحديث
+// sw.js (FINAL SAFE v10 - stale-while-revalidate)
+// مهم: غيّر الرقم عند أي تحديث كبير (لتفريغ كاش الأجهزة القديمة)
+const CACHE = "meshwarak-v10";
 
 const ASSETS = [
   "./",
@@ -16,13 +17,15 @@ const ASSETS = [
   "./icon-512.png"
 ];
 
-// ملفات خارجية ما نكاشّهاش (Firebase/CDN/APIs)
+// ملفات خارجية ما نكاشّهاش (Firebase/CDN/APIs/Maps)
 function isBypass(url) {
   return (
     url.startsWith("https://www.gstatic.com/") ||
     url.startsWith("https://unpkg.com/") ||
-    url.startsWith("https://nominatim.openstreetmap.org/") ||
-    url.includes("tile.openstreetmap.org")
+    url.startsWith("https://cdn.jsdelivr.net/") ||
+    url.includes("openstreetmap.org") ||
+    url.includes("tile.openstreetmap.org") ||
+    url.includes("nominatim.openstreetmap.org")
   );
 }
 
@@ -30,7 +33,7 @@ self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // ✅ بدل addAll (اللي بيفشل كله لو ملف واحد ناقص)
+    // بدل addAll (اللي بيفشل كله لو ملف واحد ناقص)
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
@@ -56,9 +59,9 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
-  if (isBypass(url)) return; // ✅ سيبها Network عادي
+  if (isBypass(url)) return; // Network فقط
 
-  // صفحات HTML: network-first
+  // صفحات HTML: Network-first + fallback
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       try {
@@ -67,25 +70,30 @@ self.addEventListener("fetch", (e) => {
         cache.put(req, res.clone());
         return res;
       } catch {
-        const cached = await caches.match(req);
-        return cached || caches.match("./index.html");
+        return (await caches.match(req)) || (await caches.match("./index.html"));
       }
     })());
     return;
   }
 
-  // باقي الملفات: cache-first
+  // باقي الملفات: Stale-While-Revalidate
   e.respondWith((async () => {
-    const cached = await caches.match(req);
-    if (cached) return cached;
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(req);
 
-    try {
-      const res = await fetch(req);
-      const cache = await caches.open(CACHE);
-      cache.put(req, res.clone());
+    const networkFetch = fetch(req).then((res) => {
+      if (res && res.ok) cache.put(req, res.clone());
       return res;
-    } catch {
+    }).catch(() => null);
+
+    // لو عندنا cached رجّعه فوراً، وفي الخلفية حدّثه من الشبكة
+    if (cached) {
+      e.waitUntil(networkFetch);
       return cached;
     }
+
+    // لو مفيش cached حاول من الشبكة
+    const res = await networkFetch;
+    return res || cached;
   })());
 });

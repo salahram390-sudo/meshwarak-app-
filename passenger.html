@@ -458,157 +458,164 @@ function renderAreaPill(){
     });
 
     // ===== الخريطة
-    const map = L.map("map", { zoomControl:false }).setView([30.0444,31.2357], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
-
-    const fixMap=()=>{ try{map.invalidateSize(true)}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
-    setTimeout(fixMap, 450);
-    addEventListener("load", ()=>setTimeout(fixMap, 250));
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
-
-    const divPin=(emoji)=>L.divIcon({
+    let map = null;
+    try{
+      if(!window.L) throw new Error('Leaflet not loaded');
+      map = L.map("map", { zoomControl:false }).setView([30.0444,31.2357], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
+      
+      const fixMap=()=>{ try{map.invalidateSize(true)}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
+      setTimeout(fixMap, 450);
+      addEventListener("load", ()=>setTimeout(fixMap, 250));
+      document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
+      
+      const divPin=(emoji)=>L.divIcon({
       className: "pin-emoji",
       html:`<div class="pin-bubble">${emoji}</div>`,
       iconSize:[44,44],
       iconAnchor:[22,44],
       popupAnchor:[0,-36]
-    });
-
-    let from=null,to=null, fromMarker=null,toMarker=null,line=null;
-    let myMarker=null,myPos=null;
-
-    fromText.value = localStorage.getItem(LS.fromText)||"";
-    toText.value = localStorage.getItem(LS.toText)||"";
-    fromText.addEventListener("input", ()=>localStorage.setItem(LS.fromText, fromText.value));
-    toText.addEventListener("input", ()=>localStorage.setItem(LS.toText, toText.value));
-
-    function setPermPill(state){
+      });
+      
+      let from=null,to=null, fromMarker=null,toMarker=null,line=null;
+      let myMarker=null,myPos=null;
+      
+      fromText.value = localStorage.getItem(LS.fromText)||"";
+      toText.value = localStorage.getItem(LS.toText)||"";
+      fromText.addEventListener("input", ()=>localStorage.setItem(LS.fromText, fromText.value));
+      toText.addEventListener("input", ()=>localStorage.setItem(LS.toText, toText.value));
+      
+      function setPermPill(state){
       permPill.classList.remove("ok","bad");
       if(state==="granted"){ permPill.textContent="الموقع: مسموح ✅"; permPill.classList.add("ok"); }
       else if(state==="denied"){ permPill.textContent="الموقع: مرفوض ❌"; permPill.classList.add("bad"); }
       else permPill.textContent="الموقع: غير معروف";
-    }
-
-    (async ()=>{
-      try{
-        const p=await navigator.permissions.query({name:"geolocation"});
-        setPermPill(p.state);
-        p.onchange=()=>setPermPill(p.state);
-      }catch{}
-    })();
-
-    function drawLine(){
-      if(from && to){
-        if(line) map.removeLayer(line);
-        line=L.polyline([[from.lat,from.lng],[to.lat,to.lng]]).addTo(map);
       }
-    }
-
-    function setFrom(lat,lng){
+      
+      (async ()=>{
+      try{
+      const p=await navigator.permissions.query({name:"geolocation"});
+      setPermPill(p.state);
+      p.onchange=()=>setPermPill(p.state);
+      }catch{}
+      })();
+      
+      function drawLine(){
+      if(from && to){
+      if(line) map.removeLayer(line);
+      line=L.polyline([[from.lat,from.lng],[to.lat,to.lng]]).addTo(map);
+      }
+      }
+      
+      function setFrom(lat,lng){
       from={lat,lng};
       if(fromMarker) map.removeLayer(fromMarker);
       fromMarker=L.marker([lat,lng],{icon:divPin("🚩")}).addTo(map).bindPopup("🚩 القيام");
       map.setView([lat,lng], 14, {animate:false});
       drawLine(); updateUI(); fixMap();
-    }
-
-    function setTo(lat,lng){
+      }
+      
+      function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
       toMarker=L.marker([lat,lng],{icon:divPin("🏁")}).addTo(map).bindPopup("🏁 الوصول");
       map.setView([lat,lng], 14, {animate:false});
       drawLine(); updateUI(); fixMap();
-    }
-
-    function explainLocationDenied(){
+      }
+      
+      function explainLocationDenied(){
       msg.innerHTML="❌ يجب تفعيل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
-    }
-
-    function autoLocate({force=false}={}){
+      }
+      
+      function autoLocate({force=false}={}){
       if(!navigator.geolocation){
-        msg.textContent="جهازك لا يدعم تحديد الموقع.";
-        statusPill.textContent="اختر مكان القيام…";
-        return;
+      msg.textContent="جهازك لا يدعم تحديد الموقع.";
+      statusPill.textContent="اختر مكان القيام…";
+      return;
       }
       statusPill.textContent="جارٍ تحديد موقعك…";
       navigator.geolocation.getCurrentPosition((pos)=>{
-        setPermPill("granted");
-        const lat=pos.coords.latitude, lng=pos.coords.longitude;
-        myPos={lat,lng};
-        if(myMarker) map.removeLayer(myMarker);
-        myMarker=L.circleMarker([lat,lng],{radius:9, weight:2, fillOpacity:.85}).addTo(map).bindPopup("📍 أنت");
-        map.setView([lat,lng], 16, {animate:false});
-        fixMap();
-        if(!from || force) setFrom(lat,lng);
-        else updateUI();
+      setPermPill("granted");
+      const lat=pos.coords.latitude, lng=pos.coords.longitude;
+      myPos={lat,lng};
+      if(myMarker) map.removeLayer(myMarker);
+      myMarker=L.circleMarker([lat,lng],{radius:9, weight:2, fillOpacity:.85}).addTo(map).bindPopup("📍 أنت");
+      map.setView([lat,lng], 16, {animate:false});
+      fixMap();
+      if(!from || force) setFrom(lat,lng);
+      else updateUI();
       }, (err)=>{
-        console.error(err);
-        if(err?.code===1){ setPermPill("denied"); explainLocationDenied(); }
-        else msg.textContent="تعذر تحديد الموقع الآن. جرّب مرة أخرى.";
-        statusPill.textContent="اختر مكان القيام…";
-        updateUI();
+      console.error(err);
+      if(err?.code===1){ setPermPill("denied"); explainLocationDenied(); }
+      else msg.textContent="تعذر تحديد الموقع الآن. جرّب مرة أخرى.";
+      statusPill.textContent="اختر مكان القيام…";
+      updateUI();
       }, {enableHighAccuracy:true, timeout:20000, maximumAge:0});
-    }
-
-    $("myLocBtn").addEventListener("click", ()=>autoLocate({force:true}));
-
-    function resetAll(){
+      }
+      
+      $("myLocBtn").addEventListener("click", ()=>autoLocate({force:true}));
+      
+      function resetAll(){
       from=null; to=null;
       fromText.value=""; toText.value="";
       localStorage.removeItem(LS.fromText);
       localStorage.removeItem(LS.toText);
-
+      
       [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) try{map.removeLayer(x)}catch{} });
       fromMarker=toMarker=line=myMarker=null;
-
+      
       msg.textContent="";
       updateUI(); fixMap();
-    }
-    $("resetBtn").addEventListener("click", resetAll);
-
-    async function geocode(q){
+      }
+      $("resetBtn").addEventListener("click", resetAll);
+      
+      async function geocode(q){
       const {gov,center}=getSelectedArea();
       let queryText=(q||"").trim();
       if(gov) queryText+=`, ${gov}`;
       if(center) queryText+=`, ${center}`;
       queryText+=`, Egypt`;
-
+      
       const params=new URLSearchParams({format:"json",limit:"5",countrycodes:"eg",q:queryText});
       if(myPos){
-        const d=0.35;
-        params.set("viewbox", `${myPos.lng-d},${myPos.lat+d},${myPos.lng+d},${myPos.lat-d}`);
-        params.set("bounded","1");
+      const d=0.35;
+      params.set("viewbox", `${myPos.lng-d},${myPos.lat+d},${myPos.lng+d},${myPos.lat-d}`);
+      params.set("bounded","1");
       }
-
+      
       const url=`https://nominatim.openstreetmap.org/search?${params.toString()}`;
       const res=await fetch(url,{headers:{Accept:"application/json"}});
       if(!res.ok) throw new Error("geocode failed");
       const data=await res.json();
       if(!data?.length) return null;
       return {lat:Number(data[0].lat), lng:Number(data[0].lon), display:data[0].display_name};
-    }
-
-    async function search(type){
+      }
+      
+      async function search(type){
       msg.textContent="";
       const text=(type==="from"?fromText.value:toText.value).trim();
       if(!text) { msg.textContent="اكتب اسم المكان ثم اضغط بحث."; return; }
       try{
-        msg.textContent="جارٍ البحث…";
-        const r=await geocode(text);
-        if(!r){ msg.textContent="لم يتم العثور على المكان."; return; }
-        msg.textContent="";
-        if(type==="from") setFrom(r.lat,r.lng);
-        else setTo(r.lat,r.lng);
+      msg.textContent="جارٍ البحث…";
+      const r=await geocode(text);
+      if(!r){ msg.textContent="لم يتم العثور على المكان."; return; }
+      msg.textContent="";
+      if(type==="from") setFrom(r.lat,r.lng);
+      else setTo(r.lat,r.lng);
       }catch(e){
-        console.error(e);
-        msg.textContent="حصل خطأ في البحث. جرّب مرة أخرى.";
+      console.error(e);
+      msg.textContent="حصل خطأ في البحث. جرّب مرة أخرى.";
       }
-    }
-
-    $("fromSearchBtn").addEventListener("click", ()=>search("from"));
-    $("toSearchBtn").addEventListener("click", ()=>search("to"));
-
-    // ===== rides
+      }
+      
+      $("fromSearchBtn").addEventListener("click", ()=>search("from"));
+      $("toSearchBtn").addEventListener("click", ()=>search("to"));
+      
+      
+    }catch(e){
+      console.error(e);
+      try{ msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`; }catch{}
+    }// ===== rides
     let unsubRide=null;
     let currentRideId = localStorage.getItem(LS.lastRideId) || null;
 
