@@ -140,6 +140,7 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const $ = (id)=>document.getElementById(id);
+
     const toast = $("toast");
     const showToast = (html, ms=2400)=>{
       toast.innerHTML = html;
@@ -148,11 +149,28 @@
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
     };
 
-    const { user } = await requireAuthAndRole("passenger");
-    $("logoutBtn").addEventListener("click", doLogout);
-
     const msg = $("msg");
     const whoEl = $("who");
+
+    const logoutBtn = $("logoutBtn");
+    const createBtn = $("createBtn");
+    const cancelBtn = $("cancelBtn");
+    const fromText  = $("fromText");
+    const toText    = $("toText");
+    const contactBox= $("contactBox");
+
+    const statusPill = $("statusPill");
+    const ridePill   = $("ridePill");
+    const permPill   = $("permPill");
+    const areaPill   = $("areaPill");
+
+    const govSelect = $("govSelect");
+    const centerSelect = $("centerSelect");
+    const centerOtherWrap = $("centerOtherWrap");
+    const centerOtherInput = $("centerOtherInput");
+
+    const priceRange = $("priceRange");
+    const priceVal   = $("priceVal");
 
     const LS = {
       areaGov: "mw_area_gov",
@@ -164,6 +182,9 @@
       price: "mw_price"
     };
     const OTHER="__other__";
+
+    const { user } = await requireAuthAndRole("passenger");
+    logoutBtn.addEventListener("click", doLogout);
 
     // ===== مناطق (قائمة كاملة — نفس login.html)
     const AREAS = {
@@ -194,21 +215,22 @@
       "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
 
-    const govSelect=$("govSelect"), centerSelect=$("centerSelect");
-    const centerOtherWrap=$("centerOtherWrap"), centerOtherInput=$("centerOtherInput");
-    const areaPill=$("areaPill");
-
     Object.keys(AREAS).sort((a,b)=>a.localeCompare(b,"ar")).forEach(g=>{
-      const o=document.createElement("option"); o.value=g; o.textContent=g; govSelect.appendChild(o);
+      const o=document.createElement("option");
+      o.value=g; o.textContent=g;
+      govSelect.appendChild(o);
     });
 
     function fillCenters(gov, pre=null){
       centerSelect.innerHTML=`<option value="">اختر المركز/الحي…</option>`;
       (AREAS[gov]||[]).slice().sort((a,b)=>a.localeCompare(b,"ar")).forEach(c=>{
-        const o=document.createElement("option"); o.value=c; o.textContent=c; centerSelect.appendChild(o);
+        const o=document.createElement("option");
+        o.value=c; o.textContent=c;
+        centerSelect.appendChild(o);
       });
       const other=document.createElement("option");
-      other.value = OTHER; other.textContent="أخرى (إدخال يدوي)…";
+      other.value = OTHER;
+      other.textContent="أخرى (إدخال يدوي)…";
       centerSelect.appendChild(other);
 
       centerSelect.disabled = !gov;
@@ -278,7 +300,8 @@
         centerSelect.innerHTML=`<option value="">اختر المركز/الحي…</option>`;
         centerOtherWrap.style.display="none";
         centerOtherInput.value="";
-        saveAreaLS(); renderAreaPill(); updateUI(); return;
+        saveAreaLS(); renderAreaPill(); updateUI();
+        return;
       }
       fillCenters(g);
       saveAreaLS(); renderAreaPill(); updateUI();
@@ -301,7 +324,8 @@
 
     // ===== بيانات الراكب
     const passengerProfile = await getUserDoc(user.uid).catch(()=>null);
-    const passengerName = (passengerProfile?.name || "").trim() || ((user.email||"").split("@")[0]||"مستخدم");
+    const fallbackName = (email)=>((email||"").split("@")[0]||"مستخدم").replace(/[._-]+/g," ").trim()||"مستخدم";
+    const passengerName = (passengerProfile?.name || "").trim() || fallbackName(user.email);
     const passengerPhone = (passengerProfile?.phone || "").trim() || null;
     whoEl.textContent = `${passengerName} • ${user.email}`;
 
@@ -314,7 +338,6 @@
     }
 
     // ===== السعر
-    const priceRange=$("priceRange"), priceVal=$("priceVal");
     const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
     const savedPrice = Number(localStorage.getItem(LS.price)||"15");
     priceRange.value = String(clamp(savedPrice, 15, 300));
@@ -327,6 +350,7 @@
     // ===== الخريطة
     const map = L.map("map", { zoomControl:false }).setView([30.0444,31.2357], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
+
     const fixMap=()=>{ try{map.invalidateSize(true)}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
     setTimeout(fixMap, 450);
     addEventListener("load", ()=>setTimeout(fixMap, 250));
@@ -342,10 +366,6 @@
 
     let from=null,to=null, fromMarker=null,toMarker=null,line=null;
     let myMarker=null,myPos=null;
-
-    const statusPill=$("statusPill"), ridePill=$("ridePill"), permPill=$("permPill");
-    const createBtn=$("createBtn"), cancelBtn=$("cancelBtn");
-    const fromText=$("fromText"), toText=$("toText"), contactBox=$("contactBox");
 
     fromText.value = localStorage.getItem(LS.fromText)||"";
     toText.value = localStorage.getItem(LS.toText)||"";
@@ -425,7 +445,8 @@
     function resetAll(){
       from=null; to=null;
       fromText.value=""; toText.value="";
-      localStorage.removeItem(LS.fromText); localStorage.removeItem(LS.toText);
+      localStorage.removeItem(LS.fromText);
+      localStorage.removeItem(LS.toText);
 
       [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) try{map.removeLayer(x)}catch{} });
       fromMarker=toMarker=line=myMarker=null;
@@ -493,12 +514,20 @@
 
     function updateUI(){
       renderAreaPill();
-      if(currentRideId) return;
+
+      // لو فيه طلب قائم ما نغيّرش زرار الإنشاء هنا
+      if(currentRideId){
+        // بس نضمن زر الإلغاء منطقي
+        cancelBtn.disabled = !(currentRideId);
+        return;
+      }
+
       if(!hasAreaReady()){
         statusPill.textContent="اختر المحافظة + المركز…";
         createBtn.disabled=true;
         return;
       }
+
       if(!from){
         statusPill.textContent="اختر مكان القيام…";
         createBtn.disabled=true;
@@ -521,7 +550,8 @@
           contactBox.style.display="none"; contactBox.innerHTML="";
           currentRideId=null; localStorage.removeItem(LS.lastRideId);
           await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
-          setRideUI("none"); updateUI();
+          setRideUI("none");
+          updateUI();
           return;
         }
 
@@ -612,7 +642,8 @@
 
           currentRideId=null; localStorage.removeItem(LS.lastRideId);
           await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
-          setRideUI("none"); updateUI();
+          setRideUI("none");
+          updateUI();
           return;
         }
 
@@ -620,9 +651,14 @@
       });
     }
 
-    if(currentRideId) watchRide(currentRideId);
+    // لو فيه طلب سابق من LS
+    if(currentRideId){
+      setRideUI("open");
+      cancelBtn.disabled = false;
+      watchRide(currentRideId);
+    }
 
-    $("createBtn").addEventListener("click", async ()=>{
+    createBtn.addEventListener("click", async ()=>{
       try{
         msg.textContent="";
         if(currentRideId){ msg.textContent="⚠️ لديك طلب قائم بالفعل."; return; }
@@ -632,7 +668,7 @@
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
         if(!passengerPhone){ msg.textContent="❌ رقم الهاتف غير مسجل. افتح حسابي واحفظه."; return; }
 
-        $("createBtn").disabled=true;
+        createBtn.disabled=true;
         const priceEGP = Number(priceRange.value) || 15;
 
         msg.textContent="جارٍ إنشاء الطلب…";
@@ -671,14 +707,15 @@
         showToast("❌ حصل خطأ أثناء طلب المشوار");
       }finally{
         updateUI(); fixMap();
-        $("createBtn").disabled=false;
+        // ✅ متفعلش الزر لو فيه طلب قائم
+        if(!currentRideId) createBtn.disabled = false;
       }
     });
 
-    $("cancelBtn").addEventListener("click", async ()=>{
+    cancelBtn.addEventListener("click", async ()=>{
       if(!currentRideId) return;
       try{
-        $("cancelBtn").disabled=true;
+        cancelBtn.disabled=true;
         msg.textContent="جارٍ إلغاء الطلب…";
 
         const ref=doc(db,"rides",currentRideId);
@@ -687,13 +724,15 @@
           msg.textContent="الطلب غير موجود.";
           currentRideId=null; localStorage.removeItem(LS.lastRideId);
           await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
-          setRideUI("none"); updateUI(); return;
+          setRideUI("none"); updateUI();
+          return;
         }
 
         const r=snap.data();
         if(!["open","offered"].includes(r.status)){
           msg.textContent="لا يمكن الإلغاء بعد بدء الرحلة.";
-          setRideUI(r.status); return;
+          setRideUI(r.status);
+          return;
         }
 
         await updateDoc(ref, { status:"canceled", canceledAt:serverTimestamp(), canceledBy:"passenger" });
@@ -701,19 +740,32 @@
 
         msg.textContent="✅ تم إلغاء الطلب.";
         showToast("✅ تم إلغاء الطلب");
-        currentRideId=null; localStorage.removeItem(LS.lastRideId);
-        contactBox.style.display="none"; contactBox.innerHTML="";
-        setRideUI("none"); updateUI();
+
+        currentRideId=null;
+        localStorage.removeItem(LS.lastRideId);
+
+        contactBox.style.display="none";
+        contactBox.innerHTML="";
+
+        setRideUI("none");
+        updateUI();
       }catch(e){
         console.error(e);
         msg.textContent="❌ فشل الإلغاء.";
       }finally{
-        $("cancelBtn").disabled=false;
         updateUI(); fixMap();
+        cancelBtn.disabled = !(currentRideId); // ✅ لو مفيش طلب يفضل Disabled
       }
     });
 
     // init
+    fromText.value = localStorage.getItem(LS.fromText)||"";
+    toText.value = localStorage.getItem(LS.toText)||"";
+    const savedFrom = fromText.value;
+    const savedTo = toText.value;
+    if(savedFrom) localStorage.setItem(LS.fromText, savedFrom);
+    if(savedTo) localStorage.setItem(LS.toText, savedTo);
+
     setRideUI(currentRideId ? "open" : "none");
     updateUI();
     autoLocate();
