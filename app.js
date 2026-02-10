@@ -1,4 +1,4 @@
-// app.js — Email/Password FINAL (Auto SignUp only if user-not-found)
+// app.js — Email/Password FINAL (Auto SignUp if not exists)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -17,6 +17,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+// ✅ ضع إعدادات Firebase الحقيقية هنا
 const firebaseConfig = {
   apiKey: "REPLACE_ME",
   authDomain: "REPLACE_ME",
@@ -30,6 +31,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+// ✅ خلي الجلسة تفضل محفوظة (حتى بعد الإغلاق)
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -39,16 +41,15 @@ export function qs(key) {
 }
 
 export function normalizeEmail(input) {
-  let v = String(input || "").trim().toLowerCase();
-  if(!v) return null;
+  const raw = String(input || "").trim();
+  if (!raw) return null;
 
-  if(!v.includes("@")){
-    v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
-    if(!v) v = "user";
-    v = `${v}@meshwarak.local`;
-  }
-  if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
-  return v;
+  let x = raw.toLowerCase();
+  if (x.includes("@")) return x;
+
+  x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
+  if (!x) x = "user";
+  return `${x}@meshwarak.local`;
 }
 
 export function normalizePassword(input) {
@@ -95,24 +96,20 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ========= Auto Login: signIn else createUser (ONLY if user-not-found)
+// ========= ✅ Auto Login: signIn else createUser then signIn
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-  if (!email) throw { code:"auth/invalid-email" };
-  if (!password) throw { code:"auth/weak-password" };
+  if (!email) throw new Error("bad-email");
+  if (!password) throw new Error("bad-pass");
 
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (e) {
     const code = e?.code || "";
-
-    // ✅ أنشئ حساب فقط لو المستخدم غير موجود
-    if (code === "auth/user-not-found") {
+    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
       return await createUserWithEmailAndPassword(auth, email, password);
     }
-
-    // ❌ لو الباسورد غلط أو أي مشكلة: لا تعمل إنشاء
     throw e;
   }
 }
