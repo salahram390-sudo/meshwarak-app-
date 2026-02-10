@@ -1,4 +1,4 @@
-// app.js — FINAL (Email/Password) + Firestore helpers
+// app.js — FINAL (Email/Password + Firestore helpers) — Mashwarak
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -18,22 +18,24 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ Firebase config (بتاعك)
+
+// ✅ Firebase config (بتاعك الحقيقي)
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
-  storageBucket: "meshwark-8adf8.appspot.com", // ✅ صح
+  storageBucket: "meshwark-8adf8.firebasestorage.app",
   messagingSenderId: "450060838946",
   appId: "1:450060838946:web:963cacdd125b253fa1827b",
+  measurementId: "G-GP0JGBZTGG"
 };
 
-// ========= init
 const app = initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ خلي الجلسة تفضل محفوظة (حتى بعد إغلاق المتصفح)
+// ✅ خلي الجلسة محفوظة حتى بعد قفل المتصفح
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -42,8 +44,7 @@ export function qs(key) {
   return u.searchParams.get(key);
 }
 
-// ✅ لو المستخدم كتب "salah" فقط بدون @
-// يتحول تلقائيًا لـ salah@meshwarak.local
+// لو كتب اسم بدون @ -> نحوله لإيميل وهمي صالح
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
@@ -51,11 +52,10 @@ export function normalizeEmail(input) {
   if (!x.includes("@")) {
     x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
     if (!x) x = "user";
-    return `${x}@meshwarak.local`;
+    x = `${x}@meshwarak.local`;
   }
 
-  // لو كتب salah@
-  if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
+  if (/^[^@]+@$/.test(x)) x = x + "meshwarak.local";
 
   return x;
 }
@@ -87,12 +87,9 @@ export async function ensureUserDoc(uid, patch = {}) {
         governorate: patch.governorate || null,
         center: patch.center || null,
         currentRideId: null,
-
-        // driver
         vehicle: patch.vehicle || null,
         model: patch.model || null,
         plate: patch.plate || null,
-
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -100,7 +97,6 @@ export async function ensureUserDoc(uid, patch = {}) {
     );
     return true;
   }
-
   return false;
 }
 
@@ -109,7 +105,7 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ========= ✅ Auto Login: signIn else createUser
+// ========= ✅ Auto Login: signIn else createUser then signIn
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
@@ -122,12 +118,8 @@ export async function emailLoginOrSignup(emailRaw, passRaw) {
   } catch (e) {
     const code = e?.code || "";
 
-    // لو الحساب مش موجود -> اعمله Signup
-    if (
-      code === "auth/user-not-found" ||
-      code === "auth/invalid-credential" ||
-      code === "auth/invalid-login-credentials"
-    ) {
+    // لو الحساب مش موجود -> أنشئه
+    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
       return await createUserWithEmailAndPassword(auth, email, password);
     }
 
@@ -158,7 +150,6 @@ export async function requireAuthAndRole(requiredRole = null) {
 
   let data = await getUserDoc(user.uid).catch(() => null);
 
-  // لو مفيش doc لأول مرة
   if (!data) {
     await ensureUserDoc(user.uid, {
       role: "passenger",
