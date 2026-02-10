@@ -21,9 +21,9 @@ function isBypass(url) {
   return (
     url.startsWith("https://www.gstatic.com/") ||
     url.startsWith("https://unpkg.com/") ||
-    url.startsWith("https://nominatim.openstreetmap.org/") ||
-    url.startsWith("https://www.openstreetmap.org/") ||
-    url.includes("tile.openstreetmap.org")
+    url.includes("tile.openstreetmap.org") ||
+    url.includes("openstreetmap.org") ||
+    url.includes("nominatim.openstreetmap.org")
   );
 }
 
@@ -31,12 +31,12 @@ self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // ✅ بدل addAll (اللي بيفشل كله لو ملف واحد ناقص)
+    // بدل addAll عشان لو ملف ناقص مايفشلش كله
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
           const res = await fetch(path, { cache: "no-store" });
-          if (res.ok) await cache.put(path, res);
+          if (res.ok) await cache.put(path, res.clone());
         } catch {}
       })
     );
@@ -57,16 +57,15 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
-  if (isBypass(url)) return; // ✅ سيبها Network عادي
+  if (isBypass(url)) return;
 
   // صفحات HTML: network-first
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       try {
         const res = await fetch(req);
-        const copy = res.clone();
         const cache = await caches.open(CACHE);
-        cache.put(req, copy);
+        cache.put(req, res.clone());
         return res;
       } catch {
         const cached = await caches.match(req);
@@ -83,9 +82,8 @@ self.addEventListener("fetch", (e) => {
 
     try {
       const res = await fetch(req);
-      const copy = res.clone();
       const cache = await caches.open(CACHE);
-      cache.put(req, copy);
+      cache.put(req, res.clone());
       return res;
     } catch {
       return cached;
