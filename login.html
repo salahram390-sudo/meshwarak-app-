@@ -39,11 +39,18 @@
 <body>
   <div class="box">
     <h1>🔐 مشوارك — تسجيل / دخول</h1>
-    <p>إيميل + كلمة مرور + (راكب/سائق) + المحافظة + المركز</p>
+    <p>إيميل + كلمة مرور + رقم الهاتف + (راكب/سائق) + المحافظة + المركز</p>
 
     <div class="field" style="margin-top:0">
       <label>الاسم</label>
       <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
+    </div>
+
+    <!-- ✅ NEW: Phone -->
+    <div class="field">
+      <label>رقم الهاتف (إلزامي)</label>
+      <input id="phone" inputmode="tel" placeholder="مثال: 01012345678 أو +201012345678" autocomplete="tel"/>
+      <div class="small" style="margin-top:6px">اكتب رقم صحيح (مصر: 11 رقم يبدأ بـ 01… أو دولي +20…)</div>
     </div>
 
     <div class="field">
@@ -85,7 +92,7 @@
         <label>موديل المركبة</label>
         <input id="model" placeholder="مثال: 2020" />
       </div>
-      <div class="small">سيظهر النوع + الموديل للراكب بعد قبول الطلب.</div>
+      <div class="small">سيظهر النوع + الموديل + رقمك للراكب بعد القبول.</div>
     </div>
 
     <div class="sep"></div>
@@ -120,7 +127,7 @@
   </div>
 
   <script type="module">
-    import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile } from "./app.js";
+    import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile, normalizePhone } from "./app.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -128,6 +135,7 @@
 
     const emailEl = $("email");
     const passEl  = $("password");
+    const phoneEl = $("phone");
     const msg     = $("msg");
 
     const rolePassenger = $("rolePassenger");
@@ -161,6 +169,7 @@
 
     const LS = {
       email:"mw_login_email",
+      phone:"mw_login_phone",
       gov:"mw_login_gov",
       center:"mw_login_center",
       centerOther:"mw_login_center_other",
@@ -281,6 +290,7 @@
     function saveDraft(){
       try{
         localStorage.setItem(LS.email, emailEl?.value || "");
+        localStorage.setItem(LS.phone, phoneEl?.value || "");
         localStorage.setItem(LS.gov, govEl?.value || "");
         localStorage.setItem(LS.center, centerEl?.value || "");
         localStorage.setItem(LS.centerOther, centerOtherEl?.value || "");
@@ -312,6 +322,7 @@
     function restoreDraft(){
       try{
         emailEl.value = localStorage.getItem(LS.email) || "";
+        phoneEl.value = localStorage.getItem(LS.phone) || "";
         nameEl.value = localStorage.getItem(LS.name) || "";
 
         const role = localStorage.getItem(LS.role) || "";
@@ -346,7 +357,7 @@
       }catch{}
     }
 
-    [emailEl, passEl, govEl, centerEl, centerOtherEl, nameEl, vehicleEl, modelEl]
+    [emailEl, passEl, phoneEl, govEl, centerEl, centerOtherEl, nameEl, vehicleEl, modelEl]
       .filter(Boolean)
       .forEach(el => {
         el.addEventListener("input", saveDraft);
@@ -381,6 +392,7 @@
       centerEl.disabled = locked || !govEl.value;
       centerOtherEl.disabled = locked;
       emailEl.disabled = locked;
+      phoneEl.disabled = locked;
       passEl.disabled = locked;
       nameEl.disabled = locked;
       vehicleEl.disabled = locked;
@@ -393,7 +405,9 @@
 
       const email = normalizeEmail(emailEl.value || "");
       const password = String(passEl.value || "");
+      const phoneNorm = normalizePhone(phoneEl.value || "");
 
+      if(!phoneNorm){ msg.textContent = "❌ اكتب رقم هاتف صحيح."; return; }
       if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط وسيُحوَّل لوهمي)."; return; }
       if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
       if(!selectedRole){ msg.textContent = "❌ اختر راكب أو سائق."; return; }
@@ -449,6 +463,7 @@
           role: finalRole,
           email: res.user.email || email,
           name: (nameEl.value||"").trim() || existing?.name || null,
+          phone: existing?.phone || phoneNorm, // ✅ مهم
           governorate: area.governorate,
           center: area.center,
           vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
@@ -460,6 +475,7 @@
           role: finalRole,
           email: res.user.email || email,
           name: (nameEl.value||"").trim() || existing?.name || null,
+          phone: phoneNorm, // ✅ يحدث الرقم دائماً
           governorate: area.governorate,
           center: area.center,
           vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
@@ -478,6 +494,8 @@
           msg.textContent = "❌ اكتب الإيميل أو اسم فقط.";
         }else if(code === "bad-pass"){
           msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف.";
+        }else if(code === "bad-phone"){
+          msg.textContent = "❌ رقم الهاتف غير صحيح.";
         }else if(code==="auth/operation-not-allowed"){
           msg.textContent = "❌ فعل Email/Password من Firebase Auth أولاً (Sign-in method).";
         }else if(code==="auth/invalid-api-key" || code==="auth/configuration-not-found"){
