@@ -1,4 +1,4 @@
-// app.js — Email/Password FINAL (Auto SignUp if not exists)
+// app.js — Email/Password FINAL (Auto SignUp only if user-not-found)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -17,7 +17,6 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ ضع إعدادات Firebase الحقيقية هنا
 const firebaseConfig = {
   apiKey: "REPLACE_ME",
   authDomain: "REPLACE_ME",
@@ -31,7 +30,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ خلي الجلسة تفضل محفوظة (حتى بعد الإغلاق)
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -41,11 +39,16 @@ export function qs(key) {
 }
 
 export function normalizeEmail(input) {
-  const x = String(input || "").trim().toLowerCase();
-  // لو المستخدم كتب حاجة بدون @ نخليها ايميل وهمي صالح
-  if (!x) return null;
-  if (x.includes("@")) return x;
-  return `${x.replace(/\s+/g, "")}@meshwarak.local`;
+  let v = String(input || "").trim().toLowerCase();
+  if(!v) return null;
+
+  if(!v.includes("@")){
+    v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
+    if(!v) v = "user";
+    v = `${v}@meshwarak.local`;
+  }
+  if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
+  return v;
 }
 
 export function normalizePassword(input) {
@@ -92,22 +95,24 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ========= ✅ Auto Login: signIn else createUser then signIn
+// ========= Auto Login: signIn else createUser (ONLY if user-not-found)
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-  if (!email) throw new Error("bad-email");
-  if (!password) throw new Error("bad-pass");
+  if (!email) throw { code:"auth/invalid-email" };
+  if (!password) throw { code:"auth/weak-password" };
 
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (e) {
     const code = e?.code || "";
-    // لو الحساب مش موجود -> أنشئه
-    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
-      const res = await createUserWithEmailAndPassword(auth, email, password);
-      return res;
+
+    // ✅ أنشئ حساب فقط لو المستخدم غير موجود
+    if (code === "auth/user-not-found") {
+      return await createUserWithEmailAndPassword(auth, email, password);
     }
+
+    // ❌ لو الباسورد غلط أو أي مشكلة: لا تعمل إنشاء
     throw e;
   }
 }
@@ -117,14 +122,8 @@ export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => {
-        unsub();
-        resolve(u);
-      },
-      (e) => {
-        unsub();
-        reject(e);
-      }
+      (u) => { unsub(); resolve(u); },
+      (e) => { unsub(); reject(e); }
     );
   });
 
