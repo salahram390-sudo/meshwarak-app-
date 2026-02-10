@@ -1,5 +1,5 @@
 // sw.js (FINAL SAFE)
-const CACHE = "meshwarak-v10"; // ✅ غيّر الرقم كل تحديث
+const CACHE = "meshwarak-v10"; // غيّر الرقم كل تحديث
 
 const ASSETS = [
   "./",
@@ -22,7 +22,6 @@ function isBypass(url) {
     url.startsWith("https://www.gstatic.com/") ||
     url.startsWith("https://unpkg.com/") ||
     url.startsWith("https://nominatim.openstreetmap.org/") ||
-    url.startsWith("https://www.openstreetmap.org/") ||
     url.includes("tile.openstreetmap.org")
   );
 }
@@ -57,17 +56,15 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
-  // ✅ سيب أي CDN / API Network عادي
-  if (isBypass(url)) return;
+  if (isBypass(url)) return; // ✅ سيبها Network عادي
 
   // صفحات HTML: network-first
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       try {
-        const res = await fetch(req, { cache: "no-store" });
-        const copy = res.clone();
+        const res = await fetch(req);
         const cache = await caches.open(CACHE);
-        cache.put(req, copy);
+        cache.put(req, res.clone());
         return res;
       } catch {
         const cached = await caches.match(req);
@@ -77,16 +74,15 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // باقي الملفات: cache-first + تحديث عند أول تحميل
+  // باقي الملفات: cache-first
   e.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;
 
     try {
       const res = await fetch(req);
-      const copy = res.clone();
       const cache = await caches.open(CACHE);
-      cache.put(req, copy);
+      cache.put(req, res.clone());
       return res;
     } catch {
       return cached;

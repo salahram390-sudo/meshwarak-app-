@@ -20,13 +20,13 @@ import {
 
 // ✅ Firebase config (بتاعك الحقيقي)
 const firebaseConfig = {
-  apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
-  authDomain: "meshwark-8adf8.firebaseapp.com",
-  projectId: "meshwark-8adf8",
-  storageBucket: "meshwark-8adf8.firebasestorage.app",
-  messagingSenderId: "450060838946",
-  appId: "1:450060838946:web:963cacdd125b253fa1827b",
-  measurementId: "G-GP0JGBZTGG",
+  "apiKey": "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
+  "authDomain": "meshwark-8adf8.firebaseapp.com",
+  "projectId": "meshwark-8adf8",
+  "storageBucket": "meshwark-8adf8.appspot.com",
+  "messagingSenderId": "450060838946",
+  "appId": "1:450060838946:web:963cacdd125b253fa1827b",
+  "measurementId": "G-GP0JGBZTGG"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -54,7 +54,7 @@ export function normalizeEmail(input) {
     x = `${x}@meshwarak.local`;
   }
 
-  // لو فيه @ بس مفيش دومين
+  // لو كتب "name@" بس
   if (/^[^@]+@$/.test(x)) x = x + "meshwarak.local";
 
   return x;
@@ -110,32 +110,19 @@ export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
 
-  if (!email) {
-    const err = new Error("bad-email");
-    err.code = "mw/bad-email";
-    throw err;
-  }
-  if (!password) {
-    const err = new Error("bad-pass");
-    err.code = "mw/bad-pass";
-    throw err;
-  }
+  if (!email) throw new Error("bad-email");
+  if (!password) throw new Error("bad-pass");
 
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (e) {
     const code = e?.code || "";
 
-    // ✅ لو الحساب مش موجود / بيانات دخول غير موجودة -> أنشئه تلقائيًا
-    if (
-      code === "auth/user-not-found" ||
-      code === "auth/invalid-credential" ||
-      code === "auth/invalid-login-credentials"
-    ) {
+    // لو الحساب مش موجود -> أنشئه
+    if (code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") {
       return await createUserWithEmailAndPassword(auth, email, password);
     }
 
-    // ✅ لو الإيميل موجود لكن الباسورد غلط -> ارجع نفس الخطأ
     throw e;
   }
 }
@@ -163,7 +150,7 @@ export async function requireAuthAndRole(requiredRole = null) {
 
   let data = await getUserDoc(user.uid).catch(() => null);
 
-  // لو مفيش users doc (مثلاً أول مرة)
+  // لو لسه مفيش users doc
   if (!data) {
     await ensureUserDoc(user.uid, {
       role: "passenger",
