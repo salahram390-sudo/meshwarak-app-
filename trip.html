@@ -56,7 +56,7 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const { user } = await requireAuthAndRole("driver");
-    document.getElementById("who").textContent = user.email;
+    document.getElementById("who").textContent = user.phoneNumber || user.email || "-";
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     const msg = document.getElementById("msg");

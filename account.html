@@ -104,7 +104,7 @@
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     const { user, data } = await requireAuthAndRole(null);
-    who.textContent = user.email;
+    who.textContent = user.phoneNumber || user.email || "-";
 
     const role = data?.role || "passenger";
     info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;

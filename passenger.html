@@ -31,6 +31,57 @@
     .rangeTop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
     .priceBig{font-weight:900;font-size:18px}
     input[type="range"]{width:100%}
+  
+    .vehGrid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+    }
+    .vehBtn{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      border-radius:16px;
+      padding:12px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      cursor:pointer;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+      font-weight:900;
+      transition: transform .08s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+    }
+    .vehBtn:active{ transform: translateY(1px); filter: brightness(1.05); }
+    .vehBtn .ic{
+      width:34px;height:34px;border-radius:12px;
+      display:grid;place-items:center;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      filter: grayscale(1) brightness(1.15);
+      opacity:.92;
+      font-size:18px;
+    }
+    .vehBtn.active{
+      background: rgba(43,108,255,.10);
+      border-color: rgba(43,108,255,.35);
+    }
+    .vehBtn.active .ic{
+      filter: grayscale(0) brightness(1.0);
+      opacity:1;
+      background: rgba(43,108,255,.14);
+      border-color: rgba(43,108,255,.30);
+    }
+    .vehBtn small{
+      display:block;
+      font-size:11px;
+      color: rgba(234,240,255,.70);
+      font-weight:700;
+    }
+    @media (max-width:520px){
+      .vehGrid{ grid-template-columns: repeat(2, 1fr); }
+    }
+
   </style>
 </head>
 
@@ -76,6 +127,42 @@
             </div>
             <div class="hint" style="margin-top:10px">
               * الطلب لن يظهر إلا للسائقين في نفس المحافظة + المركز.
+            </div>
+          </div>
+        </div>
+
+
+        <div class="card" style="margin-top:12px">
+          <div class="field" style="margin-top:0">
+            <label>اختر نوع المركبة</label>
+            <div class="vehGrid" id="vehGrid">
+              <div class="vehBtn" data-veh="tuktuk">
+                <div class="ic">🛺</div>
+                <div>توكتوك</div>
+              </div>
+              <div class="vehBtn" data-veh="motor_delivery">
+                <div class="ic">🏍️</div>
+                <div>موتسيكل دليفري</div>
+              </div>
+              <div class="vehBtn" data-veh="car">
+                <div class="ic">🚗</div>
+                <div>ملاكي</div>
+              </div>
+              <div class="vehBtn" data-veh="microbus">
+                <div class="ic">🚐</div>
+                <div>ميكروباص</div>
+              </div>
+              <div class="vehBtn" data-veh="tamanya">
+                <div class="ic">🚚</div>
+                <div>تمناية</div>
+              </div>
+              <div class="vehBtn" data-veh="caboot">
+                <div class="ic">🚛</div>
+                <div>عربية كابوت</div>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:10px">
+              * الطلب سيظهر فقط للسائقين الذين سجلوا بنفس نوع المركبة.
             </div>
           </div>
         </div>
@@ -179,9 +266,11 @@
       fromText: "mw_from_text",
       toText: "mw_to_text",
       lastRideId: "mw_lastRideId",
-      price: "mw_price"
+      price: "mw_price",
+      vehicle: "mw_vehicle"
     };
     const OTHER="__other__";
+    const VEHICLES = ["tuktuk","motor_delivery","car","microbus","tamanya","caboot"];
 
     const { user } = await requireAuthAndRole("passenger");
     logoutBtn.addEventListener("click", doLogout);
@@ -260,7 +349,23 @@
       return {gov, center:cv||null};
     }
 
-    function renderAreaPill(){
+    
+    function renderVehicleUI(){
+      if(!vehGrid) return;
+      vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
+        const v = b.getAttribute("data-veh");
+        b.classList.toggle("active", v === selectedVehicle);
+      });
+    }
+    function setVehicle(v){
+      if(!VEHICLES.includes(v)) return;
+      selectedVehicle = v;
+      localStorage.setItem(LS.vehicle, v);
+      renderVehicleUI();
+      updateUI();
+    }
+
+function renderAreaPill(){
       const {gov,center}=getSelectedArea();
       areaPill.textContent = (gov && center) ? `المنطقة: ${gov} / ${center}` : "المنطقة: -";
     }
@@ -292,6 +397,11 @@
       }
       renderAreaPill();
     }
+
+    vehGrid?.querySelectorAll(".vehBtn").forEach(b=>{
+      b.addEventListener("click", ()=> setVehicle(b.getAttribute("data-veh")));
+    });
+    renderVehicleUI();
 
     govSelect.addEventListener("change", ()=>{
       const g=(govSelect.value||"").trim();
@@ -327,7 +437,7 @@
     const fallbackName = (email)=>((email||"").split("@")[0]||"مستخدم").replace(/[._-]+/g," ").trim()||"مستخدم";
     const passengerName = (passengerProfile?.name || "").trim() || fallbackName(user.email);
     const passengerPhone = (passengerProfile?.phone || "").trim() || null;
-    whoEl.textContent = `${passengerName} • ${user.email}`;
+    whoEl.textContent = `${passengerName} • ${(user.phoneNumber || user.email || "-")}`;
 
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
@@ -512,6 +622,10 @@
       return !!(gov && center);
     }
 
+    function hasVehicleReady(){
+      return !!selectedVehicle;
+    }
+
     function updateUI(){
       renderAreaPill();
 
@@ -665,6 +779,7 @@
 
         const {gov,center}=getSelectedArea();
         if(!gov || !center){ msg.textContent="❌ اختر المحافظة + المركز."; updateUI(); return; }
+        if(!selectedVehicle){ msg.textContent="❌ اختر نوع المركبة."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
         if(!passengerPhone){ msg.textContent="❌ رقم الهاتف غير مسجل. افتح حسابي واحفظه."; return; }
 
@@ -690,7 +805,8 @@
 
           // ✅ مهم لتوافق Rules وQuery
           driverUid: null,
-          rejectedByDrivers: []
+          rejectedByDrivers: [],
+          requestedVehicle: selectedVehicle
         });
 
         currentRideId=docRef.id;

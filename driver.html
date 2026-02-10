@@ -95,6 +95,7 @@
         <span class="pill" id="onlinePill">Offline</span>
         <span class="pill" id="gpsPill">GPS: غير معروف</span>
         <span class="pill" id="areaPill">منطقة: -</span>
+         <span class="pill" id="vehPill">مركبة: -</span>
         <span class="pill" id="tripPill">لا يوجد رحلة</span>
       </div>
 
@@ -152,6 +153,7 @@
     const onlinePill = $("onlinePill");
     const gpsPill = $("gpsPill");
     const areaPill = $("areaPill");
+     const vehPill = $("vehPill");
     const tripPill = $("tripPill");
     const currentTripCard = $("currentTripCard");
 
@@ -418,15 +420,28 @@
       const gov = clean(driverProfile?.governorate || "");
       const cen = clean(driverProfile?.center || "");
 
-      if(!gov || !cen){
+      const veh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
+
+       if(!veh){
+         setupCard.style.display = "block";
+         setupMsg.textContent = "❌ لازم تختار نوع المركبة من صفحة حسابي.";
+         vehPill.textContent = "مركبة: -";
+         return false;
+       }
+
+       if(!gov || !cen){
         setupCard.style.display = "block";
         restoreAreaLS();
         areaPill.textContent = "منطقة: -";
+         vehPill.textContent = "مركبة: -";
         return false;
       }
 
       setupCard.style.display = "none";
       areaPill.textContent = `منطقة: ${gov} / ${cen}`;
+       const v = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || "-";
+       const vText = (v==="tuktuk")?"توكتوك":(v==="motor_delivery")?"موتسيكل دليفري":(v==="car")?"ملاكي":(v==="microbus")?"ميكروباص":(v==="tamanya")?"تمناية":(v==="caboot")?"عربية كابوت":v;
+       vehPill.textContent = `مركبة: ${vText}`;
       return true;
     }
 
@@ -690,6 +705,10 @@
       el.querySelector(`[data-offer="${r.id}"]`)?.addEventListener("click", ()=>{
         const w = el.querySelector(`#offerWrap_${r.id}`);
         w.style.display = (w.style.display==="none") ? "block" : "none";
+      }, (err)=>{
+        console.error(err);
+        // ✅ لا تظهر Missing permissions للمستخدم
+        listEl.innerHTML = `<div class=\"card\">لا توجد طلبات الآن.</div>`;
       });
 
       // إرسال عرض سعر
@@ -793,6 +812,12 @@
               if(clean(cur.governorate) !== gov || clean(cur.center) !== cen){
                 return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
               }
+
+              const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
+              const reqVeh = clean(cur.requestedVehicle || "");
+              if(myVeh && reqVeh && myVeh !== reqVeh){
+                return { ok:false, msg:"❌ هذا الطلب لنوع مركبة مختلف." };
+              }
             }
 
             const finalPrice = (cur.offerPriceEGP ?? cur.priceEGP ?? null);
@@ -876,6 +901,7 @@
         where("driverUid", "==", null),
         where("governorate", "==", gov),
         where("center", "==", cen),
+        where("requestedVehicle", "==", (clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || null)),
         limit(25)
       );
 

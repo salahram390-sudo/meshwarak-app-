@@ -58,8 +58,11 @@
             <label>نوع المركبة</label>
             <select id="vehicle">
               <option value="tuktuk">توكتوك</option>
+              <option value="motor_delivery">موتسيكل دليفري</option>
               <option value="car">سيارة ملاكي</option>
               <option value="microbus">ميكروباص</option>
+              <option value="tamanya">تمناية</option>
+              <option value="caboot">عربية كابوت</option>
             </select>
           </div>
           <div class="field" style="margin-top:0">
@@ -114,7 +117,7 @@
     }
 
     const { user, data } = await requireAuthAndRole(null);
-    who.textContent = user.email;
+    who.textContent = user.phoneNumber || user.email || "-";
 
     const role = data?.role || "passenger";
     info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;

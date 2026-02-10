@@ -28,13 +28,14 @@
     .btns{display:grid;gap:10px;margin-top:12px}
     .sep{height:1px;background:var(--stroke);margin:14px 0}
     #driverFields{display:none}
+    #otpWrap{display:none}
   </style>
 </head>
 
 <body>
   <div class="box">
-    <h1>🔐 مشوارك — إنشاء حساب / تسجيل دخول</h1>
-    <p>Gmail + باسورد + اسمك + رقم الهاتف + (راكب/سائق) + المحافظة + المركز</p>
+    <h1>🔐 مشوارك — تسجيل / دخول</h1>
+    <p>رقم موبايل فقط + اسمك + رقم الهاتف + (راكب/سائق) + المحافظة + المركز</p>
 
     <div class="field" style="margin-top:0">
       <label>الاسم</label>
@@ -42,19 +43,9 @@
     </div>
 
     <div class="field">
-      <label>رقم الهاتف (هيظهر للطرف الآخر بعد القبول)</label>
+      <label>رقم الموبايل (مصري)</label>
       <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" autocomplete="tel"/>
-      <div class="small" style="margin-top:6px">يفضل رقم مصري: 01 + 9 أرقام</div>
-    </div>
-
-    <div class="field">
-      <label>الإيميل (لازم ينتهي بـ @gmail.com)</label>
-      <input id="email" placeholder="example@gmail.com" autocomplete="email"/>
-    </div>
-
-    <div class="field">
-      <label>كلمة المرور</label>
-      <input id="pass" type="password" placeholder="اكتب باسورد" autocomplete="current-password"/>
+      <div class="small" style="margin-top:6px">مثال: 01xxxxxxxxx</div>
     </div>
 
     <div class="field">
@@ -64,7 +55,7 @@
         <button class="btn roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
       </div>
       <div class="small" style="margin-top:8px">
-        لو بتسجل دخول لأول مرة على الحساب ده، لازم تختار الدور.
+        أول مرة تسجل على الرقم ده: اختر الدور. بعد كده تقدر تدخل راكب أو سائق.
       </div>
     </div>
 
@@ -73,11 +64,12 @@
       <div class="field" style="margin-top:0">
         <label>نوع المركبة</label>
         <select id="vehicle">
+          <option value="tuktuk">توكتوك</option>
+          <option value="motor_delivery">موتسيكل دليفري</option>
           <option value="car">سيارة ملاكي</option>
           <option value="microbus">ميكروباص</option>
-          <option value="tuktuk">توكتوك</option>
           <option value="tamanya">تمناية</option>
-          <option value="trosikel">تروسيكل</option>
+          <option value="caboot">عربية كابوت</option>
         </select>
       </div>
       <div class="field">
@@ -112,19 +104,30 @@
     </div>
 
     <div class="btns">
-      <button class="btn primary" id="signupBtn" type="button">إنشاء حساب</button>
-      <button class="btn secondary" id="loginBtn" type="button">تسجيل دخول</button>
+      <button class="btn primary" id="sendOtpBtn" type="button">إرسال كود SMS</button>
+    </div>
+
+    <div id="otpWrap">
+      <div class="field">
+        <label>كود التفعيل</label>
+        <input id="otp" placeholder="اكتب الكود" inputmode="numeric" />
+      </div>
+      <div class="btns">
+        <button class="btn success" id="verifyBtn" type="button">تأكيد الدخول</button>
+        <button class="btn secondary" id="resendBtn" type="button">إعادة إرسال</button>
+      </div>
     </div>
 
     <div class="hint" id="msg" style="margin-top:12px"></div>
+
+    <!-- required for Firebase Phone Auth -->
+    <div id="recaptcha-container"></div>
   </div>
 
   <script type="module">
-    import { auth, db } from "./app.js";
+    import { auth, db, qs, normalizeEgyptPhone, startPhoneLogin } from "./app.js";
 
     import {
-      createUserWithEmailAndPassword,
-      signInWithEmailAndPassword,
       onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
@@ -132,17 +135,16 @@
       doc, getDoc, setDoc, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    const qs = (k) => new URLSearchParams(location.search).get(k);
     const $ = (id)=>document.getElementById(id);
 
     const nameEl  = $("name");
     const phoneEl = $("phone");
-    const emailEl = $("email");
-    const passEl  = $("pass");
+    const otpEl   = $("otp");
     const msg     = $("msg");
 
-    const signupBtn = $("signupBtn");
-    const loginBtn  = $("loginBtn");
+    const sendOtpBtn = $("sendOtpBtn");
+    const verifyBtn  = $("verifyBtn");
+    const resendBtn  = $("resendBtn");
 
     const rolePassenger = $("rolePassenger");
     const roleDriver = $("roleDriver");
@@ -154,6 +156,8 @@
     const centerEl = $("center");
     const otherWrap = $("otherCenterWrap");
     const centerOtherEl = $("centerOther");
+
+    const otpWrap = $("otpWrap");
 
     const OTHER = "__other__";
 
@@ -229,21 +233,16 @@
       msg.textContent = "";
     });
 
-    function isGmail(email){ return /@gmail\.com$/i.test(email.trim()); }
-
-    function normalizePhone(p){
-      const x = (p||"").trim().replace(/\s+/g,"");
-      if(!x) return null;
-      if(/^01\d{9}$/.test(x)) return x;
-      if(/^(?:\+20|0020)1\d{9}$/.test(x)) return x.replace(/^0020/,"+20");
-      return null;
-    }
-
-    function normalizeModel(x){
-      const v = (x||"").trim();
-      if(!v) return null;
-      if(v.length > 8) return v.slice(0,8);
-      return v;
+    function getArea(){
+      const governorate = (govEl.value || "").trim() || null;
+      const cVal = (centerEl.value || "").trim();
+      if(!governorate) return { governorate:null, center:null };
+      if(!cVal) return { governorate, center:null };
+      if(cVal === OTHER){
+        const manual = (centerOtherEl.value || "").trim();
+        return { governorate, center: (manual.length >= 2 ? manual : null) };
+      }
+      return { governorate, center: cVal || null };
     }
 
     let selectedRole = null;
@@ -262,9 +261,16 @@
       }
     }
 
+    rolePassenger.addEventListener("click", ()=> setRole("passenger"));
+    roleDriver.addEventListener("click", ()=> setRole("driver"));
+
+    const roleFromUrl = qs("role");
+    if(roleFromUrl === "passenger" || roleFromUrl === "driver") setRole(roleFromUrl);
+
     function lockUI(locked){
-      signupBtn.disabled = locked;
-      loginBtn.disabled  = locked;
+      sendOtpBtn.disabled = locked;
+      verifyBtn.disabled  = locked;
+      resendBtn.disabled  = locked;
       rolePassenger.disabled = locked;
       roleDriver.disabled = locked;
 
@@ -274,8 +280,7 @@
 
       nameEl.disabled = locked;
       phoneEl.disabled = locked;
-      emailEl.disabled = locked;
-      passEl.disabled = locked;
+      otpEl.disabled = locked;
 
       vehicleEl.disabled = locked;
       modelEl.disabled = locked;
@@ -298,51 +303,37 @@
       await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
     }
 
-    function getArea(){
-      const governorate = (govEl.value || "").trim() || null;
-      const cVal = (centerEl.value || "").trim();
-      if(!governorate) return { governorate:null, center:null };
-      if(!cVal) return { governorate, center:null };
-      if(cVal === OTHER){
-        const manual = (centerOtherEl.value || "").trim();
-        return { governorate, center: (manual.length >= 2 ? manual : null) };
-      }
-      return { governorate, center: cVal || null };
+    function normalizeModel(x){
+      const v = (x||"").trim();
+      if(!v) return null;
+      if(v.length > 10) return v.slice(0,10);
+      return v;
     }
 
-    rolePassenger.addEventListener("click", ()=> setRole("passenger"));
-    roleDriver.addEventListener("click", ()=> setRole("driver"));
+    function getVehicleText(v){
+      return (v==="tuktuk")?"توكتوك":
+        (v==="motor_delivery")?"موتسيكل دليفري":
+        (v==="car")?"ملاكي":
+        (v==="microbus")?"ميكروباص":
+        (v==="tamanya")?"تمناية":
+        (v==="caboot")?"عربية كابوت": v;
+    }
 
-    const roleFromUrl = qs("role");
-    if(roleFromUrl === "passenger" || roleFromUrl === "driver") setRole(roleFromUrl);
+    let confirmationResult = null;
+    let lastPhone = null;
 
-    onAuthStateChanged(auth, async (user) => {
-      if(!user) return;
-      try{
-        const data = await getUserDoc2(user.uid);
-        if(data?.role === "passenger" || data?.role === "driver"){
-          goAfterLogin(data.role);
-        }
-      }catch(e){ console.error(e); }
-    });
-
-    async function handleSignup(){
+    async function handleSendOtp(){
       msg.textContent = "";
-
       const name  = nameEl.value.trim();
-      const phone = normalizePhone(phoneEl.value);
-      const email = emailEl.value.trim();
-      const pass  = passEl.value.trim();
+      const phoneRaw = phoneEl.value;
+      const phone = normalizeEgyptPhone(phoneRaw);
       const area  = getArea();
 
       if(!name || name.length < 2) return msg.innerHTML = `<span class="text-bad">❌ اكتب اسمك (حرفين على الأقل).</span>`;
-      if(!phone) return msg.innerHTML = `<span class="text-bad">❌ اكتب رقم هاتف صحيح (مثال: 01xxxxxxxxx).</span>`;
-      if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-      if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+      if(!phone) return msg.innerHTML = `<span class="text-bad">❌ اكتب رقم مصري صحيح (مثال: 01xxxxxxxxx).</span>`;
       if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ لازم تختار راكب أو سائق.</span>`;
       if(!area.governorate || !area.center) return msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
 
-      // سائق: اطلب مركبة + موديل
       let vehicle=null, model=null;
       if(selectedRole === "driver"){
         vehicle = vehicleEl.value || null;
@@ -352,97 +343,91 @@
       }
 
       lockUI(true);
-      msg.textContent = "جارٍ إنشاء الحساب…";
+      msg.textContent = "جارٍ إرسال الكود…";
 
       try{
-        const res = await createUserWithEmailAndPassword(auth, email, pass);
+        confirmationResult = await startPhoneLogin(phone, "recaptcha-container");
+        lastPhone = phone;
 
-        const payload = {
-          name, phone, email,
-          role: selectedRole,
-          governorate: area.governorate,
-          center: area.center,
-          createdAt: serverTimestamp()
-        };
-        if(selectedRole === "driver"){
-          payload.vehicle = vehicle;
-          payload.model = model;
-        }
-
-        await upsertUser(res.user.uid, payload);
-
-        msg.innerHTML = `<span class="text-ok">✅ تم إنشاء الحساب!</span>`;
-        goAfterLogin(selectedRole);
+        otpWrap.style.display = "block";
+        msg.innerHTML = `<span class="text-ok">✅ تم إرسال الكود إلى ${phone}</span>`;
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ فشل إنشاء الحساب. ممكن الإيميل مستخدم قبل كده.</span>`;
+        msg.innerHTML = `<span class="text-bad">❌ فشل إرسال الكود. جرّب مرة أخرى.</span>`;
       }finally{
         lockUI(false);
       }
     }
 
-    async function handleLogin(){
+    async function handleVerify(){
       msg.textContent = "";
+      if(!confirmationResult) return msg.innerHTML = `<span class="text-bad">❌ اضغط إرسال كود أولاً.</span>`;
 
-      const name  = nameEl.value.trim();
-      const phone = normalizePhone(phoneEl.value);
-      const email = emailEl.value.trim();
-      const pass  = passEl.value.trim();
-      const area  = getArea();
-
-      if(!isGmail(email)) return msg.innerHTML = `<span class="text-bad">❌ لازم الإيميل ينتهي بـ @gmail.com</span>`;
-      if(pass.length < 6) return msg.innerHTML = `<span class="text-bad">❌ كلمة المرور لازم 6 حروف/أرقام أو أكثر.</span>`;
+      const code = (otpEl.value||"").trim();
+      if(code.length < 4) return msg.innerHTML = `<span class="text-bad">❌ اكتب الكود.</span>`;
 
       lockUI(true);
-      msg.textContent = "جارٍ تسجيل الدخول…";
+      msg.textContent = "جارٍ التأكيد…";
 
       try{
-        const res = await signInWithEmailAndPassword(auth, email, pass);
-        const data = await getUserDoc2(res.user.uid);
-        let finalRole = data?.role || null;
+        const res = await confirmationResult.confirm(code);
+        const uid = res.user.uid;
 
-        if(!finalRole){
-          if(!selectedRole) return msg.innerHTML = `<span class="text-bad">❌ اختر راكب أو سائق أولاً.</span>`;
-          finalRole = selectedRole;
+        // لو الحساب موجود: يسمح بالدخول راكب/سائق بدون تغيير role
+        const existing = await getUserDoc2(uid).catch(()=>null);
+
+        // دور نهائي
+        let finalRole = existing?.role || selectedRole;
+
+        // ممنوع تغيير الدور بعد الإنشاء
+        if(existing?.role && selectedRole && existing.role !== selectedRole){
+          finalRole = existing.role;
         }
 
-        const patch = { email, role: finalRole };
-        if(name && name.length >= 2) patch.name = name;
-        if(phone) patch.phone = phone;
+        const area = getArea();
+        const payload = {
+          name: nameEl.value.trim() || null,
+          phone: lastPhone || res.user.phoneNumber || null,
+          role: finalRole,
+          governorate: area.governorate,
+          center: area.center,
+          createdAt: existing?.createdAt || serverTimestamp()
+        };
 
-        // مركبة السائق (لو دخل وباختيار سائق وكتبها)
+        // بيانات السائق
         if(finalRole === "driver"){
-          const vehicle = vehicleEl.value || null;
-          const model = normalizeModel(modelEl.value);
-          if(vehicle) patch.vehicle = vehicle;
-          if(model) patch.model = model;
+          payload.vehicle = vehicleEl.value || existing?.vehicle || null;
+          payload.model = normalizeModel(modelEl.value) || existing?.model || null;
         }
 
-        if(area.governorate && area.center){
-          patch.governorate = area.governorate;
-          patch.center = area.center;
-        }else if(!data?.governorate || !data?.center){
-          msg.innerHTML = `<span class="text-bad">❌ اختر المحافظة + المركز.</span>`;
-          return;
-        }
+        await upsertUser(uid, payload);
 
-        await upsertUser(res.user.uid, patch);
-
-        msg.innerHTML = `<span class="text-ok">✅ تم تسجيل الدخول!</span>`;
+        msg.innerHTML = `<span class="text-ok">✅ تم تسجيل الدخول.</span>`;
         goAfterLogin(finalRole);
       }catch(e){
         console.error(e);
-        msg.innerHTML = `<span class="text-bad">❌ الإيميل أو الباسورد غلط.</span>`;
+        msg.innerHTML = `<span class="text-bad">❌ الكود غير صحيح.</span>`;
       }finally{
         lockUI(false);
       }
     }
 
-    signupBtn.addEventListener("click", handleSignup);
-    loginBtn.addEventListener("click", handleLogin);
+    async function handleResend(){
+      otpEl.value = "";
+      await handleSendOtp();
+    }
 
-    // init show driver fields if role from url
-    if(roleFromUrl === "driver") setRole("driver");
+    sendOtpBtn.addEventListener("click", handleSendOtp);
+    verifyBtn.addEventListener("click", handleVerify);
+    resendBtn.addEventListener("click", handleResend);
+
+    onAuthStateChanged(auth, async (user)=>{
+      if(!user) return;
+      const data = await getUserDoc2(user.uid).catch(()=>null);
+      if(data?.role === "passenger" || data?.role === "driver"){
+        goAfterLogin(data.role);
+      }
+    });
   </script>
 </body>
 </html>
