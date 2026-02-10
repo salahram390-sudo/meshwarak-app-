@@ -1,12 +1,12 @@
-// app.js - SINGLE Firebase init + helpers (Email/Password) ✅ FINAL
+// app.js (FINAL) — Phone Auth + Firestore helpers
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-
 import {
   getAuth,
   onAuthStateChanged,
   signOut,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
 import {
   getFirestore,
   doc,
@@ -15,118 +15,157 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ Firebase config
-export const firebaseConfig = {
-  apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
-  authDomain: "meshwark-8adf8.firebaseapp.com",
-  projectId: "meshwark-8adf8",
-  storageBucket: "meshwark-8adf8.firebasestorage.app",
-  messagingSenderId: "450060838946",
-  appId: "1:450060838946:web:963cacdd125b253fa1827b",
-  measurementId: "G-GP0JGBZTGG",
+// ✅ Firebase config (زي ما هو عندك)
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME",
 };
 
-export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 
-// =========================
-// Helpers (URL / Safe)
-// =========================
-export const qs = (k) => new URLSearchParams(location.search).get(k);
-
-export function currentPage() {
-  const file = location.pathname.split("/").pop() || "index.html";
-  return file + (location.search || "");
+// ========= utils
+export function qs(key) {
+  const u = new URL(location.href);
+  return u.searchParams.get(key);
 }
 
-export function redirectToLogin(requiredRole = null) {
-  const returnTo = encodeURIComponent(currentPage());
-  const roleQ = requiredRole ? `&role=${encodeURIComponent(requiredRole)}` : "";
-  location.href = `login.html?returnTo=${returnTo}${roleQ}`;
+export function normalizeEgyptPhone(input) {
+  let x = String(input || "").trim();
+
+  // remove spaces/dashes
+  x = x.replace(/[^\d+]/g, "");
+
+  // 01xxxxxxxxx
+  if (/^01\d{9}$/.test(x)) return "+20" + x.substring(1);
+
+  // 201xxxxxxxxx
+  if (/^20\d{10}$/.test(x)) return "+" + x;
+
+  // +201xxxxxxxxx
+  if (/^\+20\d{10}$/.test(x)) return x;
+
+  return null;
 }
 
-export async function safeSetDoc(ref, payload) {
-  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+// ========= Phone Login (OTP)
+export async function startPhoneLogin(phoneE164, recaptchaContainerId = "recaptcha") {
+  // لازم يبقى في <div id="recaptcha"></div> في login.html
+  if (!window.__mw_recaptchaVerifier) {
+    window.__mw_recaptchaVerifier = new RecaptchaVerifier(
+      auth,
+      recaptchaContainerId,
+      {
+        size: "invisible",
+      }
+    );
+  } else {
+    try {
+      // لو اتعمل قبل كده
+      window.__mw_recaptchaVerifier.clear();
+    } catch {}
+    window.__mw_recaptchaVerifier = new RecaptchaVerifier(
+      auth,
+      recaptchaContainerId,
+      { size: "invisible" }
+    );
+  }
+
+  const appVerifier = window.__mw_recaptchaVerifier;
+  const confirmation = await signInWithPhoneNumber(auth, phoneE164, appVerifier);
+  // login.html هيكمل بـ confirmation.confirm(code)
+  return confirmation;
 }
 
-// =========================
-// Users
-// =========================
+// ========= users helpers
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
 
-export async function upsertUser(uid, payload) {
+export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
-  await safeSetDoc(ref, payload);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(
+      ref,
+      {
+        role: patch.role || "passenger",
+        name: patch.name || null,
+        phone: patch.phone || null,
+        email: patch.email || null,
+        governorate: patch.governorate || null,
+        center: patch.center || null,
+        currentRideId: null,
+        vehicle: patch.vehicle || null,
+        model: patch.model || null,
+        plate: patch.plate || null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return true;
+  }
+  return false;
 }
 
-// ✅ NEW: used by profile.html
 export async function saveUserProfile(uid, payload) {
-  // نفس upsertUser لكن باسم واضح
-  return upsertUser(uid, payload);
+  const ref = doc(db, "users", uid);
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-export function fallbackNameFromEmail(email) {
-  const x = (email || "").split("@")[0] || "مستخدم";
-  return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
-}
-
-/**
- * يضمن وجود بيانات أساسية للمستخدم في users/{uid}
- * - name/email (لو ناقصين)
- * - role لو اتبعت
- */
-export async function ensureUserDefaults(user, extra = {}) {
-  if (!user?.uid) return;
-
-  const existing = await getUserDoc(user.uid).catch(() => null);
-  const patch = { ...extra };
-
-  if (!existing?.email && user.email) patch.email = user.email;
-  if (!existing?.name) patch.name = fallbackNameFromEmail(user.email);
-
-  if (Object.keys(patch).length === 0) return;
-
-  await upsertUser(user.uid, patch).catch(() => {});
-}
-
-// =========================
-// Auth Guard (✅ unsubscribe + stable)
-// =========================
-export function requireAuthAndRole(requiredRole = null) {
-  return new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      try { unsub(); } catch {}
-
-      if (!user) {
-        redirectToLogin(requiredRole);
-        return;
+// ========= auth guard
+export async function requireAuthAndRole(requiredRole = null) {
+  const user = await new Promise((resolve, reject) => {
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => {
+        unsub();
+        resolve(u);
+      },
+      (e) => {
+        unsub();
+        reject(e);
       }
-
-      const data = await getUserDoc(user.uid).catch(() => null);
-
-      if (!data?.role) {
-        redirectToLogin(requiredRole);
-        return;
-      }
-
-      if (requiredRole && data.role !== requiredRole) {
-        location.href = "index.html";
-        return;
-      }
-
-      await ensureUserDefaults(user);
-
-      resolve({ user, data });
-    });
+    );
   });
+
+  if (!user) {
+    location.href = "./login.html";
+    throw new Error("not signed in");
+  }
+
+  const data = await getUserDoc(user.uid).catch(() => null);
+
+  // لو لسه مفيش users doc (مثلاً أول مرة بعد OTP)
+  if (!data) {
+    await ensureUserDoc(user.uid, {
+      role: "passenger",
+      phone: user.phoneNumber || null,
+      email: user.email || null,
+      name: null,
+    });
+  }
+
+  const fresh = (await getUserDoc(user.uid).catch(() => null)) || data || {};
+  const role = fresh.role || null;
+
+  if (requiredRole && role !== requiredRole) {
+    location.href = "./index.html";
+    throw new Error("wrong role");
+  }
+
+  return { user, data: fresh };
 }
 
 export async function doLogout() {
   await signOut(auth);
-  location.href = "login.html";
+  location.href = "./login.html";
 }
