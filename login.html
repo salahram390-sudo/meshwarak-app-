@@ -43,14 +43,12 @@
     let v = String(x||"").trim();
     if(!v) return null;
 
-    // ✅ لو كتب اسم بدون @ -> نحوله لإيميل وهمي
+    // لو كتب اسم بدون @ -> ايميل وهمي
     if(!v.includes("@")){
       v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
       if(!v) v = "user";
       v = `${v}@meshwarak.local`;
     }
-
-    // ✅ تصحيح بسيط: لو فيه @ بس مفيش دومين
     if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
 
     return v.toLowerCase();
@@ -98,14 +96,14 @@
       if(vehicleEl) vehicleEl.value = localStorage.getItem(LS.vehicle) || vehicleEl.value;
       if(modelEl) modelEl.value = localStorage.getItem(LS.model) || "";
 
-      // ✅ gov ثم trigger change عشان fillCenters يحصل
+      // gov ثم change عشان fillCenters يحصل من كودك الأساسي
       const g = localStorage.getItem(LS.gov) || "";
       if(govEl && g){
         govEl.value = g;
         govEl.dispatchEvent(new Event("change"));
       }
 
-      // ✅ بعد ما centers اتملا
+      // بعد ما centers اتملا
       const c = localStorage.getItem(LS.center) || "";
       const co = localStorage.getItem(LS.centerOther) || "";
       if(centerEl && c){
@@ -121,7 +119,6 @@
     }catch{}
   }
 
-  // احفظ مع أي تغيير (input + change)
   [emailEl, passEl, govEl, centerEl, centerOtherEl, nameEl, vehicleEl, modelEl]
     .filter(Boolean)
     .forEach(el => {
@@ -195,6 +192,7 @@
         role: selectedRole,
         email: res.user.email || email,
         name: nameEl?.value?.trim() || null,
+        governororate: area.governorate, // (لو عندك typo قديم تجاهله) 
         governorate: area.governorate,
         center: area.center,
         vehicle: selectedRole==="driver" ? (vehicleEl?.value||null) : null,
@@ -206,9 +204,10 @@
       goAfterLogin(selectedRole);
     }catch(e){
       console.error(e);
-      if((e?.code||"")==="auth/wrong-password"){
+      const code = e?.code || "";
+      if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials"){
         msg.textContent = "❌ كلمة المرور غير صحيحة.";
-      }else if((e?.code||"")==="auth/invalid-email"){
+      }else if(code==="auth/invalid-email"){
         msg.textContent = "❌ الإيميل غير صحيح.";
       }else{
         msg.textContent = "❌ فشل الدخول. جرّب مرة أخرى.";
@@ -223,7 +222,7 @@
   onAuthStateChanged(auth, async (user)=>{
     if(!user) return;
     const snap = await getDoc(doc(db,"users",user.uid)).catch(()=>null);
-    const role = (snap && snap.exists && snap.exists()) ? (snap.data().role || null) : null;
+    const role = (snap && typeof snap.exists === "function" && snap.exists()) ? (snap.data().role || null) : null;
     if(role==="passenger" || role==="driver") goAfterLogin(role);
   });
 </script>
