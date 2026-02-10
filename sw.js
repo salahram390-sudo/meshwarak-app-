@@ -1,6 +1,6 @@
-// sw.js (FINAL SAFE v10 - stale-while-revalidate)
-// مهم: غيّر الرقم عند أي تحديث كبير (لتفريغ كاش الأجهزة القديمة)
-const CACHE = "meshwarak-v10";
+// sw.js (FINAL SAFE v11 - GitHub Pages Fix)
+// ✅ غيّر الرقم عند أي تحديث كبير لتفريغ كاش الأجهزة القديمة
+const CACHE = "meshwarak-v11";
 
 const ASSETS = [
   "./",
@@ -29,16 +29,24 @@ function isBypass(url) {
   );
 }
 
+function isHtml(req) {
+  return req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
+}
+function isCodeAsset(url) {
+  return url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".html");
+}
+
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // بدل addAll (اللي بيفشل كله لو ملف واحد ناقص)
+    // ✅ كاش آمن: نخزن بنفس الـ Request الفعلي عشان caches.match(req) يشتغل
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
-          const res = await fetch(path, { cache: "no-store" });
-          if (res.ok) await cache.put(path, res.clone());
+          const req = new Request(path, { cache: "reload" });
+          const res = await fetch(req);
+          if (res.ok) await cache.put(req, res.clone());
         } catch {}
       })
     );
@@ -59,40 +67,52 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
-  if (isBypass(url)) return; // Network فقط
+  // ✅ سيب أي حاجة خارجية Network طبيعي
+  if (isBypass(url)) return;
 
-  // صفحات HTML: Network-first + fallback
-  if (req.mode === "navigate") {
+  // ✅ HTML / JS / CSS: Network-first (عشان التحديثات توصل فوراً)
+  if (isHtml(req) || isCodeAsset(new URL(url).pathname)) {
     e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+
       try {
-        const res = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put(req, res.clone());
+        const res = await fetch(req, { cache: "no-store" });
+        if (res && res.ok) cache.put(req, res.clone());
         return res;
       } catch {
-        return (await caches.match(req)) || (await caches.match("./index.html"));
+        // fallback للكاش
+        const cached = await cache.match(req, { ignoreSearch: true });
+        if (cached) return cached;
+
+        // fallback إضافي للصفحات
+        if (isHtml(req)) {
+          const home = await cache.match(new Request("./index.html", { cache: "reload" }), { ignoreSearch: true });
+          if (home) return home;
+        }
+
+        throw new Error("offline");
       }
     })());
     return;
   }
 
-  // باقي الملفات: Stale-While-Revalidate
+  // ✅ باقي الملفات (صور/manifest..): Cache-first + تحديث خلفي
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    const cached = await cache.match(req);
+    const cached = await cache.match(req, { ignoreSearch: true });
 
-    const networkFetch = fetch(req).then((res) => {
-      if (res && res.ok) cache.put(req, res.clone());
-      return res;
-    }).catch(() => null);
+    const networkFetch = fetch(req)
+      .then((res) => {
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      })
+      .catch(() => null);
 
-    // لو عندنا cached رجّعه فوراً، وفي الخلفية حدّثه من الشبكة
     if (cached) {
       e.waitUntil(networkFetch);
       return cached;
     }
 
-    // لو مفيش cached حاول من الشبكة
     const res = await networkFetch;
     return res || cached;
   })());
