@@ -1,4 +1,4 @@
-// app.js — FINAL (Email/Password) + Firestore helpers
+// app.js — FINAL v12 (Email/Password) + Firestore helpers + Phone helpers — Mashwarak
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -42,8 +42,7 @@ export function qs(key) {
   return u.searchParams.get(key);
 }
 
-// ✅ لو المستخدم كتب "salah" فقط بدون @
-// يتحول تلقائيًا لـ salah@meshwarak.local
+// ✅ لو المستخدم كتب "salah" فقط بدون @ → يتحول تلقائيًا لـ salah@meshwarak.local
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
@@ -63,6 +62,53 @@ export function normalizeEmail(input) {
 export function normalizePassword(input) {
   const x = String(input || "").trim();
   return x.length >= 6 ? x : null;
+}
+
+// ✅ Phone normalization (EG-focused لكن يقبل أي رقم دولي بشكل مبسط)
+// - يقبل: 010..., +2010..., 2010...
+// - يخزن كـ string (بدون مسافات)
+export function normalizePhone(input) {
+  let x = String(input || "").trim();
+  if (!x) return null;
+
+  // أرقام عربية/فارسي → إنجليزي
+  const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9" };
+  x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
+
+  // شيل أي حاجة غير + أو رقم
+  x = x.replace(/[^\d+]/g, "");
+
+  // لو فيه + في النص خليه أول حرف فقط
+  if (x.includes("+")) {
+    x = "+" + x.replace(/\+/g, "");
+  }
+
+  // تحويل 00 → +
+  if (x.startsWith("00")) x = "+" + x.slice(2);
+
+  // لو رقم مصر محلي 01xxxxxxxxx → +20...
+  if (/^01\d{9}$/.test(x)) x = "+20" + x;
+
+  // لو 201xxxxxxxxx → +20...
+  if (/^201\d{9}$/.test(x)) x = "+20" + x.slice(2);
+
+  // لو +201xxxxxxxxx تمام
+  // قبول عام: + و 8-15 رقم
+  if (x.startsWith("+")) {
+    const digits = x.slice(1);
+    if (!/^\d{8,15}$/.test(digits)) return null;
+    return "+" + digits;
+  }
+
+  // لو بدون +: لازم 8-15 رقم (هنخزنها زي ما هي)
+  if (!/^\d{8,15}$/.test(x)) return null;
+  return x;
+}
+
+export function formatPhoneForDisplay(phone) {
+  const p = String(phone || "").trim();
+  if (!p) return "-";
+  return p;
 }
 
 // ========= users helpers
@@ -109,6 +155,14 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
+// ✅ تحديث رقم الهاتف فقط (مفيد في login/profile)
+export async function setUserPhone(uid, phoneRaw) {
+  const phone = normalizePhone(phoneRaw);
+  if (!phone) throw new Error("bad-phone");
+  await saveUserProfile(uid, { phone });
+  return phone;
+}
+
 // ========= ✅ Auto Login: signIn else createUser
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
@@ -122,7 +176,7 @@ export async function emailLoginOrSignup(emailRaw, passRaw) {
   } catch (e) {
     const code = e?.code || "";
 
-    // لو الحساب مش موجود -> اعمله Signup
+    // لو الحساب مش موجود -> Signup
     if (
       code === "auth/user-not-found" ||
       code === "auth/invalid-credential" ||
@@ -164,6 +218,7 @@ export async function requireAuthAndRole(requiredRole = null) {
       role: "passenger",
       email: user.email || null,
       name: null,
+      phone: null,
     });
     data = await getUserDoc(user.uid).catch(() => null);
   }
