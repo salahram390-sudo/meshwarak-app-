@@ -1,5 +1,5 @@
-// sw.js (جاهز — FIXED)
-const CACHE = "meshwarak-v4"; // ✅ غيّر الرقم عند كل تحديث كبير
+// sw.js (FINAL - SAFE)
+const CACHE = "meshwarak-v4"; // ✅ غيّر الرقم عند كل تحديث
 
 const ASSETS = [
   "./",
@@ -17,77 +17,77 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then(async (c) => {
-      // ✅ لا تخلّي install يفشل لو ملف واحد مش موجود (زي profile.html / trip.html)
-      await Promise.all(
-        ASSETS.map((url) =>
-          fetch(url, { cache: "no-store" })
-            .then((res) => (res.ok ? c.put(url, res.clone()) : null))
-            .catch(() => null)
-        )
-      );
-    })
-  );
-  self.skipWaiting();
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+
+    // ✅ لو ملف ناقص: ما تفشلش التثبيت (بدون شاشة بيضا)
+    await Promise.allSettled(
+      ASSETS.map((u) =>
+        cache.add(new Request(u, { cache: "reload" }))
+      )
+    );
+
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    (async () => {
-      const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
-      await self.clients.claim();
-    })()
-  );
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
-// ✅ Network-first للـ HTML (عشان التحديثات توصل فوراً)
-// ✅ Cache-first لباقي الملفات (مع تحديث الخلفية)
 self.addEventListener("fetch", (e) => {
   const req = e.request;
+  const url = new URL(req.url);
 
-  const isHtml =
+  // ✅ تجاهل أي طلبات مش http(s)
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
+
+  const isHTML =
     req.mode === "navigate" ||
-    (req.headers.get("accept") || "").includes("text/html");
+    (req.headers.get("accept") || "").includes("text/html") ||
+    url.pathname.endsWith(".html");
 
-  if (isHtml) {
-    e.respondWith(
-      fetch(req, { cache: "no-store" })
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          return res;
-        })
-        .catch(async () => {
-          const cached = await caches.match(req);
-          return cached || (await caches.match("./index.html")) || Response.error();
-        })
-    );
+  // ✅ HTML: Network-first (علشان ما يعلقش على نسخة قديمة)
+  if (isHTML) {
+    e.respondWith((async () => {
+      try {
+        const fresh = await fetch(req);
+        const cache = await caches.open(CACHE);
+        cache.put(req, fresh.clone());
+        return fresh;
+      } catch {
+        const cached = await caches.match(req);
+        return cached || caches.match("./index.html");
+      }
+    })());
     return;
   }
 
-  e.respondWith(
-    caches.match(req).then((cached) => {
-      const networkFetch = fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => null);
+  // ✅ باقي الملفات: Cache-first + تحديث بالخلفية
+  e.respondWith((async () => {
+    const cached = await caches.match(req);
+    if (cached) {
+      e.waitUntil((async () => {
+        try {
+          const fresh = await fetch(req);
+          const cache = await caches.open(CACHE);
+          cache.put(req, fresh.clone());
+        } catch {}
+      })());
+      return cached;
+    }
 
-      // Cache-first
-      if (cached) {
-        // تحديث بالخلفية
-        e.waitUntil(networkFetch);
-        return cached;
-      }
-
-      // لو مفيش كاش
-      return networkFetch.then((r) => r || Response.error());
-    })
-  );
+    try {
+      const fresh = await fetch(req);
+      const cache = await caches.open(CACHE);
+      cache.put(req, fresh.clone());
+      return fresh;
+    } catch {
+      return new Response("", { status: 504, statusText: "offline" });
+    }
+  })());
 });
