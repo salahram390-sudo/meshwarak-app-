@@ -1,9 +1,13 @@
-// app.js (FINAL) — Email/Password Auth + Firestore helpers
+// app.js — Email/Password FINAL (Auto SignUp if not exists)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
   onAuthStateChanged,
   signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   getFirestore,
@@ -13,7 +17,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ Firebase config (زي ما هو عندك)
+// ✅ ضع إعدادات Firebase الحقيقية هنا
 const firebaseConfig = {
   apiKey: "REPLACE_ME",
   authDomain: "REPLACE_ME",
@@ -27,10 +31,26 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+// ✅ خلي الجلسة تفضل محفوظة (حتى بعد الإغلاق)
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
 // ========= utils
 export function qs(key) {
   const u = new URL(location.href);
   return u.searchParams.get(key);
+}
+
+export function normalizeEmail(input) {
+  const x = String(input || "").trim().toLowerCase();
+  // لو المستخدم كتب حاجة بدون @ نخليها ايميل وهمي صالح
+  if (!x) return null;
+  if (x.includes("@")) return x;
+  return `${x.replace(/\s+/g, "")}@meshwarak.local`;
+}
+
+export function normalizePassword(input) {
+  const x = String(input || "").trim();
+  return x.length >= 6 ? x : null;
 }
 
 // ========= users helpers
@@ -43,25 +63,20 @@ export async function getUserDoc(uid) {
 export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
-
   if (!snap.exists()) {
     await setDoc(
       ref,
       {
         role: patch.role || "passenger",
         name: patch.name || null,
-        phone: patch.phone || null, // اختياري (مش لازم)
+        phone: patch.phone || null,
         email: patch.email || null,
-
         governorate: patch.governorate || null,
         center: patch.center || null,
-
         currentRideId: null,
-
         vehicle: patch.vehicle || null,
         model: patch.model || null,
         plate: patch.plate || null,
-
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -75,6 +90,26 @@ export async function ensureUserDoc(uid, patch = {}) {
 export async function saveUserProfile(uid, payload) {
   const ref = doc(db, "users", uid);
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// ========= ✅ Auto Login: signIn else createUser then signIn
+export async function emailLoginOrSignup(emailRaw, passRaw) {
+  const email = normalizeEmail(emailRaw);
+  const password = normalizePassword(passRaw);
+  if (!email) throw new Error("bad-email");
+  if (!password) throw new Error("bad-pass");
+
+  try {
+    return await signInWithEmailAndPassword(auth, email, password);
+  } catch (e) {
+    const code = e?.code || "";
+    // لو الحساب مش موجود -> أنشئه
+    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
+      const res = await createUserWithEmailAndPassword(auth, email, password);
+      return res;
+    }
+    throw e;
+  }
 }
 
 // ========= auth guard
@@ -100,12 +135,11 @@ export async function requireAuthAndRole(requiredRole = null) {
 
   let data = await getUserDoc(user.uid).catch(() => null);
 
-  // لو مفيش users doc (أول مرة)
   if (!data) {
     await ensureUserDoc(user.uid, {
       role: "passenger",
       email: user.email || null,
-      name: user.displayName || null,
+      name: null,
     });
     data = await getUserDoc(user.uid).catch(() => null);
   }
@@ -117,11 +151,10 @@ export async function requireAuthAndRole(requiredRole = null) {
     throw new Error("wrong role");
   }
 
-  return { user, data: data || {} };
+  return { user, data };
 }
 
 export async function doLogout() {
   await signOut(auth);
-  // ❌ ممنوع نمسح localStorage علشان بيانات الفورم تفضل موجودة
   location.href = "./login.html";
 }
