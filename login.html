@@ -16,12 +16,13 @@
   const centerEl = $("center");
   const centerOtherEl = $("centerOther");
   const otherWrap = $("otherCenterWrap");
-  const nameEl = $("name"); // لو موجود عندك
+
+  const nameEl = $("name"); // لو موجود
   const vehicleEl = $("vehicle");
   const modelEl = $("model");
   const driverFields = $("driverFields");
 
-  const loginBtn = $("loginBtn"); // زر "تسجيل/دخول"
+  const loginBtn = $("loginBtn");
 
   const OTHER="__other__";
   let selectedRole = null;
@@ -38,6 +39,23 @@
     model:"mw_login_model",
   };
 
+  function normalizeEmail(x){
+    let v = String(x||"").trim();
+    if(!v) return null;
+
+    // ✅ لو كتب اسم بدون @ -> نحوله لإيميل وهمي
+    if(!v.includes("@")){
+      v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
+      if(!v) v = "user";
+      v = `${v}@meshwarak.local`;
+    }
+
+    // ✅ تصحيح بسيط: لو فيه @ بس مفيش دومين
+    if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
+
+    return v.toLowerCase();
+  }
+
   function saveDraft(){
     try{
       localStorage.setItem(LS.email, emailEl?.value || "");
@@ -48,29 +66,6 @@
       if(nameEl) localStorage.setItem(LS.name, nameEl.value || "");
       if(vehicleEl) localStorage.setItem(LS.vehicle, vehicleEl.value || "");
       if(modelEl) localStorage.setItem(LS.model, modelEl.value || "");
-    }catch{}
-  }
-
-  function restoreDraft(){
-    try{
-      if(emailEl) emailEl.value = localStorage.getItem(LS.email) || "";
-      if(govEl) govEl.value = localStorage.getItem(LS.gov) || "";
-      // center يتملّي بعد اختيار gov في كودك
-      const role = localStorage.getItem(LS.role) || "";
-      if(role==="passenger" || role==="driver") setRole(role);
-      if(nameEl) nameEl.value = localStorage.getItem(LS.name) || "";
-      if(vehicleEl) vehicleEl.value = localStorage.getItem(LS.vehicle) || vehicleEl.value;
-      if(modelEl) modelEl.value = localStorage.getItem(LS.model) || "";
-      // center + other بعد fillCenters
-      const c = localStorage.getItem(LS.center) || "";
-      const co = localStorage.getItem(LS.centerOther) || "";
-      if(centerEl){
-        centerEl.value = c;
-        if(c===OTHER){
-          otherWrap && (otherWrap.style.display="block");
-          centerOtherEl && (centerOtherEl.value=co);
-        }
-      }
     }catch{}
   }
 
@@ -92,10 +87,47 @@
   rolePassenger?.addEventListener("click", ()=> setRole("passenger"));
   roleDriver?.addEventListener("click", ()=> setRole("driver"));
 
-  // احفظ مع أي تغيير
+  function restoreDraft(){
+    try{
+      if(emailEl) emailEl.value = localStorage.getItem(LS.email) || "";
+      if(nameEl) nameEl.value = localStorage.getItem(LS.name) || "";
+
+      const role = localStorage.getItem(LS.role) || "";
+      if(role==="passenger" || role==="driver") setRole(role);
+
+      if(vehicleEl) vehicleEl.value = localStorage.getItem(LS.vehicle) || vehicleEl.value;
+      if(modelEl) modelEl.value = localStorage.getItem(LS.model) || "";
+
+      // ✅ gov ثم trigger change عشان fillCenters يحصل
+      const g = localStorage.getItem(LS.gov) || "";
+      if(govEl && g){
+        govEl.value = g;
+        govEl.dispatchEvent(new Event("change"));
+      }
+
+      // ✅ بعد ما centers اتملا
+      const c = localStorage.getItem(LS.center) || "";
+      const co = localStorage.getItem(LS.centerOther) || "";
+      if(centerEl && c){
+        centerEl.value = c;
+        if(c===OTHER){
+          if(otherWrap) otherWrap.style.display="block";
+          if(centerOtherEl) centerOtherEl.value = co || "";
+        }else{
+          if(otherWrap) otherWrap.style.display="none";
+          if(centerOtherEl) centerOtherEl.value = "";
+        }
+      }
+    }catch{}
+  }
+
+  // احفظ مع أي تغيير (input + change)
   [emailEl, passEl, govEl, centerEl, centerOtherEl, nameEl, vehicleEl, modelEl]
     .filter(Boolean)
-    .forEach(el => el.addEventListener("input", saveDraft));
+    .forEach(el => {
+      el.addEventListener("input", saveDraft);
+      el.addEventListener("change", saveDraft);
+    });
 
   restoreDraft();
 
@@ -121,13 +153,13 @@
     msg.textContent = "";
     saveDraft();
 
-    const email = emailEl?.value || "";
-    const password = passEl?.value || "";
+    const email = normalizeEmail(emailEl?.value || "");
+    const password = String(passEl?.value || "");
 
-    if(!selectedRole) {
-      msg.textContent = "❌ اختر راكب أو سائق.";
-      return;
-    }
+    if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اكتب اسم فقط وسيُحوَّل لوهمي)."; return; }
+    if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
+
+    if(!selectedRole) { msg.textContent = "❌ اختر راكب أو سائق."; return; }
 
     const area = getArea();
     if(!area.governorate || !area.center){
@@ -149,10 +181,9 @@
       const res = await emailLoginOrSignup(email, password);
       const uid = res.user.uid;
 
-      // users doc
       await ensureUserDoc(uid, {
         role: selectedRole,
-        email: res.user.email || null,
+        email: res.user.email || email,
         name: nameEl?.value?.trim() || null,
         governorate: area.governorate,
         center: area.center,
@@ -160,10 +191,9 @@
         model: selectedRole==="driver" ? (modelEl?.value?.trim()||null) : null,
       });
 
-      // تحديث بيانات الملف الشخصي (ولا تمسحها بعد logout)
       await saveUserProfile(uid, {
         role: selectedRole,
-        email: res.user.email || null,
+        email: res.user.email || email,
         name: nameEl?.value?.trim() || null,
         governorate: area.governorate,
         center: area.center,
@@ -176,13 +206,10 @@
       goAfterLogin(selectedRole);
     }catch(e){
       console.error(e);
-      // رسائل واضحة
-      if((e?.code||"")==="auth/email-already-in-use"){
-        msg.textContent = "❌ الإيميل مستخدم من قبل. جرّب دخول بنفس الباسورد الصحيح.";
-      }else if((e?.code||"")==="auth/wrong-password"){
+      if((e?.code||"")==="auth/wrong-password"){
         msg.textContent = "❌ كلمة المرور غير صحيحة.";
       }else if((e?.code||"")==="auth/invalid-email"){
-        msg.textContent = "❌ اكتب إيميل صحيح أو اكتب أي اسم بدون @ وسيتم تحويله تلقائياً لإيميل وهمي.";
+        msg.textContent = "❌ الإيميل غير صحيح.";
       }else{
         msg.textContent = "❌ فشل الدخول. جرّب مرة أخرى.";
       }
@@ -193,11 +220,10 @@
 
   loginBtn?.addEventListener("click", handleLogin);
 
-  // لو بالفعل مسجل دخول، دخّله حسب role الموجود
   onAuthStateChanged(auth, async (user)=>{
     if(!user) return;
     const snap = await getDoc(doc(db,"users",user.uid)).catch(()=>null);
-    const role = snap?.exists?.() ? (snap.data().role || null) : null;
+    const role = (snap && snap.exists && snap.exists()) ? (snap.data().role || null) : null;
     if(role==="passenger" || role==="driver") goAfterLogin(role);
   });
 </script>
