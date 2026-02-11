@@ -8,6 +8,7 @@
   <link rel="icon" href="./favicon.png">
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./styles.css" />
+  <meta name="theme-color" content="#050B16" />
 
   <link
     rel="stylesheet"
@@ -101,6 +102,8 @@
       color:#fff;
       cursor:pointer;
       font-weight:700;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .btn.primary{background:rgba(43,108,255,.85);border-color:rgba(43,108,255,.35)}
     .btn.danger{background:rgba(239,68,68,.75);border-color:rgba(239,68,68,.35)}
@@ -158,7 +161,7 @@
         </div>
       </div>
 
-      <!-- ✅ NEW: إعداد المركبة لو ناقص -->
+      <!-- ✅ إعداد المركبة لو ناقص -->
       <div id="vehicleCard" class="card" style="margin-top:12px;display:none">
         <b>🚗 إعداد بيانات السائق</b>
         <div class="hint" style="margin-top:6px">لازم تختار نوع المركبة + موديل/كود المركبة علشان تظهرلك الطلبات لنفس النوع.</div>
@@ -242,7 +245,7 @@
     import {
       collection, query, where, limit,
       doc, runTransaction, serverTimestamp, setDoc,
-      onSnapshot, updateDoc
+      onSnapshot, updateDoc, getDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const $ = (id)=>document.getElementById(id);
@@ -260,7 +263,7 @@
 
     // ========= auth
     const { user } = await requireAuthAndRole("driver");
-    $("who").textContent = user.email;
+    $("who").textContent = user.email || "-";
     $("logoutBtn").addEventListener("click", doLogout);
 
     const listEl = $("list");
@@ -617,7 +620,7 @@
       return driverProfile;
     }
 
-    // ✅ NEW: ensure vehicle ready (and show vehicleCard)
+    // ✅ ensure vehicle ready
     async function ensureVehicleReady(){
       if(!driverProfile) await loadDriverProfile();
 
@@ -656,7 +659,6 @@
         await loadDriverProfile();
         vehMsg.textContent = "✅ تم حفظ بيانات المركبة.";
         await ensureVehicleReady();
-        // بعد حفظ المركبة، أعد الاشتراك في الطلبات
         subscribeRides(true);
       }catch(e){
         console.error(e);
@@ -744,7 +746,7 @@
       window.open(url, "_blank");
     }
 
-    // ✅ Trip notifications (driver)
+    // ✅ Trip notifications
     let lastTripStatus = null;
     async function tripNotify(st){
       if(st === lastTripStatus) return;
@@ -909,7 +911,7 @@
       }, ()=>{});
     }
 
-    // ✅ أهم تعديل: لو أنت "أرسلت عرض" والراكب وافق => افتح الرحلة تلقائيًا
+    // ✅ لو أنت أرسلت عرض والراكب وافق => افتح الرحلة تلقائيًا
     function watchMyOfferedAndAccepted(){
       if(unsubMyOffers) { try{unsubMyOffers()}catch{} unsubMyOffers=null; }
 
@@ -1032,7 +1034,6 @@
 
       await loadDriverProfile();
 
-      // ✅ لازم مركبة + منطقة قبل online
       const vehOk = await ensureVehicleReady();
       const areaOk = await ensureAreaSelected();
 
@@ -1361,10 +1362,10 @@
 
       const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || null;
 
+      // ✅ Firestore لا يسمح where == null بشكل ثابت في بعض الحالات => نستخدم "open" فقط
       const qy = query(
         collection(db, "rides"),
         where("status", "==", "open"),
-        where("driverUid", "==", null),
         where("governorate", "==", gov),
         where("center", "==", cen),
         where("requestedVehicle", "==", myVeh),
@@ -1380,10 +1381,20 @@
           return;
         }
 
-        let newCount = 0;
-        snap.forEach(d=>{
-          if(!knownIds.has(d.id)) newCount++;
+        // ✅ فلترة إضافية للطلبات المفتوحة غير المحجوزة
+        const docs = snap.docs.filter(d=>{
+          const r=d.data();
+          return !r.driverUid; // لازم فاضي
         });
+
+        if(!docs.length){
+          listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
+          firstRidesLoad = false;
+          return;
+        }
+
+        let newCount = 0;
+        docs.forEach(d=>{ if(!knownIds.has(d.id)) newCount++; });
 
         if(!firstRidesLoad && newCount > 0){
           await notify({
@@ -1396,10 +1407,10 @@
           });
         }
 
-        knownIds = new Set(snap.docs.map(x=>x.id));
+        knownIds = new Set(docs.map(x=>x.id));
         firstRidesLoad = false;
 
-        snap.forEach(d=>{
+        docs.forEach(d=>{
           listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
         });
       }, ()=>{
@@ -1414,7 +1425,7 @@
     setGpsUI("unknown");
 
     await loadDriverProfile();
-    await ensureVehicleReady();  // ✅ NEW
+    await ensureVehicleReady();
     await ensureAreaSelected();
 
     watchDriverStatus();
@@ -1428,4 +1439,3 @@
   </script>
 </body>
 </html>
-```0
