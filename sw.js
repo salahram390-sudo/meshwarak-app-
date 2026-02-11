@@ -1,6 +1,6 @@
-// sw.js — FINAL v13 (Cache + FCM Background Push) ✅ جاهز للنسخ واللصق
+// sw.js — FINAL v14 (Cache + FCM Background Push) ✅
 // ✅ GitHub Pages safe + Cache safe + Firebase compat + Notification click open
-const CACHE = "meshwarak-v13";
+const CACHE = "meshwarak-v14";
 
 const ASSETS = [
   "./",
@@ -15,7 +15,10 @@ const ASSETS = [
   "./messaging.js",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./icon-192-maskable.png",
+  "./icon-512-maskable.png",
+  "./favicon.png"
 ];
 
 // ========= Firebase Messaging (Compat in SW)
@@ -51,7 +54,7 @@ function isHtml(req) {
 }
 
 function isCodeAsset(pathname) {
-  return pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".html");
+  return pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".html") || pathname.endsWith(".json");
 }
 
 // ===== install
@@ -94,7 +97,7 @@ self.addEventListener("fetch", (e) => {
   let pathname = "";
   try { pathname = new URL(url).pathname; } catch {}
 
-  // ✅ HTML/JS/CSS: Network-first (علشان التحديثات توصل فورًا)
+  // ✅ HTML/JS/CSS/JSON: Network-first (علشان التحديثات توصل فورًا)
   if (isHtml(req) || isCodeAsset(pathname)) {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
@@ -187,7 +190,6 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
 
-    // لو في تبويب مفتوح لنفس الصفحة
     for (const c of allClients) {
       try {
         const u = new URL(c.url);
@@ -200,11 +202,9 @@ self.addEventListener("notificationclick", (event) => {
       } catch {}
     }
 
-    // افتح جديد
     const opened = await clients.openWindow(targetUrl);
     if (opened) {
       try { opened.postMessage({ type: "PUSH_CLICK", data }); } catch {}
     }
   })());
 });
-```0
