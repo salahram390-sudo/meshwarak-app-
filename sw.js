@@ -1,4 +1,5 @@
-// sw.js — FINAL v13 (Cache + FCM Background Push)
+// sw.js — FINAL v13 (Cache + FCM Background Push) ✅ جاهز للنسخ واللصق
+// ✅ GitHub Pages safe + Cache safe + Firebase compat + Notification click open
 const CACHE = "meshwarak-v13";
 
 const ASSETS = [
@@ -44,9 +45,11 @@ function isBypass(url) {
     url.includes("router.project-osrm.org")
   );
 }
+
 function isHtml(req) {
   return req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
 }
+
 function isCodeAsset(pathname) {
   return pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".html");
 }
@@ -55,15 +58,18 @@ function isCodeAsset(pathname) {
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
+
+    // ✅ كاش آمن: نحفظ بنفس الـ Request الحقيقي
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
           const req = new Request(path, { cache: "reload" });
           const res = await fetch(req);
-          if (res.ok) await cache.put(req, res.clone());
+          if (res && res.ok) await cache.put(req, res.clone());
         } catch {}
       })
     );
+
     await self.skipWaiting();
   })());
 });
@@ -82,38 +88,46 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
+  // ✅ سيب الخارجي Network طبيعي
   if (isBypass(url)) return;
 
-  const pathname = new URL(url).pathname;
+  let pathname = "";
+  try { pathname = new URL(url).pathname; } catch {}
 
+  // ✅ HTML/JS/CSS: Network-first (علشان التحديثات توصل فورًا)
   if (isHtml(req) || isCodeAsset(pathname)) {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
+
       try {
         const res = await fetch(req, { cache: "no-store" });
-        if (res && res.ok) cache.put(req, res.clone());
+        if (res && res.ok) await cache.put(req, res.clone());
         return res;
       } catch {
         const cached = await cache.match(req, { ignoreSearch: true });
         if (cached) return cached;
 
+        // fallback للصفحات
         if (isHtml(req)) {
-          const home = await cache.match(new Request("./index.html", { cache: "reload" }), { ignoreSearch: true });
+          const homeReq = new Request("./index.html", { cache: "reload" });
+          const home = await cache.match(homeReq, { ignoreSearch: true });
           if (home) return home;
         }
+
         throw new Error("offline");
       }
     })());
     return;
   }
 
+  // ✅ باقي الملفات: Cache-first + تحديث خلفي
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: true });
 
     const networkFetch = fetch(req)
-      .then((res) => {
-        if (res && res.ok) cache.put(req, res.clone());
+      .then(async (res) => {
+        if (res && res.ok) await cache.put(req, res.clone());
         return res;
       })
       .catch(() => null);
@@ -129,7 +143,7 @@ self.addEventListener("fetch", (e) => {
 });
 
 // =======================
-// ✅ FCM Background handler (الأهم)
+// ✅ FCM Background handler
 // =======================
 if (messaging) {
   messaging.onBackgroundMessage((payload) => {
@@ -137,8 +151,8 @@ if (messaging) {
     const data = payload?.data || {};
 
     const title = n.title || "مشوارك";
-    const body = n.body || "لديك تحديث جديد";
-    const icon = "./icon-192.png";
+    const body  = n.body  || "لديك تحديث جديد";
+    const icon  = "./icon-192.png";
     const badge = "./icon-192.png";
 
     const url =
@@ -163,7 +177,7 @@ if (messaging) {
   });
 }
 
-// فتح الصفحة المناسبة عند الضغط على الإشعار
+// ✅ فتح الصفحة المناسبة عند الضغط على الإشعار
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
@@ -173,21 +187,24 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
 
+    // لو في تبويب مفتوح لنفس الصفحة
     for (const c of allClients) {
       try {
         const u = new URL(c.url);
         const t = new URL(targetUrl, self.location.origin);
         if (u.pathname === t.pathname) {
           await c.focus();
-          c.postMessage({ type: "PUSH_CLICK", data });
+          try { c.postMessage({ type: "PUSH_CLICK", data }); } catch {}
           return;
         }
       } catch {}
     }
 
+    // افتح جديد
     const opened = await clients.openWindow(targetUrl);
     if (opened) {
       try { opened.postMessage({ type: "PUSH_CLICK", data }); } catch {}
     }
   })());
 });
+```0
