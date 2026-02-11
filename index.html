@@ -96,10 +96,14 @@
       location.href = "./passenger.html";
     });
 
-    openDriverBtn?.addEventListener("click", ()=>{
-      setActiveRole("driver");
-      location.href = "./driver.html";
-    });
+    function vehText(v){
+      return (v==="tuktuk")?"توكتوك":
+        (v==="motor_delivery")?"موتسيكل دليفري":
+        (v==="car")?"ملاكي":
+        (v==="microbus")?"ميكروباص":
+        (v==="tamanya")?"تمناية":
+        (v==="caboot")?"عربية كابوت": (v || "-");
+    }
 
     onAuthStateChanged(auth, async (user)=>{
       if(!user){
@@ -116,26 +120,47 @@
       const gov = data?.governorate || "-";
       const cen = data?.center || "-";
 
-      const roles = data?.roles || {};
+      // ✅ Multi-role: roles.passenger / roles.driver
+      const roles = data?.roles || { passenger:true };
+      const hasPassenger = !!roles.passenger;
       const hasDriver = !!roles.driver;
+
+      // ✅ Driver readiness
+      const driverReady = !!(data?.vehicle && String(data?.model||"").trim().length >= 2);
 
       meBox.style.display = "block";
       meText.innerHTML =
         `👤 <b>${name}</b><br>` +
         `📧 ${user.email}<br>` +
         `📍 ${gov} / ${cen}<br>` +
-        `🧩 الأدوار: ${roles.passenger ? "راكب" : ""}${roles.driver ? " + سائق" : ""}`;
+        `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
+        `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
 
-      // لو ماعندوش driver لسه: نخليه يفتح login كسائق ليكمل بياناته
-      openDriverBtn.textContent = hasDriver ? "فتح السائق" : "إعداد السائق";
-      openDriverBtn.onclick = ()=>{
-        if(hasDriver){
-          setActiveRole("driver");
-          location.href = "./driver.html";
+      // لو مش passenger (نادر) — خليه يفتح login passenger
+      openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
+      openPassengerBtn.onclick = ()=>{
+        if(hasPassenger){
+          setActiveRole("passenger");
+          location.href = "./passenger.html";
         }else{
-          location.href = "./login.html?role=driver";
+          location.href = "./login.html?role=passenger";
         }
       };
+
+      // ✅ Driver button logic (الجزء المهم)
+      if(!hasDriver){
+        openDriverBtn.textContent = "إعداد السائق";
+        openDriverBtn.onclick = ()=> location.href = "./login.html?role=driver";
+      }else if(!driverReady){
+        openDriverBtn.textContent = "أكمل بيانات السائق";
+        openDriverBtn.onclick = ()=> location.href = "./login.html?role=driver";
+      }else{
+        openDriverBtn.textContent = "فتح السائق";
+        openDriverBtn.onclick = ()=>{
+          setActiveRole("driver");
+          location.href = "./driver.html";
+        };
+      }
     });
   </script>
 
