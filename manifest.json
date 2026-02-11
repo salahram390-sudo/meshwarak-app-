@@ -1,7 +1,9 @@
 {
   "name": "مشوارك",
   "short_name": "مشوارك",
+  "id": "/",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#050B16",
   "theme_color": "#050B16",
