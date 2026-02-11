@@ -1,6 +1,6 @@
-// sw.js (FINAL SAFE v12 - GitHub Pages Fix)
+// sw.js — FINAL v13 (Cache + Push Notifications FCM)
 // ✅ غيّر الرقم عند أي تحديث كبير لتفريغ كاش الأجهزة القديمة
-const CACHE = "meshwarak-v12";
+const CACHE = "meshwarak-v13";
 
 const ASSETS = [
   "./",
@@ -25,22 +25,25 @@ function isBypass(url) {
     url.startsWith("https://cdn.jsdelivr.net/") ||
     url.includes("openstreetmap.org") ||
     url.includes("tile.openstreetmap.org") ||
-    url.includes("nominatim.openstreetmap.org")
+    url.includes("nominatim.openstreetmap.org") ||
+    url.includes("router.project-osrm.org")
   );
 }
 
 function isHtml(req) {
   return req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
 }
-function isCodeAsset(url) {
-  return url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".html");
+function isCodeAsset(pathname) {
+  return pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".html");
 }
 
+// =======================
+// ✅ INSTALL / ACTIVATE
+// =======================
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
 
-    // ✅ كاش آمن: نخزن بنفس الـ Request الفعلي عشان caches.match(req) يشتغل
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
@@ -63,40 +66,40 @@ self.addEventListener("activate", (e) => {
   })());
 });
 
+// =======================
+// ✅ FETCH (نفس منطقك)
+// =======================
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
 
-  // ✅ سيب أي حاجة خارجية Network طبيعي
   if (isBypass(url)) return;
 
-  // ✅ HTML / JS / CSS: Network-first (عشان التحديثات توصل فوراً)
-  if (isHtml(req) || isCodeAsset(new URL(url).pathname)) {
+  const pathname = new URL(url).pathname;
+
+  // HTML/JS/CSS: Network-first
+  if (isHtml(req) || isCodeAsset(pathname)) {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
-
       try {
         const res = await fetch(req, { cache: "no-store" });
         if (res && res.ok) cache.put(req, res.clone());
         return res;
       } catch {
-        // fallback للكاش
         const cached = await cache.match(req, { ignoreSearch: true });
         if (cached) return cached;
 
-        // fallback إضافي للصفحات
         if (isHtml(req)) {
           const home = await cache.match(new Request("./index.html", { cache: "reload" }), { ignoreSearch: true });
           if (home) return home;
         }
-
         throw new Error("offline");
       }
     })());
     return;
   }
 
-  // ✅ باقي الملفات (صور/manifest..): Cache-first + تحديث خلفي
+  // باقي الملفات: Cache-first + تحديث خلفي
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: true });
@@ -117,4 +120,89 @@ self.addEventListener("fetch", (e) => {
     return res || cached;
   })());
 });
-```0
+
+// =======================
+// ✅ PUSH NOTIFICATIONS (FCM Compatible)
+// =======================
+// FCM Web Push غالبًا بييجي event.data.json() بالشكل ده:
+// { notification:{title, body, image}, data:{ url, role, rideId, type } }
+// أو ممكن ييجي { title, body, ... } حسب الإرسال من السيرفر
+self.addEventListener("push", (event) => {
+  event.waitUntil((async () => {
+    let payload = {};
+    try {
+      payload = event.data ? event.data.json() : {};
+    } catch {
+      try { payload = { body: event.data.text() }; } catch { payload = {}; }
+    }
+
+    const n = payload.notification || payload || {};
+    const data = payload.data || n.data || payload.data || {};
+
+    const title = n.title || "مشوارك";
+    const body  = n.body  || "لديك تحديث جديد";
+    const icon  = "./icon-192.png";
+    const badge = "./icon-192.png";
+
+    // ✅ لينك فتح التطبيق عند الضغط
+    // لو data.url مش موجودة: هنفتح index
+    const url =
+      data.url ||
+      (data.role === "driver" ? "./driver.html" :
+       data.role === "passenger" ? "./passenger.html" :
+       "./index.html");
+
+    const options = {
+      body,
+      icon,
+      badge,
+      data: { url, ...data },
+      vibrate: [120, 80, 120],
+      tag: data.tag || data.rideId || data.type || "meshwarak",
+      renotify: true,
+      requireInteraction: false, // خليها true لو عايز الإشعار يفضل ظاهر لحد ما المستخدم يقفله
+      // actions اختيارية (مش كل الأجهزة بتظهرها)
+      actions: [
+        { action: "open", title: "فتح" },
+        { action: "dismiss", title: "إغلاق" }
+      ]
+    };
+
+    await self.registration.showNotification(title, options);
+  })());
+});
+
+// فتح الصفحة المناسبة عند الضغط على الإشعار
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const targetUrl = data.url || "./index.html";
+
+  event.waitUntil((async () => {
+    const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
+
+    // لو نافذة مفتوحة بالفعل: ركّز عليها
+    for (const c of allClients) {
+      try {
+        const u = new URL(c.url);
+        const t = new URL(targetUrl, self.location.origin);
+
+        // نفس الصفحة (بدون query) -> focus
+        if (u.pathname === t.pathname) {
+          await c.focus();
+          // ابعت رسالة للصفحة علشان تعمل Navigation داخلي/فتح رحلة
+          c.postMessage({ type: "PUSH_CLICK", data });
+          return;
+        }
+      } catch {}
+    }
+
+    // مفيش نافذة: افتح جديد
+    const opened = await clients.openWindow(targetUrl);
+    // لو اتفتحت: ابعت نفس الرسالة
+    if (opened) {
+      try { opened.postMessage({ type: "PUSH_CLICK", data }); } catch {}
+    }
+  })());
+});
