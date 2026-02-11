@@ -9,7 +9,6 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./styles.css" />
 
-  <!-- ✅ Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -36,7 +35,6 @@
     }
     #toast.show{opacity:1; transform: translateY(0);}
 
-    /* ✅ Map */
     #dmap{
       width:100%;
       height:260px;
@@ -176,7 +174,7 @@
 
         <div id="cenOtherWrap" class="field" style="display:none">
           <label>اكتب المركز (لو اخترت أخرى)</label>
-          <input id="cenOtherInput" placeholder="مثال: مركز جديد..." />
+          <input id="cenOtherInput" placeholder="" />
         </div>
 
         <div class="actions" style="margin-top:10px">
@@ -195,7 +193,6 @@
     <div id="list" class="list" style="margin-top:12px"></div>
   </div>
 
-  <!-- ✅ Leaflet JS (بدون defer) — قبل سكربت الموديول مباشرة -->
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
@@ -210,9 +207,8 @@
       onSnapshot, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ========= helpers
     const $ = (id)=>document.getElementById(id);
-    const clean = (s)=> (s||"").trim().replace(/\s+/g," "); // ✅ FIX
+    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
     const toast = $("toast");
     const mapFallback = $("mapFallback");
 
@@ -267,11 +263,10 @@
     let unsubRides = null;
 
     // =========================================================
-    // ✅ MAP INIT (Guaranteed Leaflet loaded)
+    // ✅ MAP INIT
     // =========================================================
     let fixMap = ()=>{};
     let leafletOK = false;
-
     let dmap = null;
     let divPin = ()=>null;
 
@@ -300,7 +295,6 @@
         popupAnchor: [0,-36]
       });
 
-      // ✅ Important on mobile
       setTimeout(fixMap, 300);
       window.addEventListener("load", ()=> setTimeout(fixMap, 200));
       document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
@@ -318,7 +312,11 @@
     let meMarker = null;
     let passengerMarker = null;
     let toMarker = null;
-    let routeLine = null;
+
+    // ✅ Route حقيقي
+    let routeToPickup = null; // driver -> pickup
+    let routeToDropoff = null; // pickup -> dropoff
+    let lastRouteAt = 0;
 
     function setMeOnMap(lat,lng){
       if(!leafletOK || !dmap) return;
@@ -327,14 +325,12 @@
           .addTo(dmap).bindPopup("📍 أنت");
       }else meMarker.setLatLng([lat,lng]);
     }
-
     function setPassengerOnMap(lat,lng){
       if(!leafletOK || !dmap) return;
       if(!passengerMarker){
-        passengerMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(dmap).bindPopup("🚩 الراكب");
+        passengerMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(dmap).bindPopup("🚩 القيام");
       }else passengerMarker.setLatLng([lat,lng]);
     }
-
     function setToOnMap(lat,lng){
       if(!leafletOK || !dmap) return;
       if(!toMarker){
@@ -342,13 +338,58 @@
       }else toMarker.setLatLng([lat,lng]);
     }
 
-    function drawRouteSimple(){
+    function clearRoutes(){
+      if(!leafletOK || !dmap) return;
+      if(routeToPickup){ try{ dmap.removeLayer(routeToPickup);}catch{} routeToPickup=null; }
+      if(routeToDropoff){ try{ dmap.removeLayer(routeToDropoff);}catch{} routeToDropoff=null; }
+    }
+
+    async function fetchRouteOSRM(a, b){
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/`+
+        `${a.lng},${a.lat};${b.lng},${b.lat}`+
+        `?overview=full&geometries=geojson`;
+
+      const res = await fetch(url, { headers:{ Accept:"application/json" } });
+      if(!res.ok) throw new Error("osrm failed");
+      const data = await res.json();
+      const coords = data?.routes?.[0]?.geometry?.coordinates;
+      if(!coords?.length) return null;
+      return coords.map(([lng,lat])=>[lat,lng]);
+    }
+
+    async function drawRoutesReal({withDropoff=true}={}){
       if(!leafletOK || !dmap) return;
       if(!meMarker || !passengerMarker) return;
+
+      // Throttle: مرة كل 8 ثواني
+      const now = Date.now();
+      if(now - lastRouteAt < 8000) return;
+      lastRouteAt = now;
+
       const a = meMarker.getLatLng();
       const b = passengerMarker.getLatLng();
-      if(routeLine) dmap.removeLayer(routeLine);
-      routeLine = L.polyline([a,b]).addTo(dmap);
+      const c = toMarker ? toMarker.getLatLng() : null;
+
+      try{
+        const pts1 = await fetchRouteOSRM({lat:a.lat,lng:a.lng},{lat:b.lat,lng:b.lng});
+        if(!pts1) return;
+
+        if(routeToPickup){ try{ dmap.removeLayer(routeToPickup);}catch{} }
+        routeToPickup = L.polyline(pts1, { weight: 5, opacity: 0.92 }).addTo(dmap);
+
+        if(withDropoff && c){
+          const pts2 = await fetchRouteOSRM({lat:b.lat,lng:b.lng},{lat:c.lat,lng:c.lng});
+          if(pts2){
+            if(routeToDropoff){ try{ dmap.removeLayer(routeToDropoff);}catch{} }
+            routeToDropoff = L.polyline(pts2, { weight: 4, opacity: 0.75 }).addTo(dmap);
+          }
+        }
+
+        focusAll();
+      }catch(e){
+        console.error(e);
+      }
     }
 
     function focusAll(){
@@ -358,7 +399,8 @@
       if(meMarker) layers.push(meMarker);
       if(passengerMarker) layers.push(passengerMarker);
       if(toMarker) layers.push(toMarker);
-      if(routeLine) layers.push(routeLine);
+      if(routeToPickup) layers.push(routeToPickup);
+      if(routeToDropoff) layers.push(routeToDropoff);
 
       if(layers.length === 0) return;
       try{
@@ -368,7 +410,14 @@
       fixMap();
     }
 
-    // ========= تحديد موقعي تلقائي عند فتح الصفحة (حتى Offline)
+    // ========= GPS (مرة واحدة)
+    function setGpsUI(state){
+      gpsPill.classList.remove("ok","bad");
+      if(state === "ok"){ gpsPill.textContent = "GPS: شغال ✅"; gpsPill.classList.add("ok"); }
+      else if(state === "denied"){ gpsPill.textContent = "GPS: مرفوض ❌"; gpsPill.classList.add("bad"); }
+      else { gpsPill.textContent = "GPS: غير معروف"; }
+    }
+
     function autoLocateOnce(){
       if(!navigator.geolocation){
         setGpsUI("denied");
@@ -402,7 +451,7 @@
       autoLocateOnce();
     });
 
-    // ====== مناطق (قائمة كاملة)
+    // ====== مناطق
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -546,7 +595,7 @@
 
       if(!veh){
         setupCard.style.display = "block";
-        setupMsg.textContent = "❌ لازم تختار نوع المركبة من صفحة حسابي.";
+        setupMsg.textContent = "❌ لازم تختار نوع المركبة من صفحة تسجيل الدخول.";
         vehPill.textContent = "مركبة: -";
         return false;
       }
@@ -562,14 +611,13 @@
       setupCard.style.display = "none";
       areaPill.textContent = `منطقة: ${gov} / ${cen}`;
 
-      const v = veh || "-";
       const vText =
-        (v==="tuktuk")?"توكتوك":
-        (v==="motor_delivery")?"موتسيكل دليفري":
-        (v==="car")?"ملاكي":
-        (v==="microbus")?"ميكروباص":
-        (v==="tamanya")?"تمناية":
-        (v==="caboot")?"عربية كابوت": v;
+        (veh==="tuktuk")?"توكتوك":
+        (veh==="motor_delivery")?"موتسيكل دليفري":
+        (veh==="car")?"ملاكي":
+        (veh==="microbus")?"ميكروباص":
+        (veh==="tamanya")?"تمناية":
+        (veh==="caboot")?"عربية كابوت": veh;
 
       vehPill.textContent = `مركبة: ${vText}`;
       return true;
@@ -603,7 +651,7 @@
       }
     });
 
-    // ====== UI helpers
+    // ====== Online UI
     function setOnlineUI(on){
       isOnline = on;
       onlinePill.classList.remove("ok","bad");
@@ -622,19 +670,12 @@
       }
     }
 
-    function setGpsUI(state){
-      gpsPill.classList.remove("ok","bad");
-      if(state === "ok"){ gpsPill.textContent = "GPS: شغال ✅"; gpsPill.classList.add("ok"); }
-      else if(state === "denied"){ gpsPill.textContent = "GPS: مرفوض ❌"; gpsPill.classList.add("bad"); }
-      else { gpsPill.textContent = "GPS: غير معروف"; }
-    }
-
     function stopWatchTrip(){
       if(unsubTrip){ try{ unsubTrip(); }catch{} unsubTrip=null; }
+      clearRoutes();
       if(!leafletOK || !dmap) return;
       if(passengerMarker){ try{ dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
       if(toMarker){ try{ dmap.removeLayer(toMarker);}catch{} toMarker=null; }
-      if(routeLine){ try{ dmap.removeLayer(routeLine);}catch{} routeLine=null; }
     }
 
     function openGoogleMapsNav(lat, lng){
@@ -647,7 +688,7 @@
       if(unsubTrip) unsubTrip();
 
       const rideRef = doc(db, "rides", tripId);
-      unsubTrip = onSnapshot(rideRef, (snap)=>{
+      unsubTrip = onSnapshot(rideRef, async (snap)=>{
         if(!snap.exists()){
           currentTripCard.style.display = "block";
           currentTripCard.innerHTML = `<div class="hint">⚠️ الرحلة غير موجودة.</div>`;
@@ -664,8 +705,9 @@
 
         if(pLat!=null && pLng!=null) setPassengerOnMap(pLat,pLng);
         if(toLat!=null && toLng!=null) setToOnMap(toLat,toLng);
-        if(meMarker && passengerMarker) drawRouteSimple();
-        focusAll();
+
+        // ✅ Route حقيقي
+        await drawRoutesReal({withDropoff:true});
 
         if(["completed","canceled","done"].includes(status)){
           currentTripCard.style.display = "block";
@@ -812,7 +854,7 @@
         <div id="offerWrap_${r.id}" style="display:none;margin-top:10px">
           <div class="field" style="margin-top:0">
             <label>السعر المقترح (15 → 300)</label>
-            <input id="offerInput_${r.id}" inputmode="numeric" placeholder="مثال: 50" />
+            <input id="offerInput_${r.id}" inputmode="numeric" placeholder="" />
           </div>
           <button class="btn primary" data-send-offer="${r.id}" type="button">إرسال</button>
         </div>
@@ -822,12 +864,13 @@
 
       const focusBtn = el.querySelector(`[data-focus="${r.id}"]`);
       if(focusBtn){
-        focusBtn.addEventListener("click", ()=>{
+        focusBtn.addEventListener("click", async ()=>{
           if(!leafletOK || !dmap) return;
           if(fromLat!=null && fromLng!=null){
             setPassengerOnMap(fromLat, fromLng);
             dmap.setView([fromLat, fromLng], 16, { animate:false });
             fixMap();
+            await drawRoutesReal({withDropoff:false}); // Route للسائق -> القيام
           }
         });
       }
@@ -837,6 +880,9 @@
         w.style.display = (w.style.display==="none") ? "block" : "none";
       });
 
+      // (باقي كود offer/accept/reject زي ما هو عندك بدون تغيير جوهري)
+      // ملاحظة: أنا سيبت نفس منطقك بالكامل علشان ما نكسرش أي حاجة.
+      // ===========
       el.querySelector(`[data-send-offer="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -1090,7 +1136,7 @@
         return false;
       }
 
-      watchId = navigator.geolocation.watchPosition((pos)=>{
+      watchId = navigator.geolocation.watchPosition(async (pos)=>{
         setGpsUI("ok");
         lastPos = {
           lat: pos.coords.latitude,
@@ -1098,8 +1144,13 @@
           heading: (pos.coords.heading ?? null),
           speed: (pos.coords.speed ?? null),
         };
+
         setMeOnMap(lastPos.lat, lastPos.lng);
-        if(passengerMarker) drawRouteSimple();
+
+        // ✅ لو في رحلة: حدث Route الحقيقي بس throttled
+        if(passengerMarker){
+          await drawRoutesReal({withDropoff:true});
+        }
       }, (err)=>{
         console.error(err);
         if(err?.code === 1){
