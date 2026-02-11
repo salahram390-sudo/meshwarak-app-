@@ -4,7 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - متابعة الرحلة</title>
+
+  <link rel="icon" href="./favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <meta name="theme-color" content="#050B16" />
 </head>
 
 <body>
@@ -34,8 +37,8 @@
       <div class="hint" id="info" style="margin-top:10px"></div>
 
       <div class="actions" style="margin-top:12px;flex-wrap:wrap">
-        <a class="btn" id="openPickupBtn" target="_blank" style="display:none">فتح الانطلاق</a>
-        <a class="btn" id="openDropBtn" target="_blank" style="display:none">فتح الوصول</a>
+        <a class="btn" id="openPickupBtn" target="_blank" rel="noopener" style="display:none">فتح الانطلاق</a>
+        <a class="btn" id="openDropBtn" target="_blank" rel="noopener" style="display:none">فتح الوصول</a>
 
         <button class="btn primary" id="arrivedBtn" type="button" style="display:none">وصلت ✅</button>
         <button class="btn primary" id="startBtn" type="button" style="display:none">بدأت الرحلة ▶️</button>
@@ -49,15 +52,14 @@
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, doLogout, db, getUserDoc, qs } from "./app.js";
+    import { requireAuthAndRole, doLogout, db, qs } from "./app.js";
 
     import {
       doc, onSnapshot, runTransaction, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    const { user } = await requireAuthAndRole("driver");
-    document.getElementById("who").textContent = user.phoneNumber || user.email || "-";
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+    const who = document.getElementById("who");
+    const logoutBtn = document.getElementById("logoutBtn");
 
     const msg = document.getElementById("msg");
     const info = document.getElementById("info");
@@ -71,12 +73,16 @@
     const completeBtn   = document.getElementById("completeBtn");
     const backToListBtn = document.getElementById("backToListBtn");
 
+    const { user } = await requireAuthAndRole("driver");
+    who.textContent = user.phoneNumber || user.email || "-";
+    logoutBtn.addEventListener("click", doLogout);
+
     // rideId من ?id=... أو من localStorage
     const rideId = qs("id") || localStorage.getItem("currentTripId");
     if(!rideId){
       info.textContent = "لا يوجد رحلة حالياً.";
       backToListBtn.style.display = "inline-flex";
-      backToListBtn.onclick = ()=> location.href = "driver.html";
+      backToListBtn.onclick = ()=> location.href = "./driver.html";
       throw new Error("no rideId");
     }
 
@@ -84,19 +90,27 @@
 
     const rideRef = doc(db, "rides", rideId);
 
-    function osmLink(lat,lng){
-      return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
-    }
     function googleNavLink(lat,lng){
       return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
     }
 
+    function safeNum(x){
+      const n = Number(x);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function setMsg(text, ok=false){
+      msg.className = "hint " + (ok ? "text-ok" : "text-bad");
+      msg.textContent = text || "";
+    }
+
     // ✅ تحديث أزرار حسب حالة الرحلة
     function render(r){
-      statusPill.textContent = `الحالة: ${r.status || "-"}`;
+      const st = r.status || "-";
+      statusPill.textContent = `الحالة: ${st}`;
       areaPill.textContent = `المنطقة: ${r.governorate || "-"} / ${r.center || "-"}`;
 
-      const pName = r.passengerName || "راكب";
+      const pName  = r.passengerName || "راكب";
       const pEmail = r.passengerEmail || "-";
       const pPhone = r.passengerPhone || null;
 
@@ -108,20 +122,21 @@
         ${pPhone ? `<b>هاتف:</b> <a href="tel:${pPhone}">${pPhone}</a><br>` : ``}
       `;
 
-      const fromLat = Number(r.from?.lat), fromLng = Number(r.from?.lng);
-      const toLat = Number(r.to?.lat), toLng = Number(r.to?.lng);
+      const fromLat = safeNum(r.from?.lat);
+      const fromLng = safeNum(r.from?.lng);
+      const toLat   = safeNum(r.to?.lat);
+      const toLng   = safeNum(r.to?.lng);
 
       // روابط خرائط
-      if(Number.isFinite(fromLat) && Number.isFinite(fromLng)){
+      if(fromLat !== null && fromLng !== null){
         openPickupBtn.style.display = "inline-flex";
-        // لو عايز “ملاحة” بدل مشاهدة، بدّل osmLink بـ googleNavLink
         openPickupBtn.href = googleNavLink(fromLat, fromLng);
         openPickupBtn.textContent = "فتح الانطلاق (ملاحة)";
       }else{
         openPickupBtn.style.display = "none";
       }
 
-      if(Number.isFinite(toLat) && Number.isFinite(toLng)){
+      if(toLat !== null && toLng !== null){
         openDropBtn.style.display = "inline-flex";
         openDropBtn.href = googleNavLink(toLat, toLng);
         openDropBtn.textContent = "فتح الوصول (ملاحة)";
@@ -135,38 +150,39 @@
       completeBtn.style.display = "none";
       backToListBtn.style.display = "none";
 
-      if(r.status === "accepted"){
+      if(st === "accepted"){
         arrivedBtn.style.display = "inline-flex";
       }
-      if(r.status === "arrived"){
+      if(st === "arrived"){
         startBtn.style.display = "inline-flex";
       }
-      if(r.status === "started"){
+      if(st === "started"){
         completeBtn.style.display = "inline-flex";
       }
-      if(r.status === "completed" || r.status === "canceled"){
+      if(st === "completed" || st === "canceled"){
         backToListBtn.style.display = "inline-flex";
         backToListBtn.onclick = ()=>{
           localStorage.removeItem("currentTripId");
-          location.href = "driver.html";
+          location.href = "./driver.html";
         };
       }
 
       // ✅ فتح الانطلاق تلقائي أول مرة بعد القبول
-      // (علشان “يفتح الخريطة مباشرة على موقع الراكب”)
-      if(r.status === "accepted" && !localStorage.getItem("autoOpenedPickup_"+rideId)){
+      if(st === "accepted" && !localStorage.getItem("autoOpenedPickup_"+rideId)){
         localStorage.setItem("autoOpenedPickup_"+rideId, "1");
-        if(openPickupBtn.href) window.open(openPickupBtn.href, "_blank");
+        if(openPickupBtn.href) window.open(openPickupBtn.href, "_blank", "noopener");
       }
     }
 
     // أزرار تغيير الحالة (محمية بـ Rules)
     async function updateStatus(next){
-      msg.textContent = "جارٍ التنفيذ…";
+      setMsg("جارٍ التنفيذ…", true);
+
       try{
         await runTransaction(db, async (tx)=>{
           const snap = await tx.get(rideRef);
           if(!snap.exists()) throw new Error("الطلب غير موجود");
+
           const r = snap.data();
 
           // لازم السائق نفسه
@@ -187,10 +203,11 @@
 
           tx.update(rideRef, patch);
         });
-        msg.textContent = "✅ تم.";
+
+        setMsg("✅ تم.", true);
       }catch(e){
         console.error(e);
-        msg.textContent = `❌ ${e.message || e}`;
+        setMsg(`❌ ${e.message || e}`, false);
       }
     }
 
@@ -206,6 +223,9 @@
         return;
       }
       render(snap.data());
+    }, (err)=>{
+      console.error(err);
+      setMsg("❌ حدث خطأ في المتابعة اللحظية.", false);
     });
   </script>
 </body>
