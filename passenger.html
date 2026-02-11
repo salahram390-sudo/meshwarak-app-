@@ -10,28 +10,40 @@
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#050B16" />
 
-  <!-- ✅ Leaflet CSS -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
 
   <style>
-    .toast{
-      position:fixed; left:12px; right:12px; top:76px; z-index:9999;
-      display:none;
-      background: linear-gradient(180deg, rgba(12,18,32,.95), rgba(10,18,34,.82));
-      border:1px solid rgba(255,255,255,.12);
+    /* Toast */
+    #toast{
+      position:fixed; left:14px; right:14px; top:78px;
+      background:rgba(10,18,34,.92);
+      border:1px solid rgba(255,255,255,.10);
       border-radius:16px;
-      padding:12px;
-      box-shadow:0 18px 55px rgba(0,0,0,.35);
+      padding:12px 14px;
+      color:#fff;
+      box-shadow:0 16px 55px rgba(0,0,0,.45);
+      transform: translateY(-18px);
+      opacity:0;
+      pointer-events:none;
+      transition:.25s ease;
+      z-index:9999;
+      max-width:720px;
+      margin:auto;
     }
-    .toast.show{display:block; animation:pop .22s ease}
-    @keyframes pop{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+    #toast.show{opacity:1; transform: translateY(0);}
 
-    /* ✅ Pins نفس السائق */
+    /* Pins (نفس السائق) */
     .pin-emoji{background:transparent;border:none;}
     .pin-bubble{
       width:44px;height:44px;border-radius:16px;
@@ -42,6 +54,7 @@
       font-size:22px;
     }
 
+    /* Price slider */
     .rangeWrap{
       padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,.10);
       background: rgba(0,0,0,.14);
@@ -50,6 +63,7 @@
     .priceBig{font-weight:900;font-size:18px}
     input[type="range"]{width:100%}
 
+    /* Vehicle */
     .vehGrid{
       display:grid;
       grid-template-columns: repeat(3, 1fr);
@@ -93,28 +107,12 @@
     @media (max-width:520px){
       .vehGrid{ grid-template-columns: repeat(2, 1fr); }
     }
-
-    /* ✅ Map fallback زي السائق */
-    #map{width:100%;height:100%}
-    #mapFallback{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      color:#fff; opacity:.85;
-      padding:14px;
-      text-align:center;
-      pointer-events:none;
-      font-size:13px;
-      line-height:1.7;
-      z-index:5;
-      background: rgba(11,18,34,.55);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 16px;
-      margin: 10px;
-    }
   </style>
 </head>
 
 <body>
+  <div id="toast"></div>
+
   <div class="topbar">
     <div class="topbar-inner container">
       <div class="brand">
@@ -131,19 +129,17 @@
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
-
   <div class="map-wrap">
     <div id="map"></div>
-    <div id="mapFallback">🗺️ جارٍ تحميل الخريطة…<br>لو فضلت فاضية: افتح بدون VPN أو اعمل تحديث.</div>
 
     <div class="sheet" id="sheet">
       <div class="sheet-handle" id="sheetHandle"></div>
       <div class="sheet-content" id="sheetContent">
 
+        <!-- Area -->
         <div class="card" style="margin-top:0">
           <div class="field" style="margin-top:0">
-            <label>منطقتك (لإظهار الطلب لنفس السائقين فقط)</label>
+            <label>منطقتك (الطلب يظهر للسائقين في نفس المنطقة)</label>
             <div class="grid2">
               <div>
                 <select id="govSelect"><option value="">اختر المحافظة…</option></select>
@@ -153,7 +149,7 @@
               </div>
             </div>
             <div id="centerOtherWrap" style="display:none;margin-top:10px">
-              <input id="centerOtherInput" placeholder="" />
+              <input id="centerOtherInput" placeholder="اكتب المركز…" />
             </div>
             <div class="hint" style="margin-top:10px">
               * الطلب لن يظهر إلا للسائقين في نفس المحافظة + المركز.
@@ -161,6 +157,7 @@
           </div>
         </div>
 
+        <!-- Vehicle -->
         <div class="card" style="margin-top:12px">
           <div class="field" style="margin-top:0">
             <label>اختر نوع المركبة</label>
@@ -178,11 +175,12 @@
           </div>
         </div>
 
+        <!-- From / To -->
         <div class="grid2" style="margin-top:12px">
           <div class="field" style="margin-top:0">
             <label>مكان القيام</label>
             <div class="grid3">
-              <input id="fromText" placeholder="" />
+              <input id="fromText" placeholder="مثال: محطة القطار" />
               <button class="btn" id="fromSearchBtn" type="button">بحث</button>
             </div>
           </div>
@@ -190,12 +188,13 @@
           <div class="field" style="margin-top:0">
             <label>مكان الوصول</label>
             <div class="grid3">
-              <input id="toText" placeholder="" />
+              <input id="toText" placeholder="مثال: جامعة أسوان" />
               <button class="btn" id="toSearchBtn" type="button">بحث</button>
             </div>
           </div>
         </div>
 
+        <!-- Price -->
         <div class="card" style="margin-top:12px">
           <label style="display:block;margin-bottom:8px">السعر المقترح</label>
           <div class="rangeWrap">
@@ -208,6 +207,7 @@
           </div>
         </div>
 
+        <!-- Pills -->
         <div class="pills">
           <span class="pill" id="statusPill">جارٍ تحديد موقعك…</span>
           <span class="pill" id="ridePill">لا يوجد طلب</span>
@@ -215,8 +215,10 @@
           <span class="pill" id="areaPill">المنطقة: -</span>
         </div>
 
+        <!-- Contact / Offer -->
         <div id="contactBox" class="card" style="margin-top:12px; display:none"></div>
 
+        <!-- Actions -->
         <div class="actions">
           <button class="btn primary" id="createBtn" type="button">اطلب مشوار</button>
           <button class="btn danger" id="cancelBtn" type="button" disabled>إلغاء الطلب</button>
@@ -229,13 +231,6 @@
     </div>
   </div>
 
-  <!-- ✅ Leaflet JS (بدون defer) — قبل سكربت الموديول مباشرة -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
     import {
@@ -244,49 +239,74 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const $ = (id)=>document.getElementById(id);
+    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
+    // ====== Toast + Sound
     const toast = $("toast");
-    const showToast = (html, ms=2400)=>{
+    function showToast(html, ms=2600){
       toast.innerHTML = html;
       toast.classList.add("show");
       clearTimeout(showToast._t);
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
-    };
+    }
 
-    function playAlert(){
-      try{ navigator.vibrate?.([120,60,120]); }catch{}
+    function playBeep(type="notify"){
       try{
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const o = ctx.createOscillator();
         const g = ctx.createGain();
-        o.type="sine";
-        o.frequency.value=880;
-        g.gain.value=0.08;
-        o.connect(g); g.connect(ctx.destination);
-        o.start();
-        setTimeout(()=>{ o.stop(); ctx.close(); }, 180);
+        o.type = "sine";
+
+        const now = ctx.currentTime;
+        const freq =
+          type==="offer" ? 880 :
+          type==="accepted" ? 740 :
+          type==="arrived" ? 660 :
+          type==="started" ? 520 :
+          type==="ended" ? 420 : 600;
+
+        o.frequency.setValueAtTime(freq, now);
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.18, now+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now+0.55);
+
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(now);
+        o.stop(now+0.58);
+
+        setTimeout(()=>{ try{ ctx.close(); }catch{} }, 700);
       }catch{}
     }
 
-    async function notifyPro(title, body){
-      showToast(`🔔 <b>${title}</b><br><span class="small">${body}</span>`, 2600);
-      playAlert();
+    // ====== Notification API (لو مسموح)
+    async function ensureNotificationPermission(){
       try{
-        if("Notification" in window){
-          if(Notification.permission === "default"){
-            await Notification.requestPermission();
-          }
-          if(Notification.permission === "granted"){
-            new Notification(title, { body });
-          }
-        }
+        if(!("Notification" in window)) return false;
+        if(Notification.permission === "granted") return true;
+        if(Notification.permission === "denied") return false;
+        const p = await Notification.requestPermission();
+        return p === "granted";
+      }catch{
+        return false;
+      }
+    }
+
+    function notifySystem(title, body){
+      try{
+        if(!("Notification" in window)) return;
+        if(Notification.permission !== "granted") return;
+        new Notification(title, { body, icon:"./favicon.png" });
       }catch{}
     }
+
+    // ===== Auth
+    const { user } = await requireAuthAndRole("passenger");
+    $("logoutBtn").addEventListener("click", doLogout);
 
     const msg = $("msg");
     const whoEl = $("who");
 
-    const logoutBtn = $("logoutBtn");
     const createBtn = $("createBtn");
     const cancelBtn = $("cancelBtn");
     const fromText  = $("fromText");
@@ -307,8 +327,8 @@
     const priceVal   = $("priceVal");
 
     const vehGrid = $("vehGrid");
-    const mapFallback = $("mapFallback");
 
+    // ===== LocalStorage
     const LS = {
       areaGov: "mw_area_gov",
       areaCenter: "mw_area_center",
@@ -326,10 +346,15 @@
     let selectedVehicle = localStorage.getItem(LS.vehicle) || null;
     let from = null, to = null;
 
-    const { user } = await requireAuthAndRole("passenger");
-    logoutBtn.addEventListener("click", doLogout);
+    // ===== Passenger profile
+    const passengerProfile = await getUserDoc(user.uid).catch(()=>null);
+    const fallbackName = (email)=>((email||"").split("@")[0]||"مستخدم").replace(/[._-]+/g," ").trim()||"مستخدم";
+    const passengerName = clean(passengerProfile?.name) || fallbackName(user.email);
+    const passengerPhone = clean(passengerProfile?.phone) || null;
 
-    // ====== Areas (نفس السائق)
+    whoEl.textContent = `${passengerName} • ${(passengerPhone || user.email || "-")}`;
+
+    // ====== Areas
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -392,12 +417,12 @@
     }
 
     function getSelectedArea(){
-      const gov=(govSelect.value||"").trim()||null;
-      const cv=(centerSelect.value||"").trim();
+      const gov=clean(govSelect.value)||null;
+      const cv=clean(centerSelect.value);
       if(!gov) return {gov:null, center:null};
       if(!cv) return {gov, center:null};
       if(cv===OTHER){
-        const m=(centerOtherInput.value||"").trim();
+        const m=clean(centerOtherInput.value);
         return {gov, center:(m.length>=2?m:null)};
       }
       return {gov, center:cv||null};
@@ -436,61 +461,8 @@
       renderAreaPill();
     }
 
-    // ===== Vehicle
-    function renderVehicleUI(){
-      vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
-        const v = b.getAttribute("data-veh");
-        b.classList.toggle("active", v === selectedVehicle);
-      });
-    }
-    function setVehicle(v){
-      if(!VEHICLES.includes(v)) return;
-      selectedVehicle = v;
-      localStorage.setItem(LS.vehicle, v);
-      renderVehicleUI();
-      updateUI();
-    }
-    vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
-      b.addEventListener("click", ()=> setVehicle(b.getAttribute("data-veh")));
-    });
-    renderVehicleUI();
-
-    // ===== Passenger profile
-    const passengerProfile = await getUserDoc(user.uid).catch(()=>null);
-    const fallbackName = (email)=>((email||"").split("@")[0]||"مستخدم").replace(/[._-]+/g," ").trim()||"مستخدم";
-    const passengerName = (passengerProfile?.name || "").trim() || fallbackName(user.email);
-    const passengerPhone = (passengerProfile?.phone || "").trim() || null;
-
-    whoEl.textContent = `${passengerName} • ${(passengerPhone || user.email || "-")}`;
-
-    // Firestore -> LocalStorage (area)
-    if(passengerProfile?.governorate){
-      govSelect.value = passengerProfile.governorate;
-      fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
-      renderAreaPill();
-    }else{
-      restoreAreaFromLS();
-    }
-
-    // save area to user doc (debounced)
-    let saveAreaTimer=null;
-    async function saveAreaToUserDocDebounced(){
-      clearTimeout(saveAreaTimer);
-      saveAreaTimer=setTimeout(async ()=>{
-        try{
-          const a=getSelectedArea();
-          if(!a.gov || !a.center) return;
-          await setDoc(doc(db,"users",user.uid), {
-            governorate:a.gov,
-            center:a.center,
-            updatedAt: serverTimestamp()
-          }, {merge:true});
-        }catch(e){ console.error(e); }
-      }, 800);
-    }
-
     govSelect.addEventListener("change", ()=>{
-      const g=(govSelect.value||"").trim();
+      const g=clean(govSelect.value);
       if(!g){
         centerSelect.disabled=true;
         centerSelect.innerHTML=`<option value="">اختر المركز/الحي…</option>`;
@@ -521,6 +493,54 @@
       saveAreaToUserDocDebounced();
     });
 
+    // ====== Save area to user doc (debounced)
+    let saveAreaTimer=null;
+    async function saveAreaToUserDocDebounced(){
+      clearTimeout(saveAreaTimer);
+      saveAreaTimer=setTimeout(async ()=>{
+        try{
+          const a=getSelectedArea();
+          if(!a.gov || !a.center) return;
+          await setDoc(doc(db,"users",user.uid), {
+            governorate:a.gov,
+            center:a.center,
+            updatedAt:serverTimestamp()
+          }, {merge:true});
+        }catch(e){
+          console.error(e);
+        }
+      }, 700);
+    }
+
+    // Firestore -> Area init
+    if(passengerProfile?.governorate){
+      govSelect.value = passengerProfile.governorate;
+      fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
+      renderAreaPill();
+    }else{
+      restoreAreaFromLS();
+    }
+    saveAreaToUserDocDebounced();
+
+    // ===== Vehicle
+    function renderVehicleUI(){
+      vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
+        const v = b.getAttribute("data-veh");
+        b.classList.toggle("active", v === selectedVehicle);
+      });
+    }
+    function setVehicle(v){
+      if(!VEHICLES.includes(v)) return;
+      selectedVehicle = v;
+      localStorage.setItem(LS.vehicle, v);
+      renderVehicleUI();
+      updateUI();
+    }
+    vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
+      b.addEventListener("click", ()=> setVehicle(b.getAttribute("data-veh")));
+    });
+    renderVehicleUI();
+
     // ===== Price
     const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
     const savedPrice = Number(localStorage.getItem(LS.price)||"15");
@@ -531,52 +551,11 @@
       localStorage.setItem(LS.price, priceRange.value);
     });
 
-    // ===== Leaflet init (زي السائق)
-    let fixMap = ()=>{};
-    let leafletOK = false;
-    let map = null;
-    let divPin = ()=>null;
-
-    let fromMarker=null,toMarker=null,myMarker=null;
-    let routeLine=null;
-    let myPos=null;
-
-    function safeNum(x){ const n=Number(x); return Number.isFinite(n)?n:null; }
-
-    try{
-      if(!window.L) throw new Error("Leaflet not loaded");
-
-      map = L.map("map", { zoomControl:false }).setView([30.0444,31.2357], 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap"
-      }).addTo(map);
-
-      leafletOK = true;
-      if(mapFallback) mapFallback.style.display="none";
-
-      fixMap = ()=>{ try{ map.invalidateSize(true);}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
-      setTimeout(fixMap, 350);
-      window.addEventListener("load", ()=>setTimeout(fixMap, 200));
-      document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
-
-      divPin=(emoji)=>L.divIcon({
-        className: "pin-emoji",
-        html:`<div class="pin-bubble">${emoji}</div>`,
-        iconSize:[44,44],
-        iconAnchor:[22,44],
-        popupAnchor:[0,-36]
-      });
-
-    }catch(e){
-      console.error(e);
-      leafletOK = false;
-      if(mapFallback){
-        mapFallback.style.display="flex";
-        mapFallback.innerHTML = `❌ الخريطة لم تُحمّل.<br>جرّب بدون VPN / حدّث الصفحة.`;
-      }
-      msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`;
-    }
+    // ===== Save texts
+    fromText.value = localStorage.getItem(LS.fromText)||"";
+    toText.value = localStorage.getItem(LS.toText)||"";
+    fromText.addEventListener("input", ()=>localStorage.setItem(LS.fromText, fromText.value));
+    toText.addEventListener("input", ()=>localStorage.setItem(LS.toText, toText.value));
 
     // ===== Perm pill
     function setPermPill(state){
@@ -593,7 +572,54 @@
       }catch{}
     })();
 
-    // ===== Route via OSRM
+    // =========================================================
+    // MAP INIT (Guaranteed)
+    // =========================================================
+    let leafletOK=false;
+    let map=null;
+    let fixMap=()=>{};
+    let divPin=()=>null;
+
+    try{
+      if(!window.L) throw new Error("Leaflet not loaded");
+
+      map = L.map("map", { zoomControl:false }).setView([30.0444,31.2357], 12);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
+      }).addTo(map);
+
+      leafletOK=true;
+
+      fixMap=()=>{ try{ map.invalidateSize(true);}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
+      setTimeout(fixMap, 450);
+      window.addEventListener("load", ()=>setTimeout(fixMap, 250));
+      document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
+
+      divPin=(emoji)=>L.divIcon({
+        className:"pin-emoji",
+        html:`<div class="pin-bubble">${emoji}</div>`,
+        iconSize:[44,44],
+        iconAnchor:[22,44],
+        popupAnchor:[0,-36]
+      });
+    }catch(e){
+      console.error(e);
+      leafletOK=false;
+      msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`;
+    }
+
+    let fromMarker=null,toMarker=null,myMarker=null;
+    let routeLine=null;
+    let myPos=null;
+
+    function clearRoute(){
+      if(!leafletOK || !map) return;
+      if(routeLine){ try{ map.removeLayer(routeLine); }catch{} routeLine=null; }
+    }
+
+    // OSRM route
     async function fetchRouteOSRM(a, b){
       const url =
         `https://router.project-osrm.org/route/v1/driving/`+
@@ -606,11 +632,6 @@
       const coords = data?.routes?.[0]?.geometry?.coordinates;
       if(!coords?.length) return null;
       return coords.map(([lng,lat])=>({lat, lng}));
-    }
-
-    function clearRoute(){
-      if(!leafletOK || !map) return;
-      if(routeLine){ try{ map.removeLayer(routeLine); }catch{} routeLine=null; }
     }
 
     async function drawRouteReal(){
@@ -755,16 +776,12 @@
     $("fromSearchBtn").addEventListener("click", ()=>search("from"));
     $("toSearchBtn").addEventListener("click", ()=>search("to"));
 
-    // ===== Save texts
-    fromText.value = localStorage.getItem(LS.fromText)||"";
-    toText.value = localStorage.getItem(LS.toText)||"";
-    fromText.addEventListener("input", ()=>localStorage.setItem(LS.fromText, fromText.value));
-    toText.addEventListener("input", ()=>localStorage.setItem(LS.toText, toText.value));
-
-    // ===== Ride state
+    // =========================================================
+    // Ride state + Notifications
+    // =========================================================
     let unsubRide=null;
     let currentRideId = localStorage.getItem(LS.lastRideId) || null;
-    let lastNotifiedStatus = null;
+    let lastRideStatus = null;
 
     function setRideUI(state){
       cancelBtn.disabled = !(state==="open" || state==="offered");
@@ -781,6 +798,7 @@
 
       if(currentRideId){
         cancelBtn.disabled = !currentRideId;
+        createBtn.disabled = true;
         return;
       }
 
@@ -806,6 +824,47 @@
       }
     }
 
+    function fireStatusNotification(st, r){
+      if(st === lastRideStatus) return;
+      lastRideStatus = st;
+
+      if(st === "offered"){
+        playBeep("offer");
+        showToast("💰 <b>وصل عرض سعر من السائق</b>", 3500);
+        notifySystem("مشوارك", "وصل عرض سعر من السائق");
+      }
+
+      if(st === "accepted"){
+        playBeep("accepted");
+        showToast("✅ <b>تم قبول الرحلة</b>", 3200);
+        notifySystem("مشوارك", "تم قبول الرحلة");
+      }
+
+      if(st === "arrived"){
+        playBeep("arrived");
+        showToast("📍 <b>السائق وصل مكان القيام</b>", 3500);
+        notifySystem("مشوارك", "السائق وصل مكان القيام");
+      }
+
+      if(st === "started"){
+        playBeep("started");
+        showToast("🚖 <b>بدأت الرحلة</b>", 3200);
+        notifySystem("مشوارك", "بدأت الرحلة");
+      }
+
+      if(st === "completed"){
+        playBeep("ended");
+        showToast("🏁 <b>تم إنهاء الرحلة</b>", 3500);
+        notifySystem("مشوارك", "تم إنهاء الرحلة");
+      }
+
+      if(st === "canceled"){
+        playBeep("ended");
+        showToast("❌ <b>تم إلغاء الطلب</b>", 3500);
+        notifySystem("مشوارك", "تم إلغاء الطلب");
+      }
+    }
+
     function watchRide(rideId){
       if(unsubRide) unsubRide();
       const ref=doc(db,"rides",rideId);
@@ -824,15 +883,8 @@
         const r=snap.data();
         const st=r.status || "-";
 
-        if(st !== lastNotifiedStatus){
-          if(st==="offered") await notifyPro("عرض سعر من السائق", "تم إرسال عرض — افتح التفاصيل لقبوله.");
-          if(st==="accepted") await notifyPro("تم قبول المشوار", "السائق وافق وتم فتح الرحلة.");
-          if(st==="arrived") await notifyPro("السائق وصل", "السائق وصل لمكان القيام.");
-          if(st==="started") await notifyPro("بدأت الرحلة", "تم بدء الرحلة.");
-          if(st==="completed") await notifyPro("انتهت الرحلة", "تم إنهاء الرحلة.");
-          if(st==="canceled") await notifyPro("تم إلغاء الطلب", "تم إلغاء الطلب.");
-          lastNotifiedStatus = st;
-        }
+        // إشعار احترافي
+        fireStatusNotification(st, r);
 
         if(st==="open"){
           ridePill.textContent="✔ تم طلب المشوار… جارٍ البحث عن سائق";
@@ -873,7 +925,8 @@
               acceptBtn.disabled=true;
               offerMsg.textContent="جارٍ القبول…";
 
-              const driverUid = r.driverUid || null;
+              // طلب الإشعارات أول مرة
+              await ensureNotificationPermission();
 
               await updateDoc(ref, {
                 status:"accepted",
@@ -881,18 +934,9 @@
                 acceptedAt:serverTimestamp()
               });
 
-              // ✅ افتح الرحلة للسائق فورًا (driver_status)
-              if(driverUid){
-                await setDoc(doc(db,"driver_status", driverUid), {
-                  online: true,
-                  available: false,
-                  currentTripId: snap.id,
-                  lastSeenAt: serverTimestamp()
-                }, { merge:true });
-              }
-
               offerMsg.textContent="✅ تم القبول.";
-              await notifyPro("تم قبول العرض", "تم فتح الرحلة للسائق الآن");
+              showToast("✅ <b>تم قبول العرض</b> — الرحلة بدأت", 2600);
+
             }catch(e){
               console.error(e);
               offerMsg.textContent="❌ فشل القبول.";
@@ -908,6 +952,7 @@
             (st==="accepted") ? "✅ السائق وافق" :
             (st==="arrived")  ? "📍 السائق وصل" :
             "🚖 الرحلة بدأت";
+
           setRideUI(st);
 
           const dName=r.driverName||"سائق";
@@ -947,32 +992,34 @@
       });
     }
 
-    if(currentRideId){
-      setRideUI("open");
-      cancelBtn.disabled = false;
-      watchRide(currentRideId);
-    }
-
+    // ====== Create / Cancel
     createBtn.addEventListener("click", async ()=>{
       try{
         msg.textContent="";
-        if(currentRideId){ msg.textContent="⚠️ لديك طلب قائم بالفعل."; return; }
+
+        if(currentRideId){
+          msg.textContent="⚠️ لديك طلب قائم بالفعل.";
+          return;
+        }
 
         const {gov,center}=getSelectedArea();
         if(!gov || !center){ msg.textContent="❌ اختر المحافظة + المركز."; updateUI(); return; }
         if(!selectedVehicle){ msg.textContent="❌ اختر نوع المركبة."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
 
+        // منع الطلبات الوهمية: لازم رقم هاتف محفوظ
         if(!passengerPhone){
           msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه.";
           return;
         }
 
+        await ensureNotificationPermission();
+
         createBtn.disabled=true;
         const priceEGP = Number(priceRange.value) || 15;
 
         msg.textContent="جارٍ إنشاء الطلب…";
-        showToast("🚖 <b>تم طلب المشوار</b>…", 1800);
+        showToast("🚖 <b>تم طلب المشوار</b>…", 2000);
 
         const docRef = await addDoc(collection(db,"rides"),{
           status: "open",
@@ -980,8 +1027,8 @@
           governorate: gov,
           center: center,
           from, to,
-          fromText: fromText.value.trim()||null,
-          toText: toText.value.trim()||null,
+          fromText: clean(fromText.value)||null,
+          toText: clean(toText.value)||null,
           priceEGP,
           passengerUid: user.uid,
           passengerEmail: user.email,
@@ -1000,7 +1047,8 @@
 
         msg.textContent="✅ تم إنشاء الطلب.";
         setRideUI("open");
-        await notifyPro("تم إنشاء الطلب", "جارٍ البحث عن سائق...");
+        updateUI();
+
       }catch(e){
         console.error(e);
         msg.textContent="❌ حصل خطأ أثناء طلب المشوار.";
@@ -1048,6 +1096,7 @@
 
         setRideUI("none");
         updateUI();
+
       }catch(e){
         console.error(e);
         msg.textContent="❌ فشل الإلغاء.";
@@ -1057,9 +1106,19 @@
       }
     });
 
-    setRideUI(currentRideId ? "open" : "none");
+    // ===== Restore ride
+    if(currentRideId){
+      setRideUI("open");
+      cancelBtn.disabled = false;
+      watchRide(currentRideId);
+    }else{
+      setRideUI("none");
+    }
+
+    // ===== Init
     updateUI();
     autoLocate();
+    ensureNotificationPermission().catch(()=>{});
 
     // ===== Bottom Sheet
     const sheet=$("sheet"), handle=$("sheetHandle"), content=$("sheetContent");
