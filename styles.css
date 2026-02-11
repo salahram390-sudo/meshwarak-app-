@@ -12,7 +12,7 @@
 }
 
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0}
+html,body{height:100%;margin:0;padding:0;overflow:auto}
 body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
   -webkit-font-smoothing: antialiased;
@@ -22,7 +22,6 @@ body{
     radial-gradient(900px 500px at 10% 0%, rgba(34,197,94,.08), transparent 50%),
     var(--bg);
   color:var(--txt);
-  overflow:auto;
 }
 
 a{color:inherit;text-decoration:none}
@@ -58,6 +57,7 @@ a{color:inherit;text-decoration:none}
   user-select:none;
   -webkit-tap-highlight-color: transparent;
   transition: transform .08s ease, filter .12s ease, opacity .12s ease;
+  touch-action: manipulation;
 }
 .btn:active{ transform: translateY(1px); filter: brightness(1.05); }
 .btn:disabled{opacity:.55;cursor:not-allowed; transform:none; filter:none;}
@@ -110,7 +110,6 @@ textarea{resize:none}
 .pill.ok{border-color: rgba(34,197,94,.28);background: rgba(34,197,94,.10);color:#bfffe0}
 .pill.bad{border-color: rgba(255,92,122,.28);background: rgba(255,92,122,.10);color:#ffd0d8}
 
-/* ===== Actions ===== */
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .actions .btn{flex:1; min-width:140px}
 
@@ -127,7 +126,7 @@ textarea{resize:none}
 .leaflet-control-attribution{opacity:.75}
 .leaflet-control-zoom{display:none}
 
-/* ✅ Emoji pin */
+/* ===== Emoji pin ===== */
 .pin-emoji{ background: transparent !important; border:0 !important; }
 .pin-bubble{
   width:44px; height:44px;
@@ -139,7 +138,7 @@ textarea{resize:none}
   box-shadow: 0 10px 26px rgba(0,0,0,.40);
 }
 
-/* ===== Bottom sheet ===== */
+/* ===== Bottom sheet (IMPORTANT FIX) ===== */
 .sheet{
   position:absolute;left:0;right:0;bottom:0;z-index:1000;
   border-top-left-radius:22px;border-top-right-radius:22px;
@@ -151,6 +150,7 @@ textarea{resize:none}
   overflow:hidden;
   will-change: transform;
   touch-action:auto;
+  pointer-events:auto;
 }
 .sheet-handle{
   width:52px;height:5px;border-radius:999px;margin:0 auto 10px;
@@ -167,7 +167,7 @@ textarea{resize:none}
   padding-bottom:10px;
 }
 
-/* ===== Toast (single) ===== */
+/* ===== Toast ===== */
 #toast{
   position:fixed; left:14px; right:14px; top:78px;
   background:rgba(10,18,34,.92);
