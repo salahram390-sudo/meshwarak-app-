@@ -7,8 +7,8 @@
 
   <!-- ✅ Favicon -->
   <link rel="icon" href="./favicon.png">
-
   <link rel="stylesheet" href="./styles.css" />
+
   <style>
     html,body{overflow:auto}
     .box{
@@ -46,7 +46,6 @@
       <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
     </div>
 
-    <!-- ✅ Phone -->
     <div class="field">
       <label>رقم الهاتف</label>
       <input id="phone" inputmode="tel" placeholder="مثال: 01012345678" autocomplete="tel"/>
@@ -127,7 +126,12 @@
   </div>
 
   <script type="module">
-    import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile } from "./app.js";
+    import {
+      auth, db, qs,
+      emailLoginOrSignup, ensureUserDoc, saveUserProfile,
+      normalizeEmail, normalizePhone
+    } from "./app.js";
+
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -177,23 +181,6 @@
       vehicle:"mw_login_vehicle",
       model:"mw_login_model",
     };
-
-    // ✅ phone normalize (يحذف المسافات والشرطات…)
-    // ✅ (2) دعم أرقام مصر: 01xxxxxxxxx => +201xxxxxxxxx
-    function normalizePhone(x){
-      let v = String(x||"").trim();
-      if(!v) return null;
-
-      v = v.replace(/[^\d+]/g,"");       // نسمح بالأرقام و +
-      if(v.startsWith("00")) v = "+" + v.slice(2);
-
-      // ✅ مصر: 01xxxxxxxxx -> +201xxxxxxxxx
-      if(/^01\d{9}$/.test(v)) v = "+20" + v.slice(1);
-
-      const digits = v.replace(/\D/g,"");
-      if(digits.length < 8 || digits.length > 15) return null;
-      return v;
-    }
 
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
@@ -288,19 +275,6 @@
       }
       saveDraft();
     });
-
-    function normalizeEmail(x){
-      let v = String(x||"").trim();
-      if(!v) return null;
-
-      if(!v.includes("@")){
-        v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
-        if(!v) v = "user";
-        v = `${v}@meshwarak.local`;
-      }
-      if(/^[^@]+@$/.test(v)) v = v + "meshwarak.local";
-      return v.toLowerCase();
-    }
 
     function saveDraft(){
       try{
@@ -419,7 +393,7 @@
       const password = String(passEl.value || "");
       const phone = normalizePhone(phoneEl.value || "");
 
-      if(!phone){ msg.textContent = "❌ اكتب رقم هاتف صحيح (8 إلى 15 رقم)."; return; }
+      if(!phone){ msg.textContent = "❌ اكتب رقم هاتف صحيح."; return; }
       if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط وسيُحوَّل لوهمي)."; return; }
       if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
       if(!selectedRole){ msg.textContent = "❌ اختر راكب أو سائق."; return; }
@@ -466,7 +440,7 @@
           }
         }
 
-        // ✅ (1) تثبيت أول رقم: لو موجود قبل كده مايتغيرش
+        // ✅ تثبيت أول رقم: لو موجود قبل كده مايتغيرش
         await ensureUserDoc(uid, {
           role: finalRole,
           email: res.user.email || email,
@@ -478,7 +452,6 @@
           model: finalRole==="driver" ? ((existing?.model)||((modelEl.value||"").trim()||null)) : null,
         });
 
-        // ✅ (1) تثبيت أول رقم: لو موجود قبل كده مايتغيرش
         await saveUserProfile(uid, {
           role: finalRole,
           email: res.user.email || email,
@@ -528,4 +501,3 @@
   </script>
 </body>
 </html>
-```0
