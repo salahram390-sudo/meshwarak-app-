@@ -21,7 +21,6 @@
       user-select:none;
       font-weight:900;
       -webkit-tap-highlight-color: transparent;
-      color:inherit;
     }
     .roleBtn.active{
       background: rgba(43,108,255,.14);
@@ -85,7 +84,7 @@
       </div>
 
       <div class="field" style="text-align:right;margin-top:12px">
-        <label>رقم الهاتف <span class="hint">(مهم لتجنب الطلبات الوهمية)</span></label>
+        <label>رقم الهاتف <span class="hint">(مهم للتواصل)</span></label>
         <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" />
       </div>
 
@@ -134,8 +133,7 @@
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole, enableRole,
-      normalizePhone, clean
+      setActiveRole, clean, normalizePhone
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
@@ -157,9 +155,9 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
+    // ===== role (query + last choice)
     const url = new URL(location.href);
     const LS_ROLE = "mw_last_role";
-
     let role =
       (url.searchParams.get("role")==="driver") ? "driver" :
       (url.searchParams.get("role")==="passenger") ? "passenger" :
@@ -172,6 +170,7 @@
       roleDriverBtn.classList.toggle("active", role==="driver");
       driverBox.style.display = (role==="driver") ? "block" : "none";
     }
+
     rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"));
     roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
     setRole(role);
@@ -194,16 +193,8 @@
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
-    function validateCommon(){
-      const phoneRaw = clean(phoneEl.value);
-      const phoneNorm = phoneRaw ? normalizePhone(phoneRaw) : null;
-      if(phoneRaw && !phoneNorm) return { ok:false, msg:"❌ رقم الهاتف غير صحيح." };
-      return { ok:true, phoneNorm };
-    }
-
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
-
       const v = clean(vehicleEl.value);
       const m = clean(modelEl.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
@@ -212,25 +203,25 @@
     }
 
     async function afterAuth(user){
-      // ensure base doc
+      // ✅ roles دائماً
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
         email: user.email || clean(emailEl.value) || null
       });
 
-      // enable selected role safely
-      await enableRole(user.uid, role);
+      const phoneNorm = normalizePhone(phoneEl.value);
 
-      const common = validateCommon();
-      if(!common.ok){ setMsg(common.msg); return; }
+      // ✅ لازم رقم هاتف للتواصل (ممكن تشيله لو مش عايزه إجباري)
+      if(phoneEl.value.trim() && !phoneNorm){
+        throw { message:"رقم الهاتف غير صحيح.", code:"bad-phone" };
+      }
 
-      // save profile
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
         name: clean(nameEl.value) || null,
-        phone: common.phoneNorm,
+        phone: phoneNorm,
         email: user.email || clean(emailEl.value) || null
       };
 
@@ -242,17 +233,16 @@
 
       await saveUserProfile(user.uid, payload);
 
+      // ✅ تثبيت الدور على الجهاز
       setActiveRole(role);
+
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function doSignup(){
       try{
-        const v1 = validateRoleFields();
-        if(!v1.ok){ setMsg(v1.msg); return; }
-
-        const v2 = validateCommon();
-        if(!v2.ok){ setMsg(v2.msg); return; }
+        const v = validateRoleFields();
+        if(!v.ok){ setMsg(v.msg); return; }
 
         setMsg("جارٍ إنشاء الحساب…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
@@ -260,7 +250,8 @@
         const cred = await emailSignUp(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        setMsg(niceAuthError(e));
+        if(e?.code==="bad-phone") setMsg("❌ رقم الهاتف غير صحيح.");
+        else setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
       }
@@ -268,11 +259,8 @@
 
     async function doLogin(){
       try{
-        const v1 = validateRoleFields();
-        if(!v1.ok){ setMsg(v1.msg); return; }
-
-        const v2 = validateCommon();
-        if(!v2.ok){ setMsg(v2.msg); return; }
+        const v = validateRoleFields();
+        if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
 
         setMsg("جارٍ تسجيل الدخول…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
@@ -280,7 +268,8 @@
         const cred = await emailSignIn(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        setMsg(niceAuthError(e));
+        if(e?.code==="bad-phone") setMsg("❌ رقم الهاتف غير صحيح.");
+        else setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
       }
