@@ -46,7 +46,7 @@
       <input id="name" placeholder="مثال: صلاح" autocomplete="name"/>
     </div>
 
-    <!-- ✅ NEW: Phone -->
+    <!-- ✅ Phone -->
     <div class="field">
       <label>رقم الهاتف</label>
       <input id="phone" inputmode="tel" placeholder="مثال: 01012345678" autocomplete="tel"/>
@@ -135,7 +135,7 @@
 
     const emailEl = $("email");
     const passEl  = $("password");
-    const phoneEl = $("phone"); // ✅ NEW
+    const phoneEl = $("phone");
     const msg     = $("msg");
 
     const rolePassenger = $("rolePassenger");
@@ -173,18 +173,23 @@
       centerOther:"mw_login_center_other",
       role:"mw_login_role",
       name:"mw_login_name",
-      phone:"mw_login_phone", // ✅ NEW
+      phone:"mw_login_phone",
       vehicle:"mw_login_vehicle",
       model:"mw_login_model",
     };
 
     // ✅ phone normalize (يحذف المسافات والشرطات…)
+    // ✅ (2) دعم أرقام مصر: 01xxxxxxxxx => +201xxxxxxxxx
     function normalizePhone(x){
       let v = String(x||"").trim();
       if(!v) return null;
+
       v = v.replace(/[^\d+]/g,"");       // نسمح بالأرقام و +
       if(v.startsWith("00")) v = "+" + v.slice(2);
-      // حد أدنى منطقي
+
+      // ✅ مصر: 01xxxxxxxxx -> +201xxxxxxxxx
+      if(/^01\d{9}$/.test(v)) v = "+20" + v.slice(1);
+
       const digits = v.replace(/\D/g,"");
       if(digits.length < 8 || digits.length > 15) return null;
       return v;
@@ -300,7 +305,7 @@
     function saveDraft(){
       try{
         localStorage.setItem(LS.email, emailEl?.value || "");
-        localStorage.setItem(LS.phone, phoneEl?.value || ""); // ✅ NEW
+        localStorage.setItem(LS.phone, phoneEl?.value || "");
         localStorage.setItem(LS.gov, govEl?.value || "");
         localStorage.setItem(LS.center, centerEl?.value || "");
         localStorage.setItem(LS.centerOther, centerOtherEl?.value || "");
@@ -332,7 +337,7 @@
     function restoreDraft(){
       try{
         emailEl.value = localStorage.getItem(LS.email) || "";
-        phoneEl.value = localStorage.getItem(LS.phone) || ""; // ✅ NEW
+        phoneEl.value = localStorage.getItem(LS.phone) || "";
         nameEl.value = localStorage.getItem(LS.name) || "";
 
         const role = localStorage.getItem(LS.role) || "";
@@ -400,7 +405,7 @@
       centerOtherEl.disabled = locked;
       emailEl.disabled = locked;
       passEl.disabled = locked;
-      phoneEl.disabled = locked; // ✅ NEW
+      phoneEl.disabled = locked;
       nameEl.disabled = locked;
       vehicleEl.disabled = locked;
       modelEl.disabled = locked;
@@ -412,7 +417,7 @@
 
       const email = normalizeEmail(emailEl.value || "");
       const password = String(passEl.value || "");
-      const phone = normalizePhone(phoneEl.value || ""); // ✅ NEW
+      const phone = normalizePhone(phoneEl.value || "");
 
       if(!phone){ msg.textContent = "❌ اكتب رقم هاتف صحيح (8 إلى 15 رقم)."; return; }
       if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط وسيُحوَّل لوهمي)."; return; }
@@ -461,22 +466,24 @@
           }
         }
 
+        // ✅ (1) تثبيت أول رقم: لو موجود قبل كده مايتغيرش
         await ensureUserDoc(uid, {
           role: finalRole,
           email: res.user.email || email,
           name: (nameEl.value||"").trim() || existing?.name || null,
-          phone: phone || existing?.phone || null, // ✅ NEW
+          phone: existing?.phone || phone || null,
           governorate: area.governorate,
           center: area.center,
           vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
           model: finalRole==="driver" ? ((existing?.model)||((modelEl.value||"").trim()||null)) : null,
         });
 
+        // ✅ (1) تثبيت أول رقم: لو موجود قبل كده مايتغيرش
         await saveUserProfile(uid, {
           role: finalRole,
           email: res.user.email || email,
           name: (nameEl.value||"").trim() || existing?.name || null,
-          phone: phone || existing?.phone || null, // ✅ NEW
+          phone: existing?.phone || phone || null,
           governorate: area.governorate,
           center: area.center,
           vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
@@ -521,3 +528,4 @@
   </script>
 </body>
 </html>
+```0
