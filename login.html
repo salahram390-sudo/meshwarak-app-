@@ -2,223 +2,182 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
   <title>مشوارك - تسجيل الدخول</title>
   <link rel="icon" href="./favicon.png">
   <link rel="stylesheet" href="./styles.css">
   <meta name="theme-color" content="#050B16" />
-  <style>
-    .wrap{ width:min(520px,92%); margin:18px auto; }
-    .card{
-      background: linear-gradient(180deg, rgba(12,18,32,.95), rgba(10,18,34,.82));
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:22px;
-      padding:14px;
-      box-shadow:0 18px 55px rgba(0,0,0,.28);
-    }
-    .title{font-weight:900;font-size:18px;margin:0 0 8px}
-    .hint{opacity:.9;line-height:1.7}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .field{margin-top:10px}
-    .field label{display:block;margin-bottom:6px;opacity:.9}
-    .field input, .field select{
-      width:100%;
-      padding:10px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      outline:none;
-    }
-    .btn{
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      padding:10px 12px;
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      cursor:pointer;
-      font-weight:800;
-      width:100%;
-    }
-    .btn.primary{background:rgba(43,108,255,.85);border-color:rgba(43,108,255,.35)}
-    .btn.success{background:rgba(34,197,94,.78);border-color:rgba(34,197,94,.35);color:#04110a}
-    .roleRow{display:flex;gap:10px;margin-top:10px}
-    .roleBtn{
-      flex:1;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.14);
-      padding:12px 10px;
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      cursor:pointer;
-      font-weight:900;
-    }
-    .roleBtn.active{
-      background: rgba(43,108,255,.14);
-      border-color: rgba(43,108,255,.35);
-    }
-    .msg{margin-top:10px;opacity:.95;line-height:1.7}
-    .bad{color:#ffb4b4}
-    .ok{color:#b7ffcf}
-  </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1 class="title">تسجيل الدخول / إنشاء حساب</h1>
-      <div class="hint">اختار تدخل كـ <b>راكب</b> أو <b>سائق</b> — نفس الإيميل يشتغل في الاتنين ✅</div>
+  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
+    <div class="card" style="width:min(560px, 100%); text-align:center">
 
-      <div class="roleRow">
-        <button class="roleBtn active" id="rolePassenger" type="button">راكب</button>
-        <button class="roleBtn" id="roleDriver" type="button">سائق</button>
+      <div style="display:flex;justify-content:center;margin-bottom:12px">
+        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
       </div>
 
-      <div class="field">
+      <h1 style="margin:0;font-size:20px">تسجيل الدخول / إنشاء حساب</h1>
+      <p class="hint" style="margin:8px 0 14px">اختار تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاتنين ✅</p>
+
+      <div class="actions" style="justify-content:center;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="roleDriver" type="button" style="min-width:160px">سائق</button>
+        <button class="btn primary" id="rolePassenger" type="button" style="min-width:160px">راكب</button>
+      </div>
+
+      <div class="field" style="margin-top:14px;text-align:right">
         <label>الإيميل</label>
-        <input id="email" placeholder="مثال: test@gmail.com" autocomplete="username" />
+        <input id="email" inputmode="email" autocomplete="email" placeholder="example@gmail.com" />
       </div>
 
-      <div class="field">
+      <div class="field" style="margin-top:10px;text-align:right">
         <label>كلمة المرور (6 أحرف على الأقل)</label>
-        <input id="pass" type="password" placeholder="******" autocomplete="current-password" />
+        <input id="password" type="password" autocomplete="current-password" placeholder="******" />
       </div>
 
       <div class="grid2" style="margin-top:10px">
-        <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
-        <button class="btn success" id="signupBtn" type="button">إنشاء حساب</button>
-      </div>
-
-      <div class="field" style="margin-top:14px">
-        <label>الاسم (اختياري)</label>
-        <input id="name" placeholder="اسمك" />
-      </div>
-
-      <div class="field">
-        <label>رقم الهاتف (مهم لتجنب الطلبات الوهمية)</label>
-        <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" />
-      </div>
-
-      <div id="driverFields" style="display:none">
-        <div class="field">
-          <label>نوع المركبة (للسائق)</label>
-          <select id="vehicle">
-            <option value="">اختر…</option>
-            <option value="tuktuk">توكتوك</option>
-            <option value="motor_delivery">موتسيكل دليفري</option>
-            <option value="car">ملاكي</option>
-            <option value="microbus">ميكروباص</option>
-            <option value="tamanya">تمناية</option>
-            <option value="caboot">عربية كابوت</option>
-          </select>
+        <div class="field" style="margin-top:0;text-align:right">
+          <label>الاسم (اختياري)</label>
+          <input id="name" placeholder="اسمك" />
         </div>
-
-        <div class="field">
-          <label>الموديل (اختياري)</label>
-          <input id="model" placeholder="مثال: 2020" />
+        <div class="field" style="margin-top:0;text-align:right">
+          <label>رقم الهاتف (مهم لتجنب الطلبات الوهمية)</label>
+          <input id="phone" inputmode="tel" placeholder="01xxxxxxxxx" />
         </div>
       </div>
 
-      <div id="msg" class="msg"></div>
+      <div class="actions" style="justify-content:center;margin-top:14px;flex-wrap:wrap">
+        <button class="btn success" id="signupBtn" type="button" style="min-width:200px">إنشاء حساب</button>
+        <button class="btn primary" id="loginBtn" type="button" style="min-width:200px">تسجيل دخول</button>
+      </div>
+
+      <p id="msg" class="hint" style="margin:12px 0 0"></p>
+      <p id="err" class="hint" style="margin:8px 0 0;color:#ff6b6b"></p>
+
+      <div class="actions" style="justify-content:center;margin-top:12px">
+        <a class="btn" href="./index.html" style="min-width:220px">⬅️ رجوع للرئيسية</a>
+      </div>
     </div>
   </div>
 
   <script type="module">
     import {
-      emailSignIn, emailSignUp, saveUserProfile,
-      normalizeEmail, normalizePassword, normalizePhone,
-      ensureUserDoc, setActiveRole
+      emailSignIn, emailSignUp, normalizeEmail, normalizePassword, normalizePhone,
+      ensureUserDoc, saveUserProfile, enableRole, setActiveRole, qs, auth
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
-    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
-    let role = "passenger";
-    function setRole(r){
-      role = r;
-      $("rolePassenger").classList.toggle("active", r==="passenger");
-      $("roleDriver").classList.toggle("active", r==="driver");
-      $("driverFields").style.display = (r==="driver") ? "block" : "none";
-      setActiveRole(r); // ✅ ده اللي يمنع التحويل التلقائي
+    const roleDriverBtn = $("roleDriver");
+    const rolePassengerBtn = $("rolePassenger");
+    const emailEl = $("email");
+    const passEl = $("password");
+    const nameEl = $("name");
+    const phoneEl = $("phone");
+    const msgEl = $("msg");
+    const errEl = $("err");
+
+    // role from query ?role=driver/passenger
+    let role = (qs("role")==="driver") ? "driver" : "passenger";
+
+    function renderRole(){
+      roleDriverBtn.classList.toggle("primary", role==="driver");
+      rolePassengerBtn.classList.toggle("primary", role==="passenger");
     }
+    roleDriverBtn.onclick = ()=>{ role="driver"; renderRole(); };
+    rolePassengerBtn.onclick = ()=>{ role="passenger"; renderRole(); };
+    renderRole();
 
-    $("rolePassenger").addEventListener("click", ()=>setRole("passenger"));
-    $("roleDriver").addEventListener("click", ()=>setRole("driver"));
-    setRole("passenger");
+    function niceErr(e){
+      const code = e?.code || "";
+      const msg  = e?.message || "";
 
-    function goAfterLogin(){
-      location.href = (role==="driver") ? "./driver.html" : "./passenger.html";
-    }
+      // ✅ أهم سبب على GitHub Pages
+      if(code === "auth/unauthorized-domain"){
+        return "❌ الدومين غير مسموح في Firebase. لازم تضيف 0-sudo.github.io في Authorized domains.";
+      }
 
-    function show(text, ok=false){
-      $("msg").innerHTML = `<span class="${ok?'ok':'bad'}">${text}</span>`;
+      if(code === "auth/operation-not-allowed"){
+        return "❌ Email/Password مش متفعّل في Firebase. فعّله من Authentication → Sign-in method.";
+      }
+
+      if(code === "auth/invalid-email") return "❌ الإيميل غير صحيح.";
+      if(code === "auth/missing-password") return "❌ اكتب كلمة المرور.";
+      if(code === "auth/weak-password") return "❌ كلمة المرور ضعيفة. لازم 6 أحرف أو أكثر.";
+      if(code === "auth/email-already-in-use") return "❌ الإيميل مستخدم قبل كده. اضغط تسجيل دخول.";
+      if(code === "auth/invalid-credential" || code === "auth/wrong-password") return "❌ بيانات الدخول غير صحيحة.";
+      if(code === "auth/user-not-found") return "❌ الحساب غير موجود. اضغط إنشاء حساب.";
+
+      if(msg.includes("bad-email")) return "❌ اكتب الإيميل.";
+      if(msg.includes("bad-pass")) return "❌ كلمة المرور لازم 6 أحرف أو أكثر.";
+
+      return "❌ فشل. " + (code || msg || "سبب غير معروف");
     }
 
     async function afterAuth(user){
-      // ✅ أنشئ/حدّث user doc + خلي roles الاتنين شغالين + ثبت activeRole
+      // ✅ ارفع الدور لFirestore + LocalStorage (نفس الإيميل يشتغل في الاتنين)
+      await enableRole(user.uid, role);
+
+      // ✅ حفظ الاسم/الهاتف (لو موجودين)
+      const name = String(nameEl.value||"").trim() || null;
+      const phone = normalizePhone(phoneEl.value) || null;
+
+      // ✅ امنع الطلبات الوهمية: هنسمح بالتسجيل بدون رقم، بس الطلب نفسه يمنع (زي ما عندك)
       await ensureUserDoc(user.uid, {
-        roles: { passenger:true, driver:true },
+        roles: { passenger:true }, // default
         activeRole: role,
-        email: user.email || null,
+        email: user.email || normalizeEmail(emailEl.value) || null,
+        name, phone
       });
 
-      const payload = {
-        roles: { passenger:true, driver:true },
-        activeRole: role,
-        email: user.email || null,
-      };
-
-      const name = clean($("name").value);
-      const phone = normalizePhone($("phone").value);
-      if(name) payload.name = name;
-      if(phone) payload.phone = phone;
-
-      if(role==="driver"){
-        const veh = clean($("vehicle").value);
-        const model = clean($("model").value);
-        if(veh) payload.vehicle = veh;
-        if(model) payload.model = model;
+      if(name || phone){
+        await saveUserProfile(user.uid, {
+          name: name || null,
+          phone: phone || null,
+          email: user.email || null
+        });
       }
 
-      await saveUserProfile(user.uid, payload);
+      // redirect
       setActiveRole(role);
-      goAfterLogin();
+      location.href = (role==="driver") ? "./driver.html" : "./passenger.html";
     }
 
-    async function doLogin(){
-      const email = normalizeEmail($("email").value);
-      const pass = normalizePassword($("pass").value);
-      if(!email) return show("❌ اكتب إيميل صحيح.");
-      if(!pass) return show("❌ كلمة المرور لازم 6 أحرف على الأقل.");
-
-      show("جارٍ تسجيل الدخول…", true);
+    $("signupBtn").onclick = async ()=>{
+      errEl.textContent = "";
+      msgEl.textContent = "جارٍ إنشاء الحساب...";
       try{
-        const cred = await emailSignIn(email, pass);
-        await afterAuth(cred.user);
-      }catch(e){
-        console.error(e);
-        show("❌ فشل تسجيل الدخول. تأكد من الإيميل وكلمة المرور.");
-      }
-    }
+        const email = normalizeEmail(emailEl.value);
+        const pass  = normalizePassword(passEl.value);
+        if(!email) throw new Error("bad-email");
+        if(!pass) throw new Error("bad-pass");
 
-    async function doSignup(){
-      const email = normalizeEmail($("email").value);
-      const pass = normalizePassword($("pass").value);
-      if(!email) return show("❌ اكتب إيميل صحيح.");
-      if(!pass) return show("❌ كلمة المرور لازم 6 أحرف على الأقل.");
-
-      show("جارٍ إنشاء الحساب…", true);
-      try{
         const cred = await emailSignUp(email, pass);
+        msgEl.textContent = "✅ تم إنشاء الحساب.";
         await afterAuth(cred.user);
       }catch(e){
-        console.error(e);
-        show("❌ فشل إنشاء الحساب. جرّب إيميل مختلف أو كلمة مرور أقوى.");
+        msgEl.textContent = "";
+        errEl.textContent = niceErr(e);
       }
-    }
+    };
 
-    $("loginBtn").addEventListener("click", doLogin);
-    $("signupBtn").addEventListener("click", doSignup);
+    $("loginBtn").onclick = async ()=>{
+      errEl.textContent = "";
+      msgEl.textContent = "جارٍ تسجيل الدخول...";
+      try{
+        const email = normalizeEmail(emailEl.value);
+        const pass  = normalizePassword(passEl.value);
+        if(!email) throw new Error("bad-email");
+        if(!pass) throw new Error("bad-pass");
+
+        const cred = await emailSignIn(email, pass);
+        msgEl.textContent = "✅ تم تسجيل الدخول.";
+        await afterAuth(cred.user);
+      }catch(e){
+        msgEl.textContent = "";
+        errEl.textContent = niceErr(e);
+      }
+    };
   </script>
 </body>
 </html>
