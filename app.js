@@ -1,4 +1,4 @@
-// app.js — FINAL (Stable Roles + Safe Guards + Clean Helpers)
+// app.js — FINAL v17 (Stable roles + safe guards + helpers)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -19,9 +19,6 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-/* =========================
-   Firebase Config
-========================= */
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -35,54 +32,35 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+// Keep session on same device
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-/* =========================
-   Small Helpers
-========================= */
+// ===== Query string
 export function qs(key) {
-  try {
-    const u = new URL(location.href);
-    return u.searchParams.get(key);
-  } catch {
-    return null;
-  }
+  const u = new URL(location.href);
+  return u.searchParams.get(key);
 }
 
-export function clean(s) {
-  return String(s || "").trim().replace(/\s+/g, " ");
-}
-
-/* =========================
-   Role Storage (per device)
-========================= */
-const LS_ACTIVE_ROLE = "mw_active_role"; // passenger | driver
-
+// ===== Active role per device
+const LS_ACTIVE_ROLE = "mw_active_role";
 export function setActiveRole(role) {
   if (role !== "passenger" && role !== "driver") return;
   try { localStorage.setItem(LS_ACTIVE_ROLE, role); } catch {}
 }
-
 export function getActiveRole() {
   try {
     const r = localStorage.getItem(LS_ACTIVE_ROLE);
     return (r === "passenger" || r === "driver") ? r : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-/* =========================
-   Normalizers
-========================= */
+// ===== Normalizers
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
-
-  // ✅ لو Gmail حقيقي: سيبه زي ما هو
+  // لو المستخدم كتب إيميل حقيقي سيبه زي ما هو
   if (x.includes("@")) return x;
-
-  // (اختياري) لو المستخدم كتب بدون @
+  // fallback: pseudo-email (اختياري)
   x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
   if (!x) x = "user";
   return `${x}@meshwarak.local`;
@@ -97,7 +75,6 @@ export function normalizePhone(input) {
   let x = String(input || "").trim();
   if (!x) return null;
 
-  // أرقام عربية → إنجليزية
   const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9" };
   x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
 
@@ -105,7 +82,6 @@ export function normalizePhone(input) {
   if (x.includes("+")) x = "+" + x.replace(/\+/g, "");
   if (x.startsWith("00")) x = "+" + x.slice(2);
 
-  // مصر 01xxxxxxxxx -> +201xxxxxxxxx
   if (/^01\d{9}$/.test(x)) x = "+20" + x;
   if (/^201\d{9}$/.test(x)) x = "+20" + x.slice(2);
 
@@ -119,9 +95,7 @@ export function normalizePhone(input) {
   return x;
 }
 
-/* =========================
-   Firestore: user helpers
-========================= */
+// ========= Firestore helpers
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -134,12 +108,13 @@ export async function ensureUserDoc(uid, patch = {}) {
 
   if (!snap.exists()) {
     await setDoc(ref, {
-      roles: patch.roles || { passenger: true }, // default
+      roles: patch.roles || { passenger: true, driver: true },
       activeRole: patch.activeRole || "passenger",
 
       name: patch.name || null,
       phone: patch.phone || null,
       email: patch.email || null,
+
       governorate: patch.governorate || null,
       center: patch.center || null,
 
@@ -152,27 +127,48 @@ export async function ensureUserDoc(uid, patch = {}) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     }, { merge: true });
-
     return true;
   }
+
+  // ✅ لو قديم: ضَمّن roles/activeRole
+  const d = snap.data() || {};
+  const roles = d.roles || {};
+  const fixedRoles = {
+    passenger: roles.passenger !== false,
+    driver: roles.driver !== false,
+  };
+
+  const needFix =
+    !d.roles ||
+    typeof d.activeRole !== "string" ||
+    (d.activeRole !== "passenger" && d.activeRole !== "driver");
+
+  if (needFix) {
+    await setDoc(ref, {
+      roles: fixedRoles,
+      activeRole: (d.activeRole === "driver") ? "driver" : "passenger",
+      updatedAt: serverTimestamp(),
+    }, { merge: true }).catch(()=>{});
+  }
+
   return false;
 }
 
 export async function saveUserProfile(uid, payload) {
   const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+  const cleaned = { ...payload, updatedAt: serverTimestamp() };
+  await setDoc(ref, cleaned, { merge: true });
 }
 
-// ✅ تفعيل دور لنفس الحساب (passenger/driver)
+// ✅ تفعيل دور (راكب/سائق) لنفس الحساب
 export async function enableRole(uid, role) {
   if (role !== "passenger" && role !== "driver") return;
-
   const ref = doc(db, "users", uid);
 
   await ensureUserDoc(uid, {
-    roles: { passenger: true },
+    roles: { passenger: true, driver: true },
     activeRole: "passenger",
-  }).catch(() => {});
+  }).catch(()=>{});
 
   try {
     await updateDoc(ref, {
@@ -183,7 +179,7 @@ export async function enableRole(uid, role) {
   } catch {
     await setDoc(ref, {
       activeRole: role,
-      roles: { [role]: true },
+      roles: { passenger: true, driver: true, [role]: true },
       updatedAt: serverTimestamp(),
     }, { merge: true });
   }
@@ -191,9 +187,7 @@ export async function enableRole(uid, role) {
   setActiveRole(role);
 }
 
-/* =========================
-   Auth
-========================= */
+// ========= Auth
 export async function emailSignUp(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
@@ -210,15 +204,13 @@ export async function emailSignIn(emailRaw, passRaw) {
   return await signInWithEmailAndPassword(auth, email, password);
 }
 
-/* =========================
-   Guard
-========================= */
+// ========= Guard
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => { unsub(); resolve(u); },
-      (e) => { unsub(); reject(e); }
+      (u) => { try { unsub(); } catch {} resolve(u); },
+      (e) => { try { unsub(); } catch {} reject(e); }
     );
   });
 
@@ -227,31 +219,23 @@ export async function requireAuthAndRole(requiredRole = null) {
     throw new Error("not signed in");
   }
 
-  let data = await getUserDoc(user.uid).catch(() => null);
-
+  let data = await getUserDoc(user.uid).catch(()=>null);
   if (!data) {
     await ensureUserDoc(user.uid, {
       roles: { passenger: true, driver: true },
       activeRole: "passenger",
       email: user.email || null,
-    }).catch(() => {});
-    data = await getUserDoc(user.uid).catch(() => null);
-  } else {
-    // ✅ إصلاح الحسابات القديمة: اجعل الدورين موجودين دائمًا
-    const roles = data.roles || {};
-    if (!roles.passenger || !roles.driver) {
-      await setDoc(doc(db, "users", user.uid), {
-        roles: { passenger: true, driver: true },
-        updatedAt: serverTimestamp(),
-      }, { merge: true }).catch(() => {});
-      data = await getUserDoc(user.uid).catch(() => data);
-    }
+    }).catch(()=>{});
+    data = await getUserDoc(user.uid).catch(()=>null);
   }
 
   const localRole = getActiveRole();
-  const activeRole = localRole || data?.activeRole || "passenger";
+  const activeRole = (localRole === "driver" || localRole === "passenger")
+    ? localRole
+    : (data?.activeRole === "driver" ? "driver" : "passenger");
 
   if (requiredRole && activeRole !== requiredRole) {
+    // redirect آمن
     location.href = "./index.html";
     throw new Error("wrong role");
   }
@@ -260,7 +244,7 @@ export async function requireAuthAndRole(requiredRole = null) {
 }
 
 export async function doLogout() {
-  try { await signOut(auth); } catch {}
+  await signOut(auth).catch(()=>{});
   try { localStorage.removeItem(LS_ACTIVE_ROLE); } catch {}
   location.href = "./login.html";
 }
