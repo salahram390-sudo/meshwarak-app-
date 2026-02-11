@@ -1,8 +1,9 @@
-// messaging.js — FINAL v1 (Toast + System Notification + Sound + Vibrate)
+// messaging.js — FINAL (Toast + System Notification + Sound + Vibrate)
+// ✅ يعمل على الموبايل + PWA + بدون أخطاء حتى لو Notification غير مدعوم
+
 let _cfg = {
-  role: "passenger",
   appName: "مشوارك",
-  icon: "./favicon.png",
+  icon: "./icon-192.png",
   toastId: "toast",
   askPermissionOnLoad: false,
 };
@@ -18,10 +19,14 @@ function _getToastEl() {
 function _showToast(html, ms = 2600) {
   const el = _getToastEl();
   if (!el) return;
+
   el.innerHTML = html;
   el.classList.add("show");
+
   clearTimeout(_showToast._t);
-  _showToast._t = setTimeout(() => el.classList.remove("show"), ms);
+  _showToast._t = setTimeout(() => {
+    try { el.classList.remove("show"); } catch {}
+  }, ms);
 }
 
 function _vibrate(pattern = [80, 40, 80]) {
@@ -30,28 +35,35 @@ function _vibrate(pattern = [80, 40, 80]) {
   } catch {}
 }
 
-function _beep(type = "notify") {
+function _beep(tone = "notify") {
+  // لو المتصفح مانع الصوت: مفيش مشكلة
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+
+    const ctx = new Ctx();
     const o = ctx.createOscillator();
     const g = ctx.createGain();
 
     o.type = "sine";
     const now = ctx.currentTime;
+
     const freq =
-      type === "offer" ? 880 :
-      type === "accepted" ? 740 :
-      type === "arrived" ? 660 :
-      type === "started" ? 520 :
-      type === "ended" ? 420 : 600;
+      tone === "offer" ? 880 :
+      tone === "accepted" ? 740 :
+      tone === "arrived" ? 660 :
+      tone === "started" ? 520 :
+      tone === "ended" ? 420 : 600;
 
     o.frequency.setValueAtTime(freq, now);
+
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
 
     o.connect(g);
     g.connect(ctx.destination);
+
     o.start(now);
     o.stop(now + 0.58);
 
@@ -75,7 +87,13 @@ function _systemNotify(title, body, tag) {
   try {
     if (!("Notification" in window)) return;
     if (Notification.permission !== "granted") return;
-    new Notification(title, { body, icon: _cfg.icon, tag: tag || undefined });
+
+    new Notification(title, {
+      body,
+      icon: _cfg.icon,
+      tag: tag || undefined,
+      silent: true
+    });
   } catch {}
 }
 
@@ -83,12 +101,20 @@ export async function initMessaging(opts = {}) {
   _cfg = { ..._cfg, ...opts };
   _toastEl = null;
 
-  // لو الصفحة بتفتح كـ PWA أو كروم عادي
   if (_cfg.askPermissionOnLoad) {
     await ensureNotificationPermission();
   }
 }
 
+/**
+ * notify({
+ *  title, body,
+ *  tone: notify|offer|accepted|arrived|started|ended
+ *  tag,
+ *  toastHtml, toastMs,
+ *  forceSystemWhenHidden
+ * })
+ */
 export async function notify({
   title,
   body,
@@ -109,7 +135,7 @@ export async function notify({
   if (tone !== "notify") _vibrate([90, 40, 90]);
   else _vibrate([40]);
 
-  // System Notification (خصوصًا لو الشاشة مقفولة/التبويب مخفي)
+  // System Notification
   const hidden = document.hidden || document.visibilityState !== "visible";
   if (forceSystemWhenHidden && hidden) {
     await ensureNotificationPermission();
