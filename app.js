@@ -1,4 +1,4 @@
-// app.js — FINAL v16 (Switch Role Anytime + Same Email) — Mashwarak
+// app.js — FINAL v16 (Fix: Multi-role switching + Authorized domain friendly)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -15,6 +15,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -38,7 +39,7 @@ export function qs(key) {
   return u.searchParams.get(key);
 }
 
-// ✅ Active role per device (localStorage)
+// ✅ Active role per device
 const LS_ACTIVE_ROLE = "mw_active_role";
 export function setActiveRole(role){
   if(role !== "passenger" && role !== "driver") return;
@@ -54,14 +55,12 @@ export function getActiveRole(){
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
-
-  if (!x.includes("@")) {
-    x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
-    if (!x) x = "user";
-    return `${x}@meshwarak.local`;
-  }
-  if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
-  return x;
+  // ✅ مهم: لو المستخدم كتب Gmail حقيقي، سيبه زي ما هو
+  if (x.includes("@")) return x;
+  // لو بدون @ (اختياري)
+  x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
+  if (!x) x = "user";
+  return `${x}@meshwarak.local`;
 }
 
 export function normalizePassword(input) {
@@ -104,12 +103,9 @@ export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
-  // ✅ افتراضيًا: أي حساب يبقى Passenger + Driver (علشان نفس الإيميل يشتغل في الاتنين)
-  const defaultRoles = { passenger:true, driver:true };
-
   if (!snap.exists()) {
     await setDoc(ref, {
-      roles: patch.roles || defaultRoles,
+      roles: patch.roles || { passenger:true }, // default
       activeRole: patch.activeRole || "passenger",
 
       name: patch.name || null,
@@ -128,25 +124,39 @@ export async function ensureUserDoc(uid, patch = {}) {
     }, { merge:true });
     return true;
   }
-
-  // ✅ لو موجود قديم وكان roles ناقص: نزبطه للاتنين
-  const data = snap.data() || {};
-  const roles = data.roles || {};
-  const needFix = !(roles.passenger && roles.driver);
-
-  if(needFix){
-    await setDoc(ref, {
-      roles: { ...defaultRoles, ...roles },
-      updatedAt: serverTimestamp(),
-    }, { merge:true });
-  }
-
   return false;
 }
 
 export async function saveUserProfile(uid, payload) {
   const ref = doc(db, "users", uid);
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge:true });
+}
+
+// ✅ أهم دالة: تفعيل دور (راكب/سائق) لنفس الإيميل
+export async function enableRole(uid, role){
+  if(role !== "passenger" && role !== "driver") return;
+  const ref = doc(db, "users", uid);
+
+  // لو الوثيقة مش موجودة
+  await ensureUserDoc(uid, { roles:{ passenger:true }, activeRole:"passenger" }).catch(()=>{});
+
+  // ✅ update nested field safely
+  try{
+    await updateDoc(ref, {
+      activeRole: role,
+      [`roles.${role}`]: true,
+      updatedAt: serverTimestamp(),
+    });
+  }catch{
+    // fallback (لو updateDoc فشل لأي سبب)
+    await setDoc(ref, {
+      activeRole: role,
+      roles: { [role]: true },
+      updatedAt: serverTimestamp(),
+    }, { merge:true });
+  }
+
+  setActiveRole(role);
 }
 
 // ========= Natural Auth
@@ -166,7 +176,7 @@ export async function emailSignIn(emailRaw, passRaw){
   return await signInWithEmailAndPassword(auth, email, password);
 }
 
-// ========= Guard (حل مشكلة التحويل التلقائي)
+// ========= Guard
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
@@ -184,35 +194,21 @@ export async function requireAuthAndRole(requiredRole = null) {
   let data = await getUserDoc(user.uid).catch(()=>null);
   if(!data){
     await ensureUserDoc(user.uid, {
-      roles: { passenger:true, driver:true },
+      roles: { passenger:true },
       activeRole: "passenger",
       email: user.email || null,
     });
     data = await getUserDoc(user.uid).catch(()=>null);
   }
 
-  // ✅ الدور المطلوب من الصفحة (driver.html / passenger.html)
-  // لو مختلف عن المخزن، نبدله فورًا بدل ما نعمل redirect
-  if(requiredRole){
-    const ref = doc(db, "users", user.uid);
-
-    // ثبت الدور على الجهاز + على Firestore
-    setActiveRole(requiredRole);
-
-    // اضمن roles الاتنين
-    await setDoc(ref, {
-      roles: { passenger:true, driver:true, ...(data?.roles || {}) },
-      activeRole: requiredRole,
-      updatedAt: serverTimestamp()
-    }, { merge:true }).catch(()=>{});
-
-    data = await getUserDoc(user.uid).catch(()=>data);
-    return { user, data, activeRole: requiredRole };
-  }
-
-  // لو مفيش requiredRole: نستخدم آخر اختيار على الجهاز ثم Firestore
   const localRole = getActiveRole();
   const activeRole = localRole || data?.activeRole || "passenger";
+
+  if(requiredRole && activeRole !== requiredRole){
+    location.href = "./index.html";
+    throw new Error("wrong role");
+  }
+
   return { user, data, activeRole };
 }
 
