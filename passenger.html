@@ -233,6 +233,7 @@
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
+    import { initMessaging, notify, ensureNotificationPermission } from "./messaging.js";
     import {
       collection, addDoc, serverTimestamp,
       doc, onSnapshot, setDoc, getDoc, updateDoc
@@ -241,64 +242,14 @@
     const $ = (id)=>document.getElementById(id);
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
-    // ====== Toast + Sound
-    const toast = $("toast");
-    function showToast(html, ms=2600){
-      toast.innerHTML = html;
-      toast.classList.add("show");
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
-    }
-
-    function playBeep(type="notify"){
-      try{
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = "sine";
-
-        const now = ctx.currentTime;
-        const freq =
-          type==="offer" ? 880 :
-          type==="accepted" ? 740 :
-          type==="arrived" ? 660 :
-          type==="started" ? 520 :
-          type==="ended" ? 420 : 600;
-
-        o.frequency.setValueAtTime(freq, now);
-        g.gain.setValueAtTime(0.0001, now);
-        g.gain.exponentialRampToValueAtTime(0.18, now+0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, now+0.55);
-
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.start(now);
-        o.stop(now+0.58);
-
-        setTimeout(()=>{ try{ ctx.close(); }catch{} }, 700);
-      }catch{}
-    }
-
-    // ====== Notification API (لو مسموح)
-    async function ensureNotificationPermission(){
-      try{
-        if(!("Notification" in window)) return false;
-        if(Notification.permission === "granted") return true;
-        if(Notification.permission === "denied") return false;
-        const p = await Notification.requestPermission();
-        return p === "granted";
-      }catch{
-        return false;
-      }
-    }
-
-    function notifySystem(title, body){
-      try{
-        if(!("Notification" in window)) return;
-        if(Notification.permission !== "granted") return;
-        new Notification(title, { body, icon:"./favicon.png" });
-      }catch{}
-    }
+    // ===== Messaging init (Toast + System Notifications + Sound/Vibrate)
+    await initMessaging({
+      role: "passenger",
+      appName: "مشوارك",
+      icon: "./favicon.png",
+      toastId: "toast",
+      askPermissionOnLoad: true
+    });
 
     // ===== Auth
     const { user } = await requireAuthAndRole("passenger");
@@ -573,7 +524,7 @@
     })();
 
     // =========================================================
-    // MAP INIT (Guaranteed)
+    // MAP INIT
     // =========================================================
     let leafletOK=false;
     let map=null;
@@ -824,44 +775,74 @@
       }
     }
 
-    function fireStatusNotification(st, r){
+    async function fireStatusNotification(st, r){
       if(st === lastRideStatus) return;
       lastRideStatus = st;
 
       if(st === "offered"){
-        playBeep("offer");
-        showToast("💰 <b>وصل عرض سعر من السائق</b>", 3500);
-        notifySystem("مشوارك", "وصل عرض سعر من السائق");
+        await notify({
+          title: "مشوارك",
+          body: "وصل عرض سعر من السائق",
+          tone: "offer",
+          tag: "ride_offer",
+          toastHtml: "💰 <b>وصل عرض سعر من السائق</b>",
+          toastMs: 3500,
+        });
       }
 
       if(st === "accepted"){
-        playBeep("accepted");
-        showToast("✅ <b>تم قبول الرحلة</b>", 3200);
-        notifySystem("مشوارك", "تم قبول الرحلة");
+        await notify({
+          title: "مشوارك",
+          body: "تم قبول الرحلة",
+          tone: "accepted",
+          tag: "ride_accepted",
+          toastHtml: "✅ <b>تم قبول الرحلة</b>",
+          toastMs: 3200,
+        });
       }
 
       if(st === "arrived"){
-        playBeep("arrived");
-        showToast("📍 <b>السائق وصل مكان القيام</b>", 3500);
-        notifySystem("مشوارك", "السائق وصل مكان القيام");
+        await notify({
+          title: "مشوارك",
+          body: "السائق وصل مكان القيام",
+          tone: "arrived",
+          tag: "ride_arrived",
+          toastHtml: "📍 <b>السائق وصل مكان القيام</b>",
+          toastMs: 3500,
+        });
       }
 
       if(st === "started"){
-        playBeep("started");
-        showToast("🚖 <b>بدأت الرحلة</b>", 3200);
-        notifySystem("مشوارك", "بدأت الرحلة");
+        await notify({
+          title: "مشوارك",
+          body: "بدأت الرحلة",
+          tone: "started",
+          tag: "ride_started",
+          toastHtml: "🚖 <b>بدأت الرحلة</b>",
+          toastMs: 3200,
+        });
       }
 
       if(st === "completed"){
-        playBeep("ended");
-        showToast("🏁 <b>تم إنهاء الرحلة</b>", 3500);
-        notifySystem("مشوارك", "تم إنهاء الرحلة");
+        await notify({
+          title: "مشوارك",
+          body: "تم إنهاء الرحلة",
+          tone: "ended",
+          tag: "ride_completed",
+          toastHtml: "🏁 <b>تم إنهاء الرحلة</b>",
+          toastMs: 3500,
+        });
       }
 
       if(st === "canceled"){
-        playBeep("ended");
-        showToast("❌ <b>تم إلغاء الطلب</b>", 3500);
-        notifySystem("مشوارك", "تم إلغاء الطلب");
+        await notify({
+          title: "مشوارك",
+          body: "تم إلغاء الطلب",
+          tone: "ended",
+          tag: "ride_canceled",
+          toastHtml: "❌ <b>تم إلغاء الطلب</b>",
+          toastMs: 3500,
+        });
       }
     }
 
@@ -883,8 +864,8 @@
         const r=snap.data();
         const st=r.status || "-";
 
-        // إشعار احترافي
-        fireStatusNotification(st, r);
+        // إشعار احترافي + صوت + تنبيه نظام (لو الشاشة مقفولة/الصفحة مخفية)
+        await fireStatusNotification(st, r);
 
         if(st==="open"){
           ridePill.textContent="✔ تم طلب المشوار… جارٍ البحث عن سائق";
@@ -925,7 +906,6 @@
               acceptBtn.disabled=true;
               offerMsg.textContent="جارٍ القبول…";
 
-              // طلب الإشعارات أول مرة
               await ensureNotificationPermission();
 
               await updateDoc(ref, {
@@ -935,7 +915,14 @@
               });
 
               offerMsg.textContent="✅ تم القبول.";
-              showToast("✅ <b>تم قبول العرض</b> — الرحلة بدأت", 2600);
+              await notify({
+                title:"مشوارك",
+                body:"تم قبول العرض — تم بدء الرحلة",
+                tone:"accepted",
+                tag:"offer_accept",
+                toastHtml:"✅ <b>تم قبول العرض</b> — الرحلة بدأت",
+                toastMs:2600,
+              });
 
             }catch(e){
               console.error(e);
@@ -1007,7 +994,6 @@
         if(!selectedVehicle){ msg.textContent="❌ اختر نوع المركبة."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
 
-        // منع الطلبات الوهمية: لازم رقم هاتف محفوظ
         if(!passengerPhone){
           msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه.";
           return;
@@ -1019,7 +1005,15 @@
         const priceEGP = Number(priceRange.value) || 15;
 
         msg.textContent="جارٍ إنشاء الطلب…";
-        showToast("🚖 <b>تم طلب المشوار</b>…", 2000);
+        await notify({
+          title:"مشوارك",
+          body:"تم طلب المشوار",
+          tone:"notify",
+          tag:"ride_create",
+          toastHtml:"🚖 <b>تم طلب المشوار</b>…",
+          toastMs:2000,
+          forceSystemWhenHidden:false
+        });
 
         const docRef = await addDoc(collection(db,"rides"),{
           status: "open",
@@ -1052,7 +1046,7 @@
       }catch(e){
         console.error(e);
         msg.textContent="❌ حصل خطأ أثناء طلب المشوار.";
-        showToast("❌ حصل خطأ أثناء طلب المشوار");
+        await notify({ title:"مشوارك", body:"حصل خطأ أثناء طلب المشوار", tone:"ended", tag:"ride_error", toastHtml:"❌ حصل خطأ أثناء طلب المشوار" });
       }finally{
         updateUI(); fixMap();
         if(!currentRideId) createBtn.disabled = false;
@@ -1086,7 +1080,7 @@
         await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
 
         msg.textContent="✅ تم إلغاء الطلب.";
-        showToast("✅ تم إلغاء الطلب");
+        await notify({ title:"مشوارك", body:"تم إلغاء الطلب", tone:"ended", tag:"ride_cancel", toastHtml:"✅ تم إلغاء الطلب" });
 
         currentRideId=null;
         localStorage.removeItem(LS.lastRideId);
