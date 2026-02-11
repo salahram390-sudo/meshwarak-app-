@@ -1,86 +1,176 @@
-// messaging.js — FINAL v1 (FCM Web + Firestore token save)
-import { db } from "./app.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
-import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+// messaging.js — Mashwarak (Notifications + Sound + Vibration) v1
+// ✅ ملف جديد: حطه جنب app.js (نفس الفولدر) باسم: messaging.js
 
-// ✅ حط الـ VAPID KEY بتاعك هنا من Firebase Console
-const VAPID_KEY = "PASTE_VAPID_KEY_HERE";
+let _inited = false;
+let _role = "app";
+let _appName = "مشوارك";
+let _icon = "./favicon.png";
+let _toastEl = null;
 
-let reg = null;
+function $(id){ return document.getElementById(id); }
 
-// ✅ صوت احترافي بسيط (اشتغل في المقدمة؛ الخلفية محتاجة notification + vibration)
-let audioEl = null;
-function playBeep(){
+// ===== Toast (اختياري)
+function bindToast(toastId){
+  _toastEl = toastId ? $(toastId) : null;
+}
+
+export function showToast(html, ms=2600){
+  if(!_toastEl) return;
+  _toastEl.innerHTML = html;
+  _toastEl.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>_toastEl.classList.remove("show"), ms);
+}
+
+// ===== Sound (WebAudio)
+export function beep(type="notify"){
   try{
-    if(!audioEl){
-      audioEl = new Audio("./notify.mp3"); // لو مش موجود اعمل ملف mp3 صغير
-      audioEl.volume = 0.9;
-    }
-    audioEl.currentTime = 0;
-    audioEl.play().catch(()=>{});
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    const now = ctx.currentTime;
+
+    // نغمات مختلفة حسب الحدث
+    const freq =
+      type==="new_ride" ? 980 :
+      type==="offer" ? 880 :
+      type==="accepted" ? 740 :
+      type==="arrived" ? 660 :
+      type==="started" ? 520 :
+      type==="ended" ? 420 :
+      600;
+
+    o.type = "sine";
+    o.frequency.setValueAtTime(freq, now);
+
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.20, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.60);
+
+    o.connect(g);
+    g.connect(ctx.destination);
+
+    o.start(now);
+    o.stop(now + 0.62);
+
+    setTimeout(()=>{ try{ ctx.close(); }catch{} }, 800);
   }catch{}
 }
 
-export async function initPushForUser({ uid, role }) {
+// ===== Vibration (Android)
+export function vibrate(pattern=[80,40,80]){
   try{
-    if(!("serviceWorker" in navigator)) return { ok:false, reason:"no-sw" };
+    if("vibrate" in navigator) navigator.vibrate(pattern);
+  }catch{}
+}
 
-    // ✅ لازم SW يكون متسجل علشان نستخدمه مع getToken
-    reg = await navigator.serviceWorker.register("./sw.js?v=" + Date.now());
-
-    // طلب إذن الإشعارات
-    const perm = await Notification.requestPermission();
-    if(perm !== "granted") return { ok:false, reason:"denied" };
-
-    // ✅ Messaging
-    const messaging = getMessaging();
-
-    // ✅ getToken مع registration علشان ما نحتاجش firebase-messaging-sw.js منفصل
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-    if(!token) return { ok:false, reason:"no-token" };
-
-    // ✅ خزّن token في users/{uid}
-    // بنخزن tokens كـ map علشان تعدد الأجهزة
-    const key = token.slice(0, 24); // مفتاح قصير
-    await setDoc(doc(db, "users", uid), {
-      fcmTokens: { [key]: token },
-      pushEnabled: true,
-      pushRole: role || null,
-      updatedAt: serverTimestamp()
-    }, { merge:true });
-
-    // ✅ إشعارات داخل التطبيق وهو مفتوح (Foreground)
-    onMessage(messaging, (payload)=>{
-      const n = payload?.notification || {};
-      const data = payload?.data || {};
-
-      // صوت + إشعار UI داخل الصفحة (إنت هتربطه بتوست عندك)
-      playBeep();
-
-      // لو عايز: اعمل Notification حتى وهو فاتح
-      try{
-        new Notification(n.title || "مشوارك", {
-          body: n.body || "تحديث جديد",
-          icon: "./icon-192.png",
-          data
-        });
-      }catch{}
-    });
-
-    return { ok:true, token };
-  }catch(e){
-    console.error(e);
-    return { ok:false, reason: e?.message || "err" };
+// ===== Permissions
+export async function ensureNotificationPermission(){
+  try{
+    if(!("Notification" in window)) return false;
+    if(Notification.permission === "granted") return true;
+    if(Notification.permission === "denied") return false;
+    const p = await Notification.requestPermission();
+    return p === "granted";
+  }catch{
+    return false;
   }
 }
 
-// ✅ استقبال click message من SW لو المستخدم ضغط على الإشعار
-export function listenPushClicks(handler){
-  if(!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.addEventListener("message", (event)=>{
-    const msg = event.data;
-    if(msg?.type === "PUSH_CLICK"){
-      handler?.(msg.data || {});
+// ===== System notification (أفضل استخدام SW لو موجود)
+async function systemNotify(title, body, tag){
+  try{
+    if(!("Notification" in window)) return;
+    if(Notification.permission !== "granted") return;
+
+    // لو Service Worker شغال: استخدم showNotification (أفضل حتى لو الشاشة مقفولة داخل PWA)
+    if("serviceWorker" in navigator){
+      const reg = await navigator.serviceWorker.getRegistration();
+      if(reg && reg.showNotification){
+        await reg.showNotification(title, {
+          body,
+          icon: _icon,
+          badge: _icon,
+          tag: tag || undefined,
+          renotify: !!tag,
+          requireInteraction: false,
+          silent: true // الصوت من عندنا (beep) علشان يبقى ثابت
+        });
+        return;
+      }
     }
-  });
+
+    // fallback عادي
+    new Notification(title, { body, icon:_icon, tag: tag || undefined });
+  }catch{}
+}
+
+// ===== Main notify helper
+export async function notify({
+  title,
+  body,
+  tone="notify",     // notify | offer | accepted | arrived | started | ended | new_ride
+  tag=null,
+  toastHtml=null,
+  toastMs=3000,
+  withSound=true,
+  withVibrate=true,
+  forceSystemWhenHidden=true,
+}={}){
+  const t = title || _appName;
+  const b = body || "";
+
+  // Toast داخل الصفحة
+  if(toastHtml && _toastEl){
+    showToast(toastHtml, toastMs);
+  }
+
+  // صوت + اهتزاز
+  if(withSound) beep(tone);
+  if(withVibrate) vibrate();
+
+  // إشعار نظام لو الصفحة مش ظاهرة أو لو طلبت
+  const hidden = document.hidden || document.visibilityState !== "visible";
+  if(forceSystemWhenHidden && hidden){
+    await systemNotify(t, b, tag || tone);
+  }
+}
+
+// ===== Init
+export async function initMessaging({
+  role="app",
+  appName="مشوارك",
+  icon="./favicon.png",
+  toastId="toast",          // لو عندك عنصر Toast بنفس id
+  askPermissionOnLoad=true, // يطلب الإذن أول مرة
+}={}){
+  _role = role;
+  _appName = appName;
+  _icon = icon;
+
+  bindToast(toastId);
+
+  if(_inited) return;
+  _inited = true;
+
+  // حاول تجهز permission بدري (اختياري)
+  if(askPermissionOnLoad){
+    ensureNotificationPermission().catch(()=>{});
+  }
+
+  // لو المستخدم لمس أي مكان: نضمن إن الصوت شغال على iOS/Android
+  const unlock = ()=>{
+    try{
+      // تشغيل beep صغيرة جدًا لفتح الصوت (بدون إزعاج)
+      beep("notify");
+    }catch{}
+    window.removeEventListener("pointerdown", unlock);
+    window.removeEventListener("touchstart", unlock);
+  };
+  window.addEventListener("pointerdown", unlock, { once:true });
+  window.addEventListener("touchstart", unlock, { once:true });
 }
