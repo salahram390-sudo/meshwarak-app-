@@ -1,68 +1,51 @@
-// messaging.js — Mashwarak (Toast + System Notifications + Sound/Vibrate) — v1
-// ضع الملف بجانب: app.js / passenger.html / driver.html / login.html
+// messaging.js (FINAL SAFE v1)
+// Unified notifications: Toast + Sound/Vibrate + System Notification (when hidden)
 
+const DEFAULT_TONES = {
+  notify:   { freq: 600,  dur: 0.58, vib: [80] },
+  offer:    { freq: 880,  dur: 0.60, vib: [120, 80, 120] },
+  accepted: { freq: 740,  dur: 0.60, vib: [90, 60, 90] },
+  arrived:  { freq: 660,  dur: 0.60, vib: [60, 40, 60, 40, 80] },
+  started:  { freq: 520,  dur: 0.60, vib: [140] },
+  ended:    { freq: 420,  dur: 0.60, vib: [220] },
+};
+
+let _ctx = null;
 let _toastEl = null;
-let _icon = "./favicon.png";
 let _appName = "مشوارك";
-let _inited = false;
+let _icon = "./favicon.png";
 
-function _showToast(html, ms = 2600) {
-  if (!_toastEl) return;
-  _toastEl.innerHTML = html;
-  _toastEl.classList.add("show");
-  clearTimeout(_showToast._t);
-  _showToast._t = setTimeout(() => {
-    try { _toastEl.classList.remove("show"); } catch {}
-  }, ms);
-}
+/**
+ * initMessaging({
+ *   appName, icon,
+ *   toastId,
+ *   askPermissionOnLoad
+ * })
+ */
+export async function initMessaging(opts = {}) {
+  _appName = opts.appName || _appName;
+  _icon = opts.icon || _icon;
 
-function _vibrate(pattern = [40, 40, 60]) {
-  try {
-    if ("vibrate" in navigator) navigator.vibrate(pattern);
-  } catch {}
-}
+  if (opts.toastId) {
+    _toastEl = document.getElementById(opts.toastId) || null;
+  }
 
-function _playTone(tone = "notify") {
-  // نغمة بسيطة “احترافية” (Oscillators) — تعمل بدون ملفات صوت
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
+  // تجهيز أذونات الإشعارات (اختياري)
+  if (opts.askPermissionOnLoad) {
+    try { await ensureNotificationPermission(); } catch {}
+  }
 
-    const ctx = new Ctx();
-    const o1 = ctx.createOscillator();
-    const o2 = ctx.createOscillator();
-    const g = ctx.createGain();
-
-    const base =
-      tone === "offer" ? 880 :
-      tone === "accepted" ? 740 :
-      tone === "arrived" ? 660 :
-      tone === "started" ? 520 :
-      tone === "ended" ? 420 : 600;
-
-    const t0 = ctx.currentTime;
-
-    o1.type = "sine";
-    o2.type = "triangle";
-    o1.frequency.setValueAtTime(base, t0);
-    o2.frequency.setValueAtTime(base / 2, t0);
-
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
-
-    o1.connect(g);
-    o2.connect(g);
-    g.connect(ctx.destination);
-
-    o1.start(t0);
-    o2.start(t0);
-
-    o1.stop(t0 + 0.50);
-    o2.stop(t0 + 0.50);
-
-    setTimeout(() => { try { ctx.close(); } catch {} }, 700);
-  } catch {}
+  // محاولة تجهيز AudioContext عند أول تفاعل (لمنع block على الموبايل)
+  const warmup = () => {
+    try {
+      _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)();
+      // لا نشغل صوت فعلي هنا، بس نضمن جاهزية الكونتكست
+    } catch {}
+    window.removeEventListener("pointerdown", warmup);
+    window.removeEventListener("touchstart", warmup);
+  };
+  window.addEventListener("pointerdown", warmup, { once: true });
+  window.addEventListener("touchstart", warmup, { once: true });
 }
 
 export async function ensureNotificationPermission() {
@@ -77,72 +60,91 @@ export async function ensureNotificationPermission() {
   }
 }
 
-function _systemNotify(title, body, tag) {
+function showToast(html, ms = 2600) {
+  try {
+    if (!_toastEl) return;
+    _toastEl.innerHTML = html;
+    _toastEl.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => _toastEl?.classList.remove("show"), ms);
+  } catch {}
+}
+
+function vibrate(pattern) {
+  try {
+    if (!("vibrate" in navigator)) return;
+    navigator.vibrate(pattern);
+  } catch {}
+}
+
+function playBeepTone(tone = "notify") {
+  try {
+    const cfg = DEFAULT_TONES[tone] || DEFAULT_TONES.notify;
+    _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)();
+
+    const o = _ctx.createOscillator();
+    const g = _ctx.createGain();
+    o.type = "sine";
+
+    const now = _ctx.currentTime;
+    o.frequency.setValueAtTime(cfg.freq, now);
+
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + (cfg.dur || 0.55));
+
+    o.connect(g);
+    g.connect(_ctx.destination);
+
+    o.start(now);
+    o.stop(now + (cfg.dur || 0.55));
+  } catch {}
+}
+
+function notifySystem(title, body, tag) {
   try {
     if (!("Notification" in window)) return;
     if (Notification.permission !== "granted") return;
-    new Notification(title, { body, icon: _icon, tag: tag || undefined });
+
+    // بعض الأجهزة بتحتاج https + PWA
+    new Notification(title, {
+      body,
+      icon: _icon,
+      tag: tag || undefined,
+    });
   } catch {}
 }
 
 /**
- * initMessaging({
- *  appName, icon, toastId, askPermissionOnLoad
- * })
- */
-export async function initMessaging(opts = {}) {
-  _appName = opts.appName || _appName;
-  _icon = opts.icon || _icon;
-
-  if (opts.toastId) {
-    _toastEl = document.getElementById(opts.toastId) || null;
-  }
-
-  _inited = true;
-
-  if (opts.askPermissionOnLoad) {
-    await ensureNotificationPermission().catch(() => {});
-  }
-}
-
-/**
  * notify({
- *  title, body,
- *  tone: "notify"|"offer"|"accepted"|"arrived"|"started"|"ended",
- *  tag,
- *  toastHtml, toastMs,
- *  forceSystemWhenHidden: true/false (افتراضي true)
+ *   title, body,
+ *   tone: "offer|accepted|arrived|started|ended|notify",
+ *   tag: "string",
+ *   toastHtml: "html",
+ *   toastMs: number,
+ *   forceSystemWhenHidden: boolean (default true)
  * })
  */
-export async function notify(payload = {}) {
-  if (!_inited) await initMessaging({});
+export async function notify(opts = {}) {
+  const title = opts.title || _appName;
+  const body = opts.body || "";
+  const tone = opts.tone || "notify";
+  const tag = opts.tag || "";
 
-  const title = payload.title || _appName;
-  const body = payload.body || "";
-  const tone = payload.tone || "notify";
-  const tag = payload.tag || ("mw_" + tone);
+  // Toast
+  if (opts.toastHtml) showToast(opts.toastHtml, opts.toastMs || 2600);
 
-  // Toast (دايمًا)
-  if (payload.toastHtml) _showToast(payload.toastHtml, payload.toastMs || 2600);
+  // Sound + Vibration
+  playBeepTone(tone);
+  const cfg = DEFAULT_TONES[tone] || DEFAULT_TONES.notify;
+  vibrate(cfg.vib);
 
-  // صوت + اهتزاز (دايمًا)
-  _playTone(tone);
-  _vibrate(
-    tone === "offer" ? [60, 60, 90] :
-    tone === "accepted" ? [40, 40, 60] :
-    tone === "arrived" ? [70, 40, 70] :
-    tone === "started" ? [40, 30, 40] :
-    tone === "ended" ? [120] :
-    [35, 30, 35]
-  );
+  // System Notification (يفضل فقط لما الصفحة تكون مخفية)
+  const force = (opts.forceSystemWhenHidden !== undefined) ? opts.forceSystemWhenHidden : true;
+  const isHidden = typeof document !== "undefined" ? document.hidden : false;
 
-  // إشعار نظام: فقط لو الصفحة في الخلفية (أو مُجبَر)
-  const force = payload.forceSystemWhenHidden !== false; // default true
-  const canSystem = ("Notification" in window) && (Notification.permission === "granted");
-  const hidden = (document.hidden || document.visibilityState === "hidden");
-  const shouldSystem = force && hidden;
-
-  if (canSystem && shouldSystem) {
-    _systemNotify(title, body, tag);
+  if (force && isHidden) {
+    try { await ensureNotificationPermission(); } catch {}
+    notifySystem(title, body, tag);
   }
 }
