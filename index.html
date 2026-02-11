@@ -1,195 +1,193 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مشوارك</title>
+// app.js — FINAL v15 (Natural Register/Login + Multi-Role) — Mashwarak
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-  <link rel="icon" href="./favicon.png">
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#050B16">
-  <link rel="stylesheet" href="./styles.css">
-</head>
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-<body>
-  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
-    <div class="card" style="width:min(520px, 100%); text-align:center">
+const firebaseConfig = {
+  apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
+  authDomain: "meshwark-8adf8.firebaseapp.com",
+  projectId: "meshwark-8adf8",
+  storageBucket: "meshwark-8adf8.appspot.com",
+  messagingSenderId: "450060838946",
+  appId: "1:450060838946:web:963cacdd125b253fa1827b",
+};
 
-      <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
-      </div>
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
-      <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
-      <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-      <!-- أزرار الدخول الأساسية (لو مش عامل Login) -->
-      <div class="actions" id="guestBtns" style="justify-content:center">
-        <a class="btn success" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
-        <a class="btn primary" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
-      </div>
+export function qs(key) {
+  const u = new URL(location.href);
+  return u.searchParams.get(key);
+}
 
-      <!-- صندوق المستخدم الحالي -->
-      <div id="meBox" class="card" style="margin-top:14px; display:none; text-align:right">
-        <div class="hint" id="meText" style="margin-top:0"></div>
+// ✅ Active role per device
+const LS_ACTIVE_ROLE = "mw_active_role";
+export function setActiveRole(role){
+  if(role !== "passenger" && role !== "driver") return;
+  try{ localStorage.setItem(LS_ACTIVE_ROLE, role); }catch{}
+}
+export function getActiveRole(){
+  try{
+    const r = localStorage.getItem(LS_ACTIVE_ROLE);
+    return (r==="passenger" || r==="driver") ? r : null;
+  }catch{ return null; }
+}
 
-        <div class="actions" style="margin-top:12px;flex-wrap:wrap">
-          <button class="btn success" id="openPassengerBtn" type="button" style="min-width:180px">فتح الراكب</button>
-          <button class="btn primary" id="openDriverBtn" type="button" style="min-width:180px">فتح السائق</button>
-          <button class="btn danger" id="logoutBtn" type="button" style="min-width:180px">تسجيل خروج</button>
-        </div>
-      </div>
+export function normalizeEmail(input) {
+  let x = String(input || "").trim().toLowerCase();
+  if (!x) return null;
 
-      <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
-        <button class="btn" id="hardRefreshBtn" type="button" style="min-width:220px">🔄 تحديث قوي (حل المشاكل)</button>
-      </div>
+  if (!x.includes("@")) {
+    x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
+    if (!x) x = "user";
+    return `${x}@meshwarak.local`;
+  }
+  if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
+  return x;
+}
 
-      <p class="hint" style="margin:14px 0 0">
-        لو الصفحة ما اتحدثتش فورًا، جرّب تعمل Refresh.
-      </p>
+export function normalizePassword(input) {
+  const x = String(input || "").trim();
+  return x.length >= 6 ? x : null;
+}
 
-      <p class="hint" id="swMsg" style="margin:10px 0 0"></p>
-      <p class="hint" id="errMsg" style="margin:8px 0 0"></p>
-    </div>
-  </div>
+export function normalizePhone(input) {
+  let x = String(input || "").trim();
+  if (!x) return null;
 
-  <script>
-    const errMsg = document.getElementById("errMsg");
-    window.addEventListener("error", (e)=>{
-      try{ errMsg.textContent = "⚠️ خطأ: " + (e.message || "غير معروف"); }catch{}
+  const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9" };
+  x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
+
+  x = x.replace(/[^\d+]/g, "");
+  if (x.includes("+")) x = "+" + x.replace(/\+/g, "");
+  if (x.startsWith("00")) x = "+" + x.slice(2);
+
+  if (/^01\d{9}$/.test(x)) x = "+20" + x;
+  if (/^201\d{9}$/.test(x)) x = "+20" + x.slice(2);
+
+  if (x.startsWith("+")) {
+    const digits = x.slice(1);
+    if (!/^\d{8,15}$/.test(digits)) return null;
+    return "+" + digits;
+  }
+
+  if (!/^\d{8,15}$/.test(x)) return null;
+  return x;
+}
+
+// ========= Firestore helpers
+export async function getUserDoc(uid) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function ensureUserDoc(uid, patch = {}) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      roles: patch.roles || { passenger:true },
+      activeRole: patch.activeRole || "passenger",
+
+      name: patch.name || null,
+      phone: patch.phone || null,
+      email: patch.email || null,
+      governorate: patch.governorate || null,
+      center: patch.center || null,
+      currentRideId: null,
+
+      vehicle: patch.vehicle || null,
+      model: patch.model || null,
+      plate: patch.plate || null,
+
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge:true });
+    return true;
+  }
+  return false;
+}
+
+export async function saveUserProfile(uid, payload) {
+  const ref = doc(db, "users", uid);
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge:true });
+}
+
+// ========= Natural Auth
+export async function emailSignUp(emailRaw, passRaw){
+  const email = normalizeEmail(emailRaw);
+  const password = normalizePassword(passRaw);
+  if(!email) throw new Error("bad-email");
+  if(!password) throw new Error("bad-pass");
+  return await createUserWithEmailAndPassword(auth, email, password);
+}
+
+export async function emailSignIn(emailRaw, passRaw){
+  const email = normalizeEmail(emailRaw);
+  const password = normalizePassword(passRaw);
+  if(!email) throw new Error("bad-email");
+  if(!password) throw new Error("bad-pass");
+  return await signInWithEmailAndPassword(auth, email, password);
+}
+
+// ========= Guard
+export async function requireAuthAndRole(requiredRole = null) {
+  const user = await new Promise((resolve, reject) => {
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => { unsub(); resolve(u); },
+      (e) => { unsub(); reject(e); }
+    );
+  });
+
+  if (!user) {
+    location.href = "./login.html";
+    throw new Error("not signed in");
+  }
+
+  let data = await getUserDoc(user.uid).catch(()=>null);
+  if(!data){
+    await ensureUserDoc(user.uid, {
+      roles: { passenger:true },
+      activeRole: "passenger",
+      email: user.email || null,
     });
-    window.addEventListener("unhandledrejection", (e)=>{
-      try{ errMsg.textContent = "⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف"); }catch{}
-    });
-  </script>
+    data = await getUserDoc(user.uid).catch(()=>null);
+  }
 
-  <script type="module">
-    import { auth, db, setActiveRole } from "./app.js";
-    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  const localRole = getActiveRole();
+  const activeRole = localRole || data?.activeRole || null;
 
-    const guestBtns = document.getElementById("guestBtns");
+  if(requiredRole && activeRole !== requiredRole){
+    location.href = "./index.html";
+    throw new Error("wrong role");
+  }
 
-    const meBox = document.getElementById("meBox");
-    const meText = document.getElementById("meText");
-    const logoutBtn = document.getElementById("logoutBtn");
-    const openPassengerBtn = document.getElementById("openPassengerBtn");
-    const openDriverBtn = document.getElementById("openDriverBtn");
+  return { user, data, activeRole };
+}
 
-    function fallbackNameFromEmail(email){
-      const x = (email || "").split("@")[0] || "مستخدم";
-      return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
-    }
-
-    async function getUserDocX(uid){
-      const ref = doc(db, "users", uid);
-      const snap = await getDoc(ref);
-      return snap.exists() ? snap.data() : null;
-    }
-
-    logoutBtn?.addEventListener("click", async ()=>{
-      try{ await signOut(auth); }catch{}
-      location.href = "./index.html";
-    });
-
-    openPassengerBtn?.addEventListener("click", ()=>{
-      setActiveRole("passenger");
-      location.href = "./passenger.html";
-    });
-
-    function vehText(v){
-      return (v==="tuktuk")?"توكتوك":
-        (v==="motor_delivery")?"موتسيكل دليفري":
-        (v==="car")?"ملاكي":
-        (v==="microbus")?"ميكروباص":
-        (v==="tamanya")?"تمناية":
-        (v==="caboot")?"عربية كابوت": (v || "-");
-    }
-
-    onAuthStateChanged(auth, async (user)=>{
-      if(!user){
-        meBox.style.display = "none";
-        guestBtns.style.display = "flex";
-        return;
-      }
-
-      guestBtns.style.display = "none";
-
-      const data = await getUserDocX(user.uid).catch(()=>null);
-      const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
-
-      const gov = data?.governorate || "-";
-      const cen = data?.center || "-";
-
-      // ✅ Multi-role: roles.passenger / roles.driver
-      const roles = data?.roles || { passenger:true };
-      const hasPassenger = !!roles.passenger;
-      const hasDriver = !!roles.driver;
-
-      // ✅ Driver readiness
-      const driverReady = !!(data?.vehicle && String(data?.model||"").trim().length >= 2);
-
-      meBox.style.display = "block";
-      meText.innerHTML =
-        `👤 <b>${name}</b><br>` +
-        `📧 ${user.email}<br>` +
-        `📍 ${gov} / ${cen}<br>` +
-        `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
-        `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
-
-      // لو مش passenger (نادر) — خليه يفتح login passenger
-      openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
-      openPassengerBtn.onclick = ()=>{
-        if(hasPassenger){
-          setActiveRole("passenger");
-          location.href = "./passenger.html";
-        }else{
-          location.href = "./login.html?role=passenger";
-        }
-      };
-
-      // ✅ Driver button logic (الجزء المهم)
-      if(!hasDriver){
-        openDriverBtn.textContent = "إعداد السائق";
-        openDriverBtn.onclick = ()=> location.href = "./login.html?role=driver";
-      }else if(!driverReady){
-        openDriverBtn.textContent = "أكمل بيانات السائق";
-        openDriverBtn.onclick = ()=> location.href = "./login.html?role=driver";
-      }else{
-        openDriverBtn.textContent = "فتح السائق";
-        openDriverBtn.onclick = ()=>{
-          setActiveRole("driver");
-          location.href = "./driver.html";
-        };
-      }
-    });
-  </script>
-
-  <script>
-    const swMsg = document.getElementById("swMsg");
-    const hardRefreshBtn = document.getElementById("hardRefreshBtn");
-
-    async function hardRefresh(){
-      try{
-        if("serviceWorker" in navigator){
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
-        }
-        if("caches" in window){
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
-        }
-      }catch{}
-      location.reload(true);
-    }
-
-    hardRefreshBtn.addEventListener("click", hardRefresh);
-
-    if ("serviceWorker" in navigator) {
-      const v = Date.now();
-      navigator.serviceWorker.register("./sw.js?v=" + v)
-        .then(()=>{ swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA (SW شغال)."; })
-        .catch(()=>{ swMsg.textContent = "⚠️ تعذر تشغيل Service Worker (مش مشكلة كبيرة)."; });
-    }
-  </script>
-</body>
-</html>
+export async function doLogout(){
+  await signOut(auth);
+  try{ localStorage.removeItem(LS_ACTIVE_ROLE); }catch{}
+  location.href = "./login.html";
+}
