@@ -280,7 +280,8 @@
 
     // ✅ default role من query (?role=passenger|driver)
     const wanted = qs("role");
-    setRole((wanted==="driver") ? "driver" : "passenger");
+    if(wanted==="driver" || wanted==="passenger") setRole(wanted);
+    else setRole("passenger");
 
     function getArea(){
       const governorate = (govEl.value || "").trim() || null;
@@ -295,7 +296,6 @@
     }
 
     function goAfterLogin(role){
-      // ✅ بعد الدخول: افتح الصفحة حسب الدور المختار
       setActiveRole(role);
       location.href = (role==="passenger") ? "passenger.html" : "driver.html";
     }
@@ -350,11 +350,9 @@
         const snap = await getDoc(doc(db,"users",uid)).catch(()=>null);
         const existing = (snap && typeof snap.exists==="function" && snap.exists()) ? snap.data() : null;
 
-        // ✅ roles + activeRole (مش role ثابت)
         const roles = existing?.roles || { passenger:true };
         roles[selectedRole] = true;
 
-        // ✅ لو داخل كسائق: لازم بيانات المركبة موجودة (إما قديمة أو مكتوبة الآن)
         if(selectedRole === "driver"){
           const vNeed = (existing?.vehicle || vehicleEl.value || "").trim();
           const mNeed = (existing?.model || modelEl.value || "").trim();
@@ -374,8 +372,10 @@
           phone: existing?.phone || phone || null,
           governorate: area.governorate,
           center: area.center,
-          vehicle: roles.driver ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
-          model: roles.driver ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
+
+          // ✅ خزّن بيانات المركبة فقط لو داخل كسائق (غير كده سيب القديم)
+          vehicle: (selectedRole==="driver") ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
+          model:   (selectedRole==="driver") ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
         });
 
         await saveUserProfile(uid, {
@@ -386,8 +386,8 @@
           phone: existing?.phone || phone || null,
           governorate: area.governorate,
           center: area.center,
-          vehicle: roles.driver ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
-          model: roles.driver ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
+          vehicle: (selectedRole==="driver") ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
+          model:   (selectedRole==="driver") ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
           updatedAt: serverTimestamp()
         });
 
@@ -420,17 +420,19 @@
 
     loginBtn.addEventListener("click", handleLogin);
 
-    // ✅ لو المستخدم بالفعل عامل Login: خليه يفتح حسب role اللي داخل منه في الصفحة (?role=)
+    // ✅ تحويل تلقائي فقط لو المستخدم داخل وفتح login.html مع ?role
     onAuthStateChanged(auth, async (u)=>{
       if(!u) return;
-      // لو هو فتح login.html?role=driver وعايز يدخل كـ driver الآن:
-      // هنسيبه يضغط زر "تسجيل/دخول" لو محتاج يكمّل بيانات، لكن لو بياناته جاهزة:
+
+      const roleWanted = qs("role");
+      if(roleWanted !== "passenger" && roleWanted !== "driver"){
+        // خلي المستخدم يختار ويضغط تسجيل/دخول (عشان يقدر يبدّل الدور)
+        return;
+      }
+
       const snap = await getDoc(doc(db,"users",u.uid)).catch(()=>null);
       const data = (snap && snap.exists()) ? snap.data() : null;
 
-      const roleWanted = (qs("role")==="driver") ? "driver" : "passenger";
-
-      // لو سائق وبياناته موجودة: افتح فورًا
       if(roleWanted==="driver"){
         const ok = (data?.vehicle && String(data?.model||"").trim().length>=2);
         if(ok){
@@ -440,7 +442,6 @@
         return;
       }
 
-      // راكب: افتح فورًا
       setActiveRole("passenger");
       location.href = "./passenger.html";
     });
