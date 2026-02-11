@@ -1,176 +1,148 @@
-// messaging.js — Mashwarak (Notifications + Sound + Vibration) v1
-// ✅ ملف جديد: حطه جنب app.js (نفس الفولدر) باسم: messaging.js
+// messaging.js — Mashwarak (Toast + System Notifications + Sound/Vibrate) — v1
+// ضع الملف بجانب: app.js / passenger.html / driver.html / login.html
 
-let _inited = false;
-let _role = "app";
-let _appName = "مشوارك";
-let _icon = "./favicon.png";
 let _toastEl = null;
+let _icon = "./favicon.png";
+let _appName = "مشوارك";
+let _inited = false;
 
-function $(id){ return document.getElementById(id); }
-
-// ===== Toast (اختياري)
-function bindToast(toastId){
-  _toastEl = toastId ? $(toastId) : null;
-}
-
-export function showToast(html, ms=2600){
-  if(!_toastEl) return;
+function _showToast(html, ms = 2600) {
+  if (!_toastEl) return;
   _toastEl.innerHTML = html;
   _toastEl.classList.add("show");
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(()=>_toastEl.classList.remove("show"), ms);
+  clearTimeout(_showToast._t);
+  _showToast._t = setTimeout(() => {
+    try { _toastEl.classList.remove("show"); } catch {}
+  }, ms);
 }
 
-// ===== Sound (WebAudio)
-export function beep(type="notify"){
-  try{
+function _vibrate(pattern = [40, 40, 60]) {
+  try {
+    if ("vibrate" in navigator) navigator.vibrate(pattern);
+  } catch {}
+}
+
+function _playTone(tone = "notify") {
+  // نغمة بسيطة “احترافية” (Oscillators) — تعمل بدون ملفات صوت
+  try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    if(!Ctx) return;
+    if (!Ctx) return;
 
     const ctx = new Ctx();
-    const o = ctx.createOscillator();
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
     const g = ctx.createGain();
 
-    const now = ctx.currentTime;
+    const base =
+      tone === "offer" ? 880 :
+      tone === "accepted" ? 740 :
+      tone === "arrived" ? 660 :
+      tone === "started" ? 520 :
+      tone === "ended" ? 420 : 600;
 
-    // نغمات مختلفة حسب الحدث
-    const freq =
-      type==="new_ride" ? 980 :
-      type==="offer" ? 880 :
-      type==="accepted" ? 740 :
-      type==="arrived" ? 660 :
-      type==="started" ? 520 :
-      type==="ended" ? 420 :
-      600;
+    const t0 = ctx.currentTime;
 
-    o.type = "sine";
-    o.frequency.setValueAtTime(freq, now);
+    o1.type = "sine";
+    o2.type = "triangle";
+    o1.frequency.setValueAtTime(base, t0);
+    o2.frequency.setValueAtTime(base / 2, t0);
 
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.20, now + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.60);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
 
-    o.connect(g);
+    o1.connect(g);
+    o2.connect(g);
     g.connect(ctx.destination);
 
-    o.start(now);
-    o.stop(now + 0.62);
+    o1.start(t0);
+    o2.start(t0);
 
-    setTimeout(()=>{ try{ ctx.close(); }catch{} }, 800);
-  }catch{}
+    o1.stop(t0 + 0.50);
+    o2.stop(t0 + 0.50);
+
+    setTimeout(() => { try { ctx.close(); } catch {} }, 700);
+  } catch {}
 }
 
-// ===== Vibration (Android)
-export function vibrate(pattern=[80,40,80]){
-  try{
-    if("vibrate" in navigator) navigator.vibrate(pattern);
-  }catch{}
-}
-
-// ===== Permissions
-export async function ensureNotificationPermission(){
-  try{
-    if(!("Notification" in window)) return false;
-    if(Notification.permission === "granted") return true;
-    if(Notification.permission === "denied") return false;
+export async function ensureNotificationPermission() {
+  try {
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === "granted") return true;
+    if (Notification.permission === "denied") return false;
     const p = await Notification.requestPermission();
     return p === "granted";
-  }catch{
+  } catch {
     return false;
   }
 }
 
-// ===== System notification (أفضل استخدام SW لو موجود)
-async function systemNotify(title, body, tag){
-  try{
-    if(!("Notification" in window)) return;
-    if(Notification.permission !== "granted") return;
-
-    // لو Service Worker شغال: استخدم showNotification (أفضل حتى لو الشاشة مقفولة داخل PWA)
-    if("serviceWorker" in navigator){
-      const reg = await navigator.serviceWorker.getRegistration();
-      if(reg && reg.showNotification){
-        await reg.showNotification(title, {
-          body,
-          icon: _icon,
-          badge: _icon,
-          tag: tag || undefined,
-          renotify: !!tag,
-          requireInteraction: false,
-          silent: true // الصوت من عندنا (beep) علشان يبقى ثابت
-        });
-        return;
-      }
-    }
-
-    // fallback عادي
-    new Notification(title, { body, icon:_icon, tag: tag || undefined });
-  }catch{}
+function _systemNotify(title, body, tag) {
+  try {
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    new Notification(title, { body, icon: _icon, tag: tag || undefined });
+  } catch {}
 }
 
-// ===== Main notify helper
-export async function notify({
-  title,
-  body,
-  tone="notify",     // notify | offer | accepted | arrived | started | ended | new_ride
-  tag=null,
-  toastHtml=null,
-  toastMs=3000,
-  withSound=true,
-  withVibrate=true,
-  forceSystemWhenHidden=true,
-}={}){
-  const t = title || _appName;
-  const b = body || "";
+/**
+ * initMessaging({
+ *  appName, icon, toastId, askPermissionOnLoad
+ * })
+ */
+export async function initMessaging(opts = {}) {
+  _appName = opts.appName || _appName;
+  _icon = opts.icon || _icon;
 
-  // Toast داخل الصفحة
-  if(toastHtml && _toastEl){
-    showToast(toastHtml, toastMs);
+  if (opts.toastId) {
+    _toastEl = document.getElementById(opts.toastId) || null;
   }
 
-  // صوت + اهتزاز
-  if(withSound) beep(tone);
-  if(withVibrate) vibrate();
-
-  // إشعار نظام لو الصفحة مش ظاهرة أو لو طلبت
-  const hidden = document.hidden || document.visibilityState !== "visible";
-  if(forceSystemWhenHidden && hidden){
-    await systemNotify(t, b, tag || tone);
-  }
-}
-
-// ===== Init
-export async function initMessaging({
-  role="app",
-  appName="مشوارك",
-  icon="./favicon.png",
-  toastId="toast",          // لو عندك عنصر Toast بنفس id
-  askPermissionOnLoad=true, // يطلب الإذن أول مرة
-}={}){
-  _role = role;
-  _appName = appName;
-  _icon = icon;
-
-  bindToast(toastId);
-
-  if(_inited) return;
   _inited = true;
 
-  // حاول تجهز permission بدري (اختياري)
-  if(askPermissionOnLoad){
-    ensureNotificationPermission().catch(()=>{});
+  if (opts.askPermissionOnLoad) {
+    await ensureNotificationPermission().catch(() => {});
   }
+}
 
-  // لو المستخدم لمس أي مكان: نضمن إن الصوت شغال على iOS/Android
-  const unlock = ()=>{
-    try{
-      // تشغيل beep صغيرة جدًا لفتح الصوت (بدون إزعاج)
-      beep("notify");
-    }catch{}
-    window.removeEventListener("pointerdown", unlock);
-    window.removeEventListener("touchstart", unlock);
-  };
-  window.addEventListener("pointerdown", unlock, { once:true });
-  window.addEventListener("touchstart", unlock, { once:true });
+/**
+ * notify({
+ *  title, body,
+ *  tone: "notify"|"offer"|"accepted"|"arrived"|"started"|"ended",
+ *  tag,
+ *  toastHtml, toastMs,
+ *  forceSystemWhenHidden: true/false (افتراضي true)
+ * })
+ */
+export async function notify(payload = {}) {
+  if (!_inited) await initMessaging({});
+
+  const title = payload.title || _appName;
+  const body = payload.body || "";
+  const tone = payload.tone || "notify";
+  const tag = payload.tag || ("mw_" + tone);
+
+  // Toast (دايمًا)
+  if (payload.toastHtml) _showToast(payload.toastHtml, payload.toastMs || 2600);
+
+  // صوت + اهتزاز (دايمًا)
+  _playTone(tone);
+  _vibrate(
+    tone === "offer" ? [60, 60, 90] :
+    tone === "accepted" ? [40, 40, 60] :
+    tone === "arrived" ? [70, 40, 70] :
+    tone === "started" ? [40, 30, 40] :
+    tone === "ended" ? [120] :
+    [35, 30, 35]
+  );
+
+  // إشعار نظام: فقط لو الصفحة في الخلفية (أو مُجبَر)
+  const force = payload.forceSystemWhenHidden !== false; // default true
+  const canSystem = ("Notification" in window) && (Notification.permission === "granted");
+  const hidden = (document.hidden || document.visibilityState === "hidden");
+  const shouldSystem = force && hidden;
+
+  if (canSystem && shouldSystem) {
+    _systemNotify(title, body, tag);
+  }
 }
