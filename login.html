@@ -156,12 +156,17 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
-    // role from query (?role=driver)
+    // ===== role (query + last choice)
     const url = new URL(location.href);
-    let role = (url.searchParams.get("role") === "driver") ? "driver" : "passenger";
+    const LS_ROLE = "mw_last_role";
+    let role =
+      (url.searchParams.get("role")==="driver") ? "driver" :
+      (url.searchParams.get("role")==="passenger") ? "passenger" :
+      (localStorage.getItem(LS_ROLE)==="driver") ? "driver" : "passenger";
 
     function setRole(r){
       role = (r === "driver") ? "driver" : "passenger";
+      try{ localStorage.setItem(LS_ROLE, role); }catch{}
       rolePassengerBtn.classList.toggle("active", role==="passenger");
       roleDriverBtn.classList.toggle("active", role==="driver");
       driverBox.style.display = (role==="driver") ? "block" : "none";
@@ -185,19 +190,29 @@
       if(code.includes("auth/wrong-password")) return "❌ كلمة المرور غير صحيحة.";
       if(code.includes("auth/invalid-credential")) return "❌ بيانات الدخول غير صحيحة.";
       if(code.includes("auth/network-request-failed")) return "❌ مشكلة شبكة. جرّب تاني.";
+      if(code.includes("auth/too-many-requests")) return "❌ محاولات كثيرة. استنى شوية وجرّب تاني.";
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
+    function validateRoleFields(){
+      if(role !== "driver") return { ok:true };
+
+      const v = clean(vehicleEl.value);
+      const m = clean(modelEl.value);
+      if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
+      if(m.length < 2) return { ok:false, msg:"❌ اكتب موديل/كود المركبة (حرفين على الأقل)." };
+      return { ok:true };
+    }
+
     async function afterAuth(user){
-      // ✅ نفس الإيميل يشتغل للدورين:
-      // نخلي roles فيها passenger + driver دائمًا (أسهل للتشغيل)
+      // ✅ نفس الإيميل يشتغل للدورين
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
         email: user.email || clean(emailEl.value) || null
       });
 
-      // احفظ بروفايل + بيانات السائق لو مختار سائق
+      // ✅ حفظ البروفايل (وتحديث بيانات السائق لو مختار سائق)
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
@@ -207,42 +222,31 @@
       };
 
       if(role === "driver"){
-        const v = clean(vehicleEl.value);
-        const m = clean(modelEl.value);
-        const p = clean(plateEl.value);
-
-        // لو عايز السائق لازم نوع مركبة + موديل
-        if(!v){ throw { message:"اختر نوع المركبة.", code:"local/need-vehicle" }; }
-        if(m.length < 2){ throw { message:"اكتب موديل/كود المركبة (حرفين على الأقل).", code:"local/need-model" }; }
-
-        payload.vehicle = v;
-        payload.model = m;
-        payload.plate = p || null;
+        payload.vehicle = clean(vehicleEl.value) || null;
+        payload.model = clean(modelEl.value) || null;
+        payload.plate = clean(plateEl.value) || null;
       }
 
       await saveUserProfile(user.uid, payload);
 
-      // ✅ حدد الدور على الجهاز (عشان ما يحولكش تلقائي)
+      // ✅ أهم سطر: يمنع التحويل التلقائي لراكب
       setActiveRole(role);
 
-      // ✅ روح للصفحة المناسبة
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function doSignup(){
       try{
+        const v = validateRoleFields();
+        if(!v.ok){ setMsg(v.msg); return; }
+
         setMsg("جارٍ إنشاء الحساب…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
         const cred = await emailSignUp(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        // أخطاء محلية
-        if(String(e?.code||"").startsWith("local/")){
-          setMsg("❌ " + (e.message || "أكمل البيانات"));
-        }else{
-          setMsg(niceAuthError(e));
-        }
+        setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
       }
@@ -250,17 +254,17 @@
 
     async function doLogin(){
       try{
+        // في تسجيل الدخول: لو داخل كسائق ومش مكمّل بياناته هنا => برضه نلزمه يكمّل قبل التحويل
+        const v = validateRoleFields();
+        if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
+
         setMsg("جارٍ تسجيل الدخول…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
         const cred = await emailSignIn(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        if(String(e?.code||"").startsWith("local/")){
-          setMsg("❌ " + (e.message || "أكمل البيانات"));
-        }else{
-          setMsg(niceAuthError(e));
-        }
+        setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
       }
