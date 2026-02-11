@@ -21,7 +21,6 @@
       user-select:none;
       font-weight:900;
       -webkit-tap-highlight-color: transparent;
-      transition:.12s ease;
     }
     .roleBtn.active{
       background: rgba(43,108,255,.14);
@@ -85,11 +84,10 @@
       </div>
 
       <div class="field" style="text-align:right;margin-top:12px">
-        <label>رقم الهاتف <span class="hint">(مهم للتواصل)</span></label>
-        <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" />
+        <label>رقم الهاتف <span class="hint">(مطلوب للتواصل ومنع الطلبات الوهمية)</span></label>
+        <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" inputmode="tel" />
       </div>
 
-      <!-- Driver extra fields -->
       <div id="driverBox" style="display:none;text-align:right;margin-top:14px">
         <div class="divider"></div>
 
@@ -134,7 +132,10 @@
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole, enableRole, normalizePhone
+      setActiveRole,
+      normalizePhone,
+      normalizeEmail,
+      normalizePassword
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
@@ -157,7 +158,6 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
-    // ===== role (query + last choice)
     const url = new URL(location.href);
     const LS_ROLE = "mw_last_role";
     let role =
@@ -177,11 +177,6 @@
     roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
     setRole(role);
 
-    // ✅ placeholder helper
-    emailEl.addEventListener("input", ()=>{
-      // nothing
-    });
-
     function setMsg(text, ok=false){
       msg.className = "hint " + (ok ? "msgOk" : "msgBad");
       msg.textContent = text || "";
@@ -200,9 +195,20 @@
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
-    function validateRoleFields(){
-      if(role !== "driver") return { ok:true };
+    function validateCommon(){
+      const email = normalizeEmail(emailEl.value);
+      const pass  = normalizePassword(passEl.value);
+      const phone = normalizePhone(phoneEl.value);
 
+      if(!email) return { ok:false, msg:"❌ اكتب إيميل صحيح." };
+      if(!pass)  return { ok:false, msg:"❌ كلمة المرور لازم 6 أحرف على الأقل." };
+      if(!phone) return { ok:false, msg:"❌ رقم الهاتف مطلوب (مثال: 01xxxxxxxxx)." };
+
+      return { ok:true, email, pass, phone };
+    }
+
+    function validateDriver(){
+      if(role !== "driver") return { ok:true };
       const v = clean(vehicleEl.value);
       const m = clean(modelEl.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
@@ -210,38 +216,24 @@
       return { ok:true };
     }
 
-    function validateCommon(){
-      const pRaw = clean(phoneEl.value);
-      if(!pRaw) return { ok:false, msg:"❌ رقم الهاتف مطلوب." };
-      const p = normalizePhone(pRaw);
-      if(!p) return { ok:false, msg:"❌ رقم الهاتف غير صحيح." };
-      return { ok:true, phone: p };
-    }
+    async function afterAuth(user, phoneNorm){
+      const desiredRole = role;
 
-    async function afterAuth(user){
-      // ✅ ضَمّن الداتا الأساسية + roles
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
-        activeRole: role,
-        email: user.email || clean(emailEl.value) || null
+        activeRole: desiredRole,
+        email: user.email || normalizeEmail(emailEl.value) || null
       });
-
-      // ✅ فعّل الدور الحالي
-      await enableRole(user.uid, role);
-
-      // ✅ حفظ البروفايل
-      const common = validateCommon();
-      if(!common.ok){ setMsg(common.msg); throw new Error("bad-phone"); }
 
       const payload = {
         roles: { passenger:true, driver:true },
-        activeRole: role,
+        activeRole: desiredRole,
         name: clean(nameEl.value) || null,
-        phone: common.phone || null,
-        email: user.email || clean(emailEl.value) || null
+        phone: phoneNorm,
+        email: user.email || normalizeEmail(emailEl.value) || null
       };
 
-      if(role === "driver"){
+      if(desiredRole === "driver"){
         payload.vehicle = clean(vehicleEl.value) || null;
         payload.model = clean(modelEl.value) || null;
         payload.plate = clean(plateEl.value) || null;
@@ -249,27 +241,26 @@
 
       await saveUserProfile(user.uid, payload);
 
-      // ✅ ثبت الدور محليًا (يمنع التحويل التلقائي)
-      setActiveRole(role);
+      setActiveRole(desiredRole);
 
-      location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
+      location.href = (desiredRole === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function doSignup(){
       try{
-        const v = validateRoleFields();
-        if(!v.ok){ setMsg(v.msg); return; }
+        const c = validateCommon();
+        if(!c.ok){ setMsg(c.msg); return; }
 
-        const common = validateCommon();
-        if(!common.ok){ setMsg(common.msg); return; }
+        const d = validateDriver();
+        if(!d.ok){ setMsg(d.msg); return; }
 
         setMsg("جارٍ إنشاء الحساب…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
-        const cred = await emailSignUp(emailEl.value, passEl.value);
-        await afterAuth(cred.user);
+        const cred = await emailSignUp(c.email, c.pass);
+        await afterAuth(cred.user, c.phone);
+
       }catch(e){
-        if(String(e?.message||"").includes("bad-phone")) return;
         setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
@@ -278,19 +269,19 @@
 
     async function doLogin(){
       try{
-        const v = validateRoleFields();
-        if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
+        const c = validateCommon();
+        if(!c.ok){ setMsg(c.msg); return; }
 
-        const common = validateCommon();
-        if(!common.ok){ setMsg(common.msg); return; }
+        const d = validateDriver();
+        if(!d.ok){ setMsg(d.msg); return; }
 
         setMsg("جارٍ تسجيل الدخول…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
-        const cred = await emailSignIn(emailEl.value, passEl.value);
-        await afterAuth(cred.user);
+        const cred = await emailSignIn(c.email, c.pass);
+        await afterAuth(cred.user, c.phone);
+
       }catch(e){
-        if(String(e?.message||"").includes("bad-phone")) return;
         setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
