@@ -5,14 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك</title>
 
-  <!-- ✅ Favicon -->
   <link rel="icon" href="./favicon.png">
-
-  <!-- PWA -->
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#050B16">
-
-  <!-- UI -->
   <link rel="stylesheet" href="./styles.css">
 </head>
 
@@ -27,8 +22,8 @@
       <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
       <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
 
-      <!-- أزرار الدخول الأساسية -->
-      <div class="actions" style="justify-content:center">
+      <!-- أزرار الدخول الأساسية (لو مش عامل Login) -->
+      <div class="actions" id="guestBtns" style="justify-content:center">
         <a class="btn success" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
         <a class="btn primary" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
       </div>
@@ -38,12 +33,12 @@
         <div class="hint" id="meText" style="margin-top:0"></div>
 
         <div class="actions" style="margin-top:12px;flex-wrap:wrap">
-          <a class="btn primary" id="goBtn" href="#" style="text-align:center;min-width:180px">فتح</a>
+          <button class="btn success" id="openPassengerBtn" type="button" style="min-width:180px">فتح الراكب</button>
+          <button class="btn primary" id="openDriverBtn" type="button" style="min-width:180px">فتح السائق</button>
           <button class="btn danger" id="logoutBtn" type="button" style="min-width:180px">تسجيل خروج</button>
         </div>
       </div>
 
-      <!-- زر تحديث قوي -->
       <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
         <button class="btn" id="hardRefreshBtn" type="button" style="min-width:220px">🔄 تحديث قوي (حل المشاكل)</button>
       </div>
@@ -57,32 +52,28 @@
     </div>
   </div>
 
-  <!-- Debug errors -->
   <script>
     const errMsg = document.getElementById("errMsg");
     window.addEventListener("error", (e)=>{
-      try{
-        errMsg.textContent = "⚠️ خطأ: " + (e.message || "غير معروف");
-      }catch{}
+      try{ errMsg.textContent = "⚠️ خطأ: " + (e.message || "غير معروف"); }catch{}
     });
     window.addEventListener("unhandledrejection", (e)=>{
-      try{
-        errMsg.textContent = "⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف");
-      }catch{}
+      try{ errMsg.textContent = "⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف"); }catch{}
     });
   </script>
 
-  <!-- Firebase + Auto redirect -->
   <script type="module">
-    import { auth, db } from "./app.js";
-
+    import { auth, db, setActiveRole } from "./app.js";
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+    const guestBtns = document.getElementById("guestBtns");
+
     const meBox = document.getElementById("meBox");
     const meText = document.getElementById("meText");
-    const goBtn = document.getElementById("goBtn");
     const logoutBtn = document.getElementById("logoutBtn");
+    const openPassengerBtn = document.getElementById("openPassengerBtn");
+    const openDriverBtn = document.getElementById("openDriverBtn");
 
     function fallbackNameFromEmail(email){
       const x = (email || "").split("@")[0] || "مستخدم";
@@ -95,47 +86,59 @@
       return snap.exists() ? snap.data() : null;
     }
 
-    logoutBtn.addEventListener("click", async ()=>{
-      try{
-        await signOut(auth);
-      }catch{}
+    logoutBtn?.addEventListener("click", async ()=>{
+      try{ await signOut(auth); }catch{}
       location.href = "./index.html";
+    });
+
+    openPassengerBtn?.addEventListener("click", ()=>{
+      setActiveRole("passenger");
+      location.href = "./passenger.html";
+    });
+
+    openDriverBtn?.addEventListener("click", ()=>{
+      setActiveRole("driver");
+      location.href = "./driver.html";
     });
 
     onAuthStateChanged(auth, async (user)=>{
       if(!user){
         meBox.style.display = "none";
+        guestBtns.style.display = "flex";
         return;
       }
+
+      guestBtns.style.display = "none";
 
       const data = await getUserDocX(user.uid).catch(()=>null);
-
-      const role = data?.role || null;
       const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
 
-      if(role !== "passenger" && role !== "driver"){
-        meBox.style.display = "block";
-        meText.innerHTML = `👤 <b>${name}</b><br>⚠️ الحساب بدون Role. افتح صفحة تسجيل الدخول.`;
-        goBtn.textContent = "فتح تسجيل الدخول";
-        goBtn.href = "./login.html";
-        return;
-      }
+      const gov = data?.governorate || "-";
+      const cen = data?.center || "-";
 
-      const roleText = (role === "passenger") ? "راكب" : "سائق";
-      const target = (role === "passenger") ? "./passenger.html" : "./driver.html";
+      const roles = data?.roles || {};
+      const hasDriver = !!roles.driver;
 
       meBox.style.display = "block";
       meText.innerHTML =
-        `👤 <b>${name}</b> • ${roleText}<br>` +
+        `👤 <b>${name}</b><br>` +
         `📧 ${user.email}<br>` +
-        `📍 ${(data?.governorate || "-")} / ${(data?.center || "-")}`;
+        `📍 ${gov} / ${cen}<br>` +
+        `🧩 الأدوار: ${roles.passenger ? "راكب" : ""}${roles.driver ? " + سائق" : ""}`;
 
-      goBtn.textContent = (role === "passenger") ? "فتح الراكب" : "فتح السائق";
-      goBtn.href = target;
+      // لو ماعندوش driver لسه: نخليه يفتح login كسائق ليكمل بياناته
+      openDriverBtn.textContent = hasDriver ? "فتح السائق" : "إعداد السائق";
+      openDriverBtn.onclick = ()=>{
+        if(hasDriver){
+          setActiveRole("driver");
+          location.href = "./driver.html";
+        }else{
+          location.href = "./login.html?role=driver";
+        }
+      };
     });
   </script>
 
-  <!-- Service Worker (force update) -->
   <script>
     const swMsg = document.getElementById("swMsg");
     const hardRefreshBtn = document.getElementById("hardRefreshBtn");
@@ -157,15 +160,10 @@
     hardRefreshBtn.addEventListener("click", hardRefresh);
 
     if ("serviceWorker" in navigator) {
-      // ✅ كاش-باستر لملف sw.js
       const v = Date.now();
       navigator.serviceWorker.register("./sw.js?v=" + v)
-        .then(()=>{
-          swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA (SW شغال).";
-        })
-        .catch(()=>{
-          swMsg.textContent = "⚠️ تعذر تشغيل Service Worker (مش مشكلة كبيرة).";
-        });
+        .then(()=>{ swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA (SW شغال)."; })
+        .catch(()=>{ swMsg.textContent = "⚠️ تعذر تشغيل Service Worker (مش مشكلة كبيرة)."; });
     }
   </script>
 </body>
