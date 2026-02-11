@@ -1,51 +1,62 @@
-// messaging.js (FINAL SAFE v1)
-// Unified notifications: Toast + Sound/Vibrate + System Notification (when hidden)
-
-const DEFAULT_TONES = {
-  notify:   { freq: 600,  dur: 0.58, vib: [80] },
-  offer:    { freq: 880,  dur: 0.60, vib: [120, 80, 120] },
-  accepted: { freq: 740,  dur: 0.60, vib: [90, 60, 90] },
-  arrived:  { freq: 660,  dur: 0.60, vib: [60, 40, 60, 40, 80] },
-  started:  { freq: 520,  dur: 0.60, vib: [140] },
-  ended:    { freq: 420,  dur: 0.60, vib: [220] },
+// messaging.js — FINAL v1 (Toast + System Notification + Sound + Vibrate)
+let _cfg = {
+  role: "passenger",
+  appName: "مشوارك",
+  icon: "./favicon.png",
+  toastId: "toast",
+  askPermissionOnLoad: false,
 };
 
-let _ctx = null;
 let _toastEl = null;
-let _appName = "مشوارك";
-let _icon = "./favicon.png";
 
-/**
- * initMessaging({
- *   appName, icon,
- *   toastId,
- *   askPermissionOnLoad
- * })
- */
-export async function initMessaging(opts = {}) {
-  _appName = opts.appName || _appName;
-  _icon = opts.icon || _icon;
+function _getToastEl() {
+  if (_toastEl) return _toastEl;
+  _toastEl = document.getElementById(_cfg.toastId) || null;
+  return _toastEl;
+}
 
-  if (opts.toastId) {
-    _toastEl = document.getElementById(opts.toastId) || null;
-  }
+function _showToast(html, ms = 2600) {
+  const el = _getToastEl();
+  if (!el) return;
+  el.innerHTML = html;
+  el.classList.add("show");
+  clearTimeout(_showToast._t);
+  _showToast._t = setTimeout(() => el.classList.remove("show"), ms);
+}
 
-  // تجهيز أذونات الإشعارات (اختياري)
-  if (opts.askPermissionOnLoad) {
-    try { await ensureNotificationPermission(); } catch {}
-  }
+function _vibrate(pattern = [80, 40, 80]) {
+  try {
+    if ("vibrate" in navigator) navigator.vibrate(pattern);
+  } catch {}
+}
 
-  // محاولة تجهيز AudioContext عند أول تفاعل (لمنع block على الموبايل)
-  const warmup = () => {
-    try {
-      _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)();
-      // لا نشغل صوت فعلي هنا، بس نضمن جاهزية الكونتكست
-    } catch {}
-    window.removeEventListener("pointerdown", warmup);
-    window.removeEventListener("touchstart", warmup);
-  };
-  window.addEventListener("pointerdown", warmup, { once: true });
-  window.addEventListener("touchstart", warmup, { once: true });
+function _beep(type = "notify") {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    o.type = "sine";
+    const now = ctx.currentTime;
+    const freq =
+      type === "offer" ? 880 :
+      type === "accepted" ? 740 :
+      type === "arrived" ? 660 :
+      type === "started" ? 520 :
+      type === "ended" ? 420 : 600;
+
+    o.frequency.setValueAtTime(freq, now);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(now);
+    o.stop(now + 0.58);
+
+    setTimeout(() => { try { ctx.close(); } catch {} }, 700);
+  } catch {}
 }
 
 export async function ensureNotificationPermission() {
@@ -60,91 +71,48 @@ export async function ensureNotificationPermission() {
   }
 }
 
-function showToast(html, ms = 2600) {
-  try {
-    if (!_toastEl) return;
-    _toastEl.innerHTML = html;
-    _toastEl.classList.add("show");
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => _toastEl?.classList.remove("show"), ms);
-  } catch {}
-}
-
-function vibrate(pattern) {
-  try {
-    if (!("vibrate" in navigator)) return;
-    navigator.vibrate(pattern);
-  } catch {}
-}
-
-function playBeepTone(tone = "notify") {
-  try {
-    const cfg = DEFAULT_TONES[tone] || DEFAULT_TONES.notify;
-    _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)();
-
-    const o = _ctx.createOscillator();
-    const g = _ctx.createGain();
-    o.type = "sine";
-
-    const now = _ctx.currentTime;
-    o.frequency.setValueAtTime(cfg.freq, now);
-
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + (cfg.dur || 0.55));
-
-    o.connect(g);
-    g.connect(_ctx.destination);
-
-    o.start(now);
-    o.stop(now + (cfg.dur || 0.55));
-  } catch {}
-}
-
-function notifySystem(title, body, tag) {
+function _systemNotify(title, body, tag) {
   try {
     if (!("Notification" in window)) return;
     if (Notification.permission !== "granted") return;
-
-    // بعض الأجهزة بتحتاج https + PWA
-    new Notification(title, {
-      body,
-      icon: _icon,
-      tag: tag || undefined,
-    });
+    new Notification(title, { body, icon: _cfg.icon, tag: tag || undefined });
   } catch {}
 }
 
-/**
- * notify({
- *   title, body,
- *   tone: "offer|accepted|arrived|started|ended|notify",
- *   tag: "string",
- *   toastHtml: "html",
- *   toastMs: number,
- *   forceSystemWhenHidden: boolean (default true)
- * })
- */
-export async function notify(opts = {}) {
-  const title = opts.title || _appName;
-  const body = opts.body || "";
-  const tone = opts.tone || "notify";
-  const tag = opts.tag || "";
+export async function initMessaging(opts = {}) {
+  _cfg = { ..._cfg, ...opts };
+  _toastEl = null;
+
+  // لو الصفحة بتفتح كـ PWA أو كروم عادي
+  if (_cfg.askPermissionOnLoad) {
+    await ensureNotificationPermission();
+  }
+}
+
+export async function notify({
+  title,
+  body,
+  tone = "notify",
+  tag = "",
+  toastHtml = "",
+  toastMs = 2600,
+  forceSystemWhenHidden = true,
+} = {}) {
+  const t = title || _cfg.appName;
+  const b = body || "";
 
   // Toast
-  if (opts.toastHtml) showToast(opts.toastHtml, opts.toastMs || 2600);
+  if (toastHtml) _showToast(toastHtml, toastMs);
 
-  // Sound + Vibration
-  playBeepTone(tone);
-  const cfg = DEFAULT_TONES[tone] || DEFAULT_TONES.notify;
-  vibrate(cfg.vib);
+  // Sound + vibrate
+  _beep(tone);
+  if (tone !== "notify") _vibrate([90, 40, 90]);
+  else _vibrate([40]);
 
-  // System Notification (يفضل فقط لما الصفحة تكون مخفية)
-  const force = (opts.forceSystemWhenHidden !== undefined) ? opts.forceSystemWhenHidden : true;
-  const isHidden = typeof document !== "undefined" ? document.hidden : false;
-
-  if (force && isHidden) {
-    try { await ensureNotificationPermission(); } catch {}
-    notifySystem(title, body, tag);
+  // System Notification (خصوصًا لو الشاشة مقفولة/التبويب مخفي)
+  const hidden = document.hidden || document.visibilityState !== "visible";
+  if (forceSystemWhenHidden && hidden) {
+    await ensureNotificationPermission();
+    _systemNotify(t, b, tag);
   }
 }
