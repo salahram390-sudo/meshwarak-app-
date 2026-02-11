@@ -1,4 +1,4 @@
-// app.js — FINAL v12 (Email/Password) + Firestore helpers + Phone helpers — Mashwarak
+// app.js — FINAL v13 (Fix login/signup logic + role helpers) — Mashwarak
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -23,7 +23,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
-  storageBucket: "meshwark-8adf8.appspot.com", // ✅ صح
+  storageBucket: "meshwark-8adf8.appspot.com",
   messagingSenderId: "450060838946",
   appId: "1:450060838946:web:963cacdd125b253fa1827b",
 };
@@ -33,7 +33,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ خلي الجلسة تفضل محفوظة (حتى بعد إغلاق المتصفح)
+// ✅ خلي الجلسة تفضل محفوظة
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -53,9 +53,7 @@ export function normalizeEmail(input) {
     return `${x}@meshwarak.local`;
   }
 
-  // لو كتب salah@
   if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
-
   return x;
 }
 
@@ -64,51 +62,38 @@ export function normalizePassword(input) {
   return x.length >= 6 ? x : null;
 }
 
-// ✅ Phone normalization (EG-focused لكن يقبل أي رقم دولي بشكل مبسط)
-// - يقبل: 010..., +2010..., 2010...
-// - يخزن كـ string (بدون مسافات)
+// ✅ Phone normalization
 export function normalizePhone(input) {
   let x = String(input || "").trim();
   if (!x) return null;
 
-  // أرقام عربية/فارسي → إنجليزي
   const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9" };
   x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
 
-  // شيل أي حاجة غير + أو رقم
   x = x.replace(/[^\d+]/g, "");
 
-  // لو فيه + في النص خليه أول حرف فقط
   if (x.includes("+")) {
     x = "+" + x.replace(/\+/g, "");
   }
 
-  // تحويل 00 → +
   if (x.startsWith("00")) x = "+" + x.slice(2);
 
-  // لو رقم مصر محلي 01xxxxxxxxx → +20...
   if (/^01\d{9}$/.test(x)) x = "+20" + x;
-
-  // لو 201xxxxxxxxx → +20...
   if (/^201\d{9}$/.test(x)) x = "+20" + x.slice(2);
 
-  // لو +201xxxxxxxxx تمام
-  // قبول عام: + و 8-15 رقم
   if (x.startsWith("+")) {
     const digits = x.slice(1);
     if (!/^\d{8,15}$/.test(digits)) return null;
     return "+" + digits;
   }
 
-  // لو بدون +: لازم 8-15 رقم (هنخزنها زي ما هي)
   if (!/^\d{8,15}$/.test(x)) return null;
   return x;
 }
 
 export function formatPhoneForDisplay(phone) {
   const p = String(phone || "").trim();
-  if (!p) return "-";
-  return p;
+  return p || "-";
 }
 
 // ========= users helpers
@@ -155,7 +140,14 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ✅ تحديث رقم الهاتف فقط (مفيد في login/profile)
+// ✅ تغيير الدور بسرعة (مفيد لصفحة login)
+export async function setUserRole(uid, role) {
+  if (role !== "passenger" && role !== "driver") throw new Error("bad-role");
+  await saveUserProfile(uid, { role });
+  return role;
+}
+
+// ✅ تحديث رقم الهاتف فقط
 export async function setUserPhone(uid, phoneRaw) {
   const phone = normalizePhone(phoneRaw);
   if (!phone) throw new Error("bad-phone");
@@ -164,6 +156,7 @@ export async function setUserPhone(uid, phoneRaw) {
 }
 
 // ========= ✅ Auto Login: signIn else createUser
+// ✅ FIX: متعملش Signup لو الباسورد غلط (ده كان سبب auth/email-already-in-use)
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
@@ -176,15 +169,26 @@ export async function emailLoginOrSignup(emailRaw, passRaw) {
   } catch (e) {
     const code = e?.code || "";
 
-    // لو الحساب مش موجود -> Signup
-    if (
-      code === "auth/user-not-found" ||
-      code === "auth/invalid-credential" ||
-      code === "auth/invalid-login-credentials"
-    ) {
+    // الحساب مش موجود -> Signup
+    if (code === "auth/user-not-found") {
       return await createUserWithEmailAndPassword(auth, email, password);
     }
 
+    // في بعض الحالات Firebase بيرجع invalid-credential للحساب اللي مش موجود
+    // نجرب Signup مرة واحدة، ولو طلع email-already-in-use يبقى المشكلة كلمة مرور غلط
+    if (code === "auth/invalid-credential") {
+      try {
+        return await createUserWithEmailAndPassword(auth, email, password);
+      } catch (e2) {
+        if (e2?.code === "auth/email-already-in-use") {
+          // رجّع نفس خطأ تسجيل الدخول (يعني الباسورد غلط)
+          throw e;
+        }
+        throw e2;
+      }
+    }
+
+    // أي حاجة تانية (wrong-password / invalid-login-credentials ...) -> رجّع الخطأ زي ما هو
     throw e;
   }
 }
@@ -194,14 +198,8 @@ export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => {
-        unsub();
-        resolve(u);
-      },
-      (e) => {
-        unsub();
-        reject(e);
-      }
+      (u) => { unsub(); resolve(u); },
+      (err) => { unsub(); reject(err); }
     );
   });
 
@@ -212,7 +210,6 @@ export async function requireAuthAndRole(requiredRole = null) {
 
   let data = await getUserDoc(user.uid).catch(() => null);
 
-  // لو مفيش doc لأول مرة
   if (!data) {
     await ensureUserDoc(user.uid, {
       role: "passenger",
