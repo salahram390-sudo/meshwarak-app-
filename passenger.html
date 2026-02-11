@@ -262,6 +262,26 @@
     const { user } = await requireAuthAndRole("passenger");
     logoutBtn.addEventListener("click", doLogout);
 
+    // ✅ (تعديل 1) حفظ اختيار المحافظة/المركز للراكب داخل Firestore users (مع Debounce)
+    let saveAreaTimer = null;
+    async function saveAreaToUserDocDebounced(){
+      clearTimeout(saveAreaTimer);
+      saveAreaTimer = setTimeout(async ()=>{
+        try{
+          const a = getSelectedArea();
+          if(!a.gov || !a.center) return;
+          await setDoc(doc(db,"users",user.uid), {
+            governorate: a.gov,
+            center: a.center,
+            updatedAt: serverTimestamp()
+          }, { merge:true });
+        }catch(e){
+          // تجاهل لتقليل الإزعاج (ضعف شبكة/حظر…)
+          console.error(e);
+        }
+      }, 800);
+    }
+
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -380,6 +400,7 @@
       }
       fillCenters(g);
       saveAreaLS(); renderAreaPill(); updateUI();
+      saveAreaToUserDocDebounced();
     });
 
     centerSelect.addEventListener("change", ()=>{
@@ -391,10 +412,12 @@
         centerOtherInput.value="";
       }
       saveAreaLS(); renderAreaPill(); updateUI();
+      saveAreaToUserDocDebounced();
     });
 
     centerOtherInput.addEventListener("input", ()=>{
       saveAreaLS(); renderAreaPill(); updateUI();
+      saveAreaToUserDocDebounced();
     });
 
     function renderVehicleUI(){
@@ -421,9 +444,10 @@
     const passengerName = (passengerProfile?.name || "").trim() || fallbackName(user.email);
     const passengerPhone = (passengerProfile?.phone || "").trim() || null;
 
-    // ✅ FINAL: اعرض رقم الهاتف المحفوظ في users.phone
+    // ✅ اعرض رقم الهاتف المحفوظ
     whoEl.textContent = `${passengerName} • ${(passengerPhone || user.email || "-")}`;
 
+    // ✅ أولوية: Firestore -> LocalStorage
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
       fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
@@ -431,6 +455,9 @@
     }else{
       restoreAreaFromLS();
     }
+
+    // ✅ لو المنطقة جاهزة بعد التحميل: احفظها في users مرة واحدة
+    saveAreaToUserDocDebounced();
 
     const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
     const savedPrice = Number(localStorage.getItem(LS.price)||"15");
@@ -781,7 +808,12 @@
         if(!gov || !center){ msg.textContent="❌ اختر المحافظة + المركز."; updateUI(); return; }
         if(!selectedVehicle){ msg.textContent="❌ اختر نوع المركبة."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
-        if(!passengerPhone){ msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه."; return; }
+
+        // ✅ (تعديل 2) منع الطلبات الوهمية: لازم رقم هاتف محفوظ
+        if(!passengerPhone){
+          msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه.";
+          return;
+        }
 
         createBtn.disabled=true;
         const priceEGP = Number(priceRange.value) || 15;
@@ -935,3 +967,4 @@
   </script>
 </body>
 </html>
+```0
