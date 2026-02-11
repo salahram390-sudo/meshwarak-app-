@@ -1,4 +1,4 @@
-// app.js — FINAL v16 (Natural Register/Login + Multi-Role + Role Redirect) — Mashwarak
+// app.js — FINAL v16 (Switch Role Anytime + Same Email) — Mashwarak
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -31,40 +31,30 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ Persistent login
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-// ========= URL helpers
 export function qs(key) {
-  try {
-    const u = new URL(location.href);
-    return u.searchParams.get(key);
-  } catch {
-    return null;
-  }
+  const u = new URL(location.href);
+  return u.searchParams.get(key);
 }
 
-// ✅ Active role per device
+// ✅ Active role per device (localStorage)
 const LS_ACTIVE_ROLE = "mw_active_role";
-export function setActiveRole(role) {
-  if (role !== "passenger" && role !== "driver") return;
-  try { localStorage.setItem(LS_ACTIVE_ROLE, role); } catch {}
+export function setActiveRole(role){
+  if(role !== "passenger" && role !== "driver") return;
+  try{ localStorage.setItem(LS_ACTIVE_ROLE, role); }catch{}
 }
-export function getActiveRole() {
-  try {
+export function getActiveRole(){
+  try{
     const r = localStorage.getItem(LS_ACTIVE_ROLE);
-    return (r === "passenger" || r === "driver") ? r : null;
-  } catch {
-    return null;
-  }
+    return (r==="passenger" || r==="driver") ? r : null;
+  }catch{ return null; }
 }
 
-// ========= Normalizers
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
 
-  // لو كتب اسم فقط -> بريد وهمي
   if (!x.includes("@")) {
     x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
     if (!x) x = "user";
@@ -83,7 +73,6 @@ export function normalizePhone(input) {
   let x = String(input || "").trim();
   if (!x) return null;
 
-  // أرقام عربية -> إنجليزية
   const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9" };
   x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
 
@@ -91,7 +80,6 @@ export function normalizePhone(input) {
   if (x.includes("+")) x = "+" + x.replace(/\+/g, "");
   if (x.startsWith("00")) x = "+" + x.slice(2);
 
-  // مصري
   if (/^01\d{9}$/.test(x)) x = "+20" + x;
   if (/^201\d{9}$/.test(x)) x = "+20" + x.slice(2);
 
@@ -116,9 +104,12 @@ export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
+  // ✅ افتراضيًا: أي حساب يبقى Passenger + Driver (علشان نفس الإيميل يشتغل في الاتنين)
+  const defaultRoles = { passenger:true, driver:true };
+
   if (!snap.exists()) {
     await setDoc(ref, {
-      roles: patch.roles || { passenger: true },
+      roles: patch.roles || defaultRoles,
       activeRole: patch.activeRole || "passenger",
 
       name: patch.name || null,
@@ -134,51 +125,48 @@ export async function ensureUserDoc(uid, patch = {}) {
 
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    }, { merge: true });
-
+    }, { merge:true });
     return true;
   }
+
+  // ✅ لو موجود قديم وكان roles ناقص: نزبطه للاتنين
+  const data = snap.data() || {};
+  const roles = data.roles || {};
+  const needFix = !(roles.passenger && roles.driver);
+
+  if(needFix){
+    await setDoc(ref, {
+      roles: { ...defaultRoles, ...roles },
+      updatedAt: serverTimestamp(),
+    }, { merge:true });
+  }
+
   return false;
 }
 
 export async function saveUserProfile(uid, payload) {
   const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge:true });
 }
 
-// ========= Natural Auth (Register / Login منفصلين)
-export async function emailSignUp(emailRaw, passRaw) {
+// ========= Natural Auth
+export async function emailSignUp(emailRaw, passRaw){
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-  if (!email) throw new Error("bad-email");
-  if (!password) throw new Error("bad-pass");
+  if(!email) throw new Error("bad-email");
+  if(!password) throw new Error("bad-pass");
   return await createUserWithEmailAndPassword(auth, email, password);
 }
 
-export async function emailSignIn(emailRaw, passRaw) {
+export async function emailSignIn(emailRaw, passRaw){
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-  if (!email) throw new Error("bad-email");
-  if (!password) throw new Error("bad-pass");
+  if(!email) throw new Error("bad-email");
+  if(!password) throw new Error("bad-pass");
   return await signInWithEmailAndPassword(auth, email, password);
 }
 
-// ✅ Compatibility (لو login.html القديم بيستدعي emailLoginOrSignup)
-// - ده بيحاول Login الأول، لو المستخدم مش موجود يعمل Signup.
-// - لو انت عامل صفحة فيها زر "تسجيل" وزر "دخول" منفصلين: استخدم emailSignUp / emailSignIn بدل ده.
-export async function emailLoginOrSignup(emailRaw, passRaw) {
-  try {
-    return await emailSignIn(emailRaw, passRaw);
-  } catch (e) {
-    const code = e?.code || "";
-    if (code === "auth/user-not-found") {
-      return await emailSignUp(emailRaw, passRaw);
-    }
-    throw e;
-  }
-}
-
-// ========= Guard (حماية الصفحات حسب الدور)
+// ========= Guard (حل مشكلة التحويل التلقائي)
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
@@ -188,46 +176,48 @@ export async function requireAuthAndRole(requiredRole = null) {
     );
   });
 
-  const wanted = (qs("role") === "driver") ? "driver" : ((qs("role") === "passenger") ? "passenger" : null);
-
   if (!user) {
-    // لو داخل صفحة role مباشرة، رجّعه login بنفس role
-    const r = wanted ? `?role=${wanted}` : "";
-    location.href = "./login.html" + r;
+    location.href = "./login.html";
     throw new Error("not signed in");
   }
 
-  let data = await getUserDoc(user.uid).catch(() => null);
-  if (!data) {
+  let data = await getUserDoc(user.uid).catch(()=>null);
+  if(!data){
     await ensureUserDoc(user.uid, {
-      roles: { passenger: true },
+      roles: { passenger:true, driver:true },
       activeRole: "passenger",
       email: user.email || null,
     });
-    data = await getUserDoc(user.uid).catch(() => null);
+    data = await getUserDoc(user.uid).catch(()=>null);
   }
 
-  // ✅ activeRole = localStorage أولاً، وبعدها Firestore
-  let activeRole = getActiveRole() || data?.activeRole || null;
+  // ✅ الدور المطلوب من الصفحة (driver.html / passenger.html)
+  // لو مختلف عن المخزن، نبدله فورًا بدل ما نعمل redirect
+  if(requiredRole){
+    const ref = doc(db, "users", user.uid);
 
-  // ✅ لو في ?role=... نخليه هو الـ activeRole على الجهاز
-  if (wanted && (wanted === "passenger" || wanted === "driver")) {
-    activeRole = wanted;
-    setActiveRole(wanted);
+    // ثبت الدور على الجهاز + على Firestore
+    setActiveRole(requiredRole);
+
+    // اضمن roles الاتنين
+    await setDoc(ref, {
+      roles: { passenger:true, driver:true, ...(data?.roles || {}) },
+      activeRole: requiredRole,
+      updatedAt: serverTimestamp()
+    }, { merge:true }).catch(()=>{});
+
+    data = await getUserDoc(user.uid).catch(()=>data);
+    return { user, data, activeRole: requiredRole };
   }
 
-  // ✅ لو الصفحة بتطلب دور معين
-  if (requiredRole && activeRole !== requiredRole) {
-    // ارجع للصفحة الرئيسية بدل ما تفضل تلف
-    location.href = "./index.html";
-    throw new Error("wrong role");
-  }
-
+  // لو مفيش requiredRole: نستخدم آخر اختيار على الجهاز ثم Firestore
+  const localRole = getActiveRole();
+  const activeRole = localRole || data?.activeRole || "passenger";
   return { user, data, activeRole };
 }
 
-export async function doLogout() {
-  try { await signOut(auth); } catch {}
-  try { localStorage.removeItem(LS_ACTIVE_ROLE); } catch {}
+export async function doLogout(){
+  await signOut(auth);
+  try{ localStorage.removeItem(LS_ACTIVE_ROLE); }catch{}
   location.href = "./login.html";
 }
