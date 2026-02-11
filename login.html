@@ -48,9 +48,9 @@
 
     <!-- ✅ NEW: Phone -->
     <div class="field">
-      <label>رقم الهاتف (إلزامي)</label>
-      <input id="phone" inputmode="tel" placeholder="مثال: 01012345678 أو +201012345678" autocomplete="tel"/>
-      <div class="small" style="margin-top:6px">اكتب رقم صحيح (مصر: 11 رقم يبدأ بـ 01… أو دولي +20…)</div>
+      <label>رقم الهاتف</label>
+      <input id="phone" inputmode="tel" placeholder="مثال: 01012345678" autocomplete="tel"/>
+      <div class="small" style="margin-top:6px">هيظهر رقمك للطرف الآخر أثناء الرحلة فقط.</div>
     </div>
 
     <div class="field">
@@ -92,7 +92,7 @@
         <label>موديل المركبة</label>
         <input id="model" placeholder="مثال: 2020" />
       </div>
-      <div class="small">سيظهر النوع + الموديل + رقمك للراكب بعد القبول.</div>
+      <div class="small">سيظهر النوع + الموديل للراكب بعد قبول الطلب.</div>
     </div>
 
     <div class="sep"></div>
@@ -127,7 +127,7 @@
   </div>
 
   <script type="module">
-    import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile, normalizePhone } from "./app.js";
+    import { auth, db, qs, emailLoginOrSignup, ensureUserDoc, saveUserProfile } from "./app.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -135,7 +135,7 @@
 
     const emailEl = $("email");
     const passEl  = $("password");
-    const phoneEl = $("phone");
+    const phoneEl = $("phone"); // ✅ NEW
     const msg     = $("msg");
 
     const rolePassenger = $("rolePassenger");
@@ -153,7 +153,6 @@
 
     const loginBtn = $("loginBtn");
 
-    // ✅ اظهار سبب أي خطأ بدل “فشل وخلاص”
     window.addEventListener("error", (e)=>{
       try{ msg.textContent = "❌ خطأ: " + (e?.message || "unknown"); }catch{}
     });
@@ -169,15 +168,27 @@
 
     const LS = {
       email:"mw_login_email",
-      phone:"mw_login_phone",
       gov:"mw_login_gov",
       center:"mw_login_center",
       centerOther:"mw_login_center_other",
       role:"mw_login_role",
       name:"mw_login_name",
+      phone:"mw_login_phone", // ✅ NEW
       vehicle:"mw_login_vehicle",
       model:"mw_login_model",
     };
+
+    // ✅ phone normalize (يحذف المسافات والشرطات…)
+    function normalizePhone(x){
+      let v = String(x||"").trim();
+      if(!v) return null;
+      v = v.replace(/[^\d+]/g,"");       // نسمح بالأرقام و +
+      if(v.startsWith("00")) v = "+" + v.slice(2);
+      // حد أدنى منطقي
+      const digits = v.replace(/\D/g,"");
+      if(digits.length < 8 || digits.length > 15) return null;
+      return v;
+    }
 
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
@@ -277,7 +288,6 @@
       let v = String(x||"").trim();
       if(!v) return null;
 
-      // ✅ اسم بدون @ → ايميل وهمي “صالح”
       if(!v.includes("@")){
         v = v.replace(/\s+/g,"").replace(/[^\w.-]/g,"");
         if(!v) v = "user";
@@ -290,7 +300,7 @@
     function saveDraft(){
       try{
         localStorage.setItem(LS.email, emailEl?.value || "");
-        localStorage.setItem(LS.phone, phoneEl?.value || "");
+        localStorage.setItem(LS.phone, phoneEl?.value || ""); // ✅ NEW
         localStorage.setItem(LS.gov, govEl?.value || "");
         localStorage.setItem(LS.center, centerEl?.value || "");
         localStorage.setItem(LS.centerOther, centerOtherEl?.value || "");
@@ -322,7 +332,7 @@
     function restoreDraft(){
       try{
         emailEl.value = localStorage.getItem(LS.email) || "";
-        phoneEl.value = localStorage.getItem(LS.phone) || "";
+        phoneEl.value = localStorage.getItem(LS.phone) || ""; // ✅ NEW
         nameEl.value = localStorage.getItem(LS.name) || "";
 
         const role = localStorage.getItem(LS.role) || "";
@@ -337,12 +347,9 @@
 
         if(g){
           govEl.value = g;
-
-          // ✅ لو كان OTHER احفظ اليدوي، غير كده استخدم قيمة center
           const pre = (c===OTHER) ? (co||null) : (c||null);
           fillCenters(g, pre);
 
-          // رجع center/other بشكل دقيق
           if(c){
             centerEl.value = c;
             if(c===OTHER){
@@ -392,8 +399,8 @@
       centerEl.disabled = locked || !govEl.value;
       centerOtherEl.disabled = locked;
       emailEl.disabled = locked;
-      phoneEl.disabled = locked;
       passEl.disabled = locked;
+      phoneEl.disabled = locked; // ✅ NEW
       nameEl.disabled = locked;
       vehicleEl.disabled = locked;
       modelEl.disabled = locked;
@@ -405,9 +412,9 @@
 
       const email = normalizeEmail(emailEl.value || "");
       const password = String(passEl.value || "");
-      const phoneNorm = normalizePhone(phoneEl.value || "");
+      const phone = normalizePhone(phoneEl.value || ""); // ✅ NEW
 
-      if(!phoneNorm){ msg.textContent = "❌ اكتب رقم هاتف صحيح."; return; }
+      if(!phone){ msg.textContent = "❌ اكتب رقم هاتف صحيح (8 إلى 15 رقم)."; return; }
       if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط وسيُحوَّل لوهمي)."; return; }
       if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
       if(!selectedRole){ msg.textContent = "❌ اختر راكب أو سائق."; return; }
@@ -418,7 +425,6 @@
         return;
       }
 
-      // ✅ لو أنت مختار سائق لأول مرة لازم بيانات المركبة
       if(selectedRole==="driver"){
         const v=(vehicleEl.value||"").trim();
         const m=(modelEl.value||"").trim();
@@ -433,7 +439,6 @@
         const res = await emailLoginOrSignup(email, password);
         const uid = res.user.uid;
 
-        // ✅ لو الحساب له دور قديم: ثبّت الدور تلقائيًا (مايتغيرش)
         const snap = await getDoc(doc(db,"users",uid)).catch(()=>null);
         const existing = (snap && typeof snap.exists==="function" && snap.exists()) ? snap.data() : null;
 
@@ -441,12 +446,10 @@
           ? existing.role
           : selectedRole;
 
-        // ✅ لو كان موجود بدور مختلف: ما نغيرش دوره
         if(existing?.role && existing.role !== selectedRole){
           msg.textContent = "✅ تم الدخول (الدور ثابت على حسابك).";
         }
 
-        // ✅ لو الدور النهائي سائق لكن بيانات المركبة ناقصة → اطلبها
         if(finalRole === "driver"){
           const vNeed = (existing?.vehicle || vehicleEl.value || "").trim();
           const mNeed = (existing?.model || modelEl.value || "").trim();
@@ -458,24 +461,22 @@
           }
         }
 
-        // users doc (create if not exists)
         await ensureUserDoc(uid, {
           role: finalRole,
           email: res.user.email || email,
           name: (nameEl.value||"").trim() || existing?.name || null,
-          phone: existing?.phone || phoneNorm, // ✅ مهم
+          phone: phone || existing?.phone || null, // ✅ NEW
           governorate: area.governorate,
           center: area.center,
           vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
           model: finalRole==="driver" ? ((existing?.model)||((modelEl.value||"").trim()||null)) : null,
         });
 
-        // update profile (merge)
         await saveUserProfile(uid, {
           role: finalRole,
           email: res.user.email || email,
           name: (nameEl.value||"").trim() || existing?.name || null,
-          phone: phoneNorm, // ✅ يحدث الرقم دائماً
+          phone: phone || existing?.phone || null, // ✅ NEW
           governorate: area.governorate,
           center: area.center,
           vehicle: finalRole==="driver" ? ((existing?.vehicle)||vehicleEl.value||null) : null,
@@ -489,13 +490,10 @@
         console.error(e);
         const code = e?.code || e?.message || "unknown";
 
-        // رسائل واضحة جداً
         if(code === "bad-email"){
           msg.textContent = "❌ اكتب الإيميل أو اسم فقط.";
         }else if(code === "bad-pass"){
           msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف.";
-        }else if(code === "bad-phone"){
-          msg.textContent = "❌ رقم الهاتف غير صحيح.";
         }else if(code==="auth/operation-not-allowed"){
           msg.textContent = "❌ فعل Email/Password من Firebase Auth أولاً (Sign-in method).";
         }else if(code==="auth/invalid-api-key" || code==="auth/configuration-not-found"){
@@ -514,7 +512,6 @@
 
     loginBtn.addEventListener("click", handleLogin);
 
-    // ✅ لو بالفعل مسجل دخول: دخله حسب role الحقيقي المخزن
     onAuthStateChanged(auth, async (user)=>{
       if(!user) return;
       const snap = await getDoc(doc(db,"users",user.uid)).catch(()=>null);
