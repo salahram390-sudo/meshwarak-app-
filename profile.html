@@ -30,7 +30,7 @@
 
       <div class="field">
         <label>الاسم</label>
-        <input id="name" placeholder="اسمك" />
+        <input id="name" placeholder="اسمك" autocomplete="name" />
       </div>
 
       <div class="grid2">
@@ -46,7 +46,7 @@
 
       <div class="field">
         <label>رقم الهاتف (للتواصل)</label>
-        <input id="phoneCommon" placeholder="مثال: 01xxxxxxxxx" inputmode="tel" />
+        <input id="phoneCommon" placeholder="مثال: 01xxxxxxxxx" inputmode="tel" autocomplete="tel" />
         <div class="hint" style="margin-top:6px">* مهم علشان السائق يقدر يتصل بيك.</div>
       </div>
 
@@ -86,7 +86,13 @@
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, getUserDoc, saveUserProfile, doLogout } from "./app.js";
+    import {
+      requireAuthAndRole,
+      getUserDoc,
+      saveUserProfile,
+      doLogout,
+      normalizePhone
+    } from "./app.js";
 
     const who = document.getElementById("who");
     const info = document.getElementById("info");
@@ -95,7 +101,6 @@
     const nameEl = document.getElementById("name");
     const govEl = document.getElementById("gov");
     const centerEl = document.getElementById("center");
-
     const phoneCommonEl = document.getElementById("phoneCommon");
 
     const driverOnly = document.getElementById("driverOnly");
@@ -108,23 +113,13 @@
 
     logoutBtn.addEventListener("click", doLogout);
 
-    function normalizePhone(p){
-      const x = (p || "").trim();
-      if(!x) return null;
-      // سيبها مرنة: أرقام + + فقط
-      const cleaned = x.replace(/[^\d+]/g, "");
-      return cleaned.length >= 8 ? cleaned : null;
-    }
-
-    const { user, data } = await requireAuthAndRole(null);
+    const { user, activeRole } = await requireAuthAndRole(null);
     who.textContent = user.phoneNumber || user.email || "-";
 
-    const role = data?.role || "passenger";
+    const role = (activeRole === "driver") ? "driver" : "passenger";
     info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;
+    driverOnly.style.display = (role === "driver") ? "block" : "none";
 
-    if(role === "driver") driverOnly.style.display = "block";
-
-    // load existing
     const u = await getUserDoc(user.uid).catch(()=>null);
 
     nameEl.value = u?.name || "";
@@ -145,9 +140,8 @@
       try{
         const phoneNorm = normalizePhone(phoneCommonEl.value);
 
-        // لو كتب رقم صغير جدًا
         if(phoneCommonEl.value.trim() && !phoneNorm){
-          msg.textContent = "❌ رقم الهاتف غير صحيح (اكتب رقم أطول).";
+          msg.textContent = "❌ رقم الهاتف غير صحيح.";
           saveBtn.disabled = false;
           return;
         }
@@ -159,16 +153,11 @@
           phone: phoneNorm
         };
 
-        // بيانات السائق فقط
+        // ✅ لو سائق: حدّث بيانات المركبة فقط
         if(role === "driver"){
           payload.vehicle = vehicleEl.value || null;
           payload.model = modelEl.value.trim() || null;
           payload.plate = plateEl.value.trim() || null;
-        }else{
-          // تنظيف أي بيانات سائق قديمة لو المستخدم راكب
-          payload.vehicle = null;
-          payload.model = null;
-          payload.plate = null;
         }
 
         await saveUserProfile(user.uid, payload);
