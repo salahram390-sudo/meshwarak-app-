@@ -22,7 +22,7 @@
       <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
       <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
 
-      <!-- أزرار الضيف -->
+      <!-- ✅ أزرار الدخول -->
       <div class="actions" id="guestBtns" style="justify-content:center">
         <a class="btn success" id="guestPassenger" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
         <a class="btn primary" id="guestDriver" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
@@ -74,7 +74,7 @@
     const openPassengerBtn = document.getElementById("openPassengerBtn");
     const openDriverBtn = document.getElementById("openDriverBtn");
 
-    // تثبيت الدور قبل فتح login
+    // ✅ تثبيت الدور حتى قبل الدخول
     const guestPassenger = document.getElementById("guestPassenger");
     const guestDriver = document.getElementById("guestDriver");
     guestPassenger?.addEventListener("click", ()=>{ try{ setActiveRole("passenger"); }catch{} });
@@ -85,6 +85,12 @@
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
     }
 
+    logoutBtn?.addEventListener("click", async ()=>{
+      try{ await signOut(auth); }catch{}
+      try{ localStorage.removeItem("mw_active_role"); }catch{}
+      location.href = "./index.html";
+    });
+
     function vehText(v){
       return (v==="tuktuk")?"توكتوك":
         (v==="motor_delivery")?"موتسيكل دليفري":
@@ -93,11 +99,6 @@
         (v==="tamanya")?"تمناية":
         (v==="caboot")?"عربية كابوت": (v || "-");
     }
-
-    logoutBtn?.addEventListener("click", async ()=>{
-      try{ await signOut(auth); }catch{ try{ await auth.signOut(); }catch{} }
-      location.href = "./index.html";
-    });
 
     onAuthStateChanged(auth, async (user)=>{
       if(!user){
@@ -108,7 +109,7 @@
 
       guestBtns.style.display = "none";
 
-      // ✅ إصلاح/توحيد أي حساب قديم
+      // ✅ ضمان doc + roles للحسابات القديمة
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: "passenger",
@@ -116,8 +117,8 @@
       }).catch(()=>{});
 
       const data = await getUserDoc(user.uid).catch(()=>null);
-
       const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
+
       const gov = data?.governorate || "-";
       const cen = data?.center || "-";
 
@@ -130,19 +131,17 @@
       meBox.style.display = "block";
       meText.innerHTML =
         `👤 <b>${name}</b><br>` +
-        `📧 ${user.email || "-"}<br>` +
+        `📧 ${user.email}<br>` +
         `📍 ${gov} / ${cen}<br>` +
         `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
         `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
 
-      // فتح راكب
       openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
       openPassengerBtn.onclick = ()=>{
         setActiveRole("passenger");
         location.href = hasPassenger ? "./passenger.html" : "./login.html?role=passenger";
       };
 
-      // فتح سائق
       if(!hasDriver){
         openDriverBtn.textContent = "إعداد السائق";
         openDriverBtn.onclick = ()=>{
