@@ -6,6 +6,7 @@
   <title>مشوارك - راكب</title>
 
   <link rel="icon" href="./favicon.png">
+  <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./styles.css">
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#050B16" />
@@ -253,7 +254,6 @@
 
     // ✅ Messaging init
     await initMessaging({
-      role: "passenger",
       appName: "مشوارك",
       icon: "./favicon.png",
       toastId: "toast",
@@ -288,7 +288,7 @@
 
     const vehGrid = $("vehGrid");
 
-    // ✅ FIX: Tap safe
+    // ✅ FIX: ضمان إن الزر فعلاً بياخد Tap على الموبايل
     const hardBindTap = (el, fn)=>{
       if(!el) return;
       const run = (e)=>{ try{ e.preventDefault(); e.stopPropagation(); }catch{} fn(e); };
@@ -822,15 +822,6 @@
       }
     }
 
-    async function clearRideLocal(){
-      currentRideId = null;
-      localStorage.removeItem(LS.lastRideId);
-      contactBox.style.display="none";
-      contactBox.innerHTML="";
-      await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
-      updateUI();
-    }
-
     function watchRide(rideId){
       if(unsubRide) unsubRide();
       const ref=doc(db,"rides",rideId);
@@ -838,7 +829,12 @@
       unsubRide=onSnapshot(ref, async (snap)=>{
         if(!snap.exists()){
           ridePill.textContent="الطلب غير موجود.";
-          await clearRideLocal();
+          contactBox.style.display="none"; contactBox.innerHTML="";
+          currentRideId=null; localStorage.removeItem(LS.lastRideId);
+
+          // ✅ FIX: كان فيه suser.uid (غير موجود) -> user.uid
+          await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
+          updateUI();
           return;
         }
 
@@ -932,7 +928,11 @@
 
         if(st==="canceled" || st==="completed"){
           ridePill.textContent = (st==="completed") ? "✅ تم إنهاء الرحلة" : "❌ تم إلغاء الطلب";
-          await clearRideLocal();
+          contactBox.style.display="none"; contactBox.innerHTML="";
+
+          currentRideId=null; localStorage.removeItem(LS.lastRideId);
+          await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
+          updateUI();
           return;
         }
 
@@ -949,6 +949,7 @@
           msg.textContent="⚠️ أكمل الخطوات: منطقة + مركبة + قيام + وصول.";
           return;
         }
+
         if(currentRideId){
           msg.textContent="⚠️ لديك طلب قائم بالفعل.";
           return;
@@ -960,7 +961,7 @@
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
 
         if(!passengerPhone){
-          msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه.";
+          msg.textContent="❌ رقم الهاتف غير مسجل. افتح حسابي وسجّل رقمك.";
           return;
         }
 
@@ -976,7 +977,6 @@
         const docRef = await addDoc(collection(db,"rides"),{
           status: "open",
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
           governorate: gov,
           center: center,
           from, to,
@@ -1022,7 +1022,9 @@
         const snap=await getDoc(ref);
         if(!snap.exists()){
           msg.textContent="الطلب غير موجود.";
-          await clearRideLocal();
+          currentRideId=null; localStorage.removeItem(LS.lastRideId);
+          await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
+          updateUI();
           return;
         }
 
@@ -1033,10 +1035,17 @@
           return;
         }
 
-        await updateDoc(ref, { status:"canceled", canceledAt:serverTimestamp(), canceledBy:"passenger", updatedAt:serverTimestamp() });
-        await clearRideLocal();
+        await updateDoc(ref, { status:"canceled", canceledAt:serverTimestamp(), canceledBy:"passenger" });
+        await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
 
         msg.textContent="✅ تم إلغاء الطلب.";
+        currentRideId=null;
+        localStorage.removeItem(LS.lastRideId);
+
+        contactBox.style.display="none";
+        contactBox.innerHTML="";
+        updateUI();
+
       }catch(e){
         console.error(e);
         msg.textContent="❌ فشل الإلغاء.";
