@@ -21,6 +21,7 @@
       user-select:none;
       font-weight:900;
       -webkit-tap-highlight-color: transparent;
+      transition:.12s ease;
     }
     .roleBtn.active{
       background: rgba(43,108,255,.14);
@@ -133,10 +134,11 @@
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole, clean, normalizePhone
+      setActiveRole, enableRole, normalizePhone
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
+    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
     const rolePassengerBtn = $("rolePassenger");
     const roleDriverBtn = $("roleDriver");
@@ -175,6 +177,11 @@
     roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
     setRole(role);
 
+    // ✅ placeholder helper
+    emailEl.addEventListener("input", ()=>{
+      // nothing
+    });
+
     function setMsg(text, ok=false){
       msg.className = "hint " + (ok ? "msgOk" : "msgBad");
       msg.textContent = text || "";
@@ -195,6 +202,7 @@
 
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
+
       const v = clean(vehicleEl.value);
       const m = clean(modelEl.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
@@ -202,26 +210,34 @@
       return { ok:true };
     }
 
+    function validateCommon(){
+      const pRaw = clean(phoneEl.value);
+      if(!pRaw) return { ok:false, msg:"❌ رقم الهاتف مطلوب." };
+      const p = normalizePhone(pRaw);
+      if(!p) return { ok:false, msg:"❌ رقم الهاتف غير صحيح." };
+      return { ok:true, phone: p };
+    }
+
     async function afterAuth(user){
-      // ✅ roles دائماً
+      // ✅ ضَمّن الداتا الأساسية + roles
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
         email: user.email || clean(emailEl.value) || null
       });
 
-      const phoneNorm = normalizePhone(phoneEl.value);
+      // ✅ فعّل الدور الحالي
+      await enableRole(user.uid, role);
 
-      // ✅ لازم رقم هاتف للتواصل (ممكن تشيله لو مش عايزه إجباري)
-      if(phoneEl.value.trim() && !phoneNorm){
-        throw { message:"رقم الهاتف غير صحيح.", code:"bad-phone" };
-      }
+      // ✅ حفظ البروفايل
+      const common = validateCommon();
+      if(!common.ok){ setMsg(common.msg); throw new Error("bad-phone"); }
 
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
         name: clean(nameEl.value) || null,
-        phone: phoneNorm,
+        phone: common.phone || null,
         email: user.email || clean(emailEl.value) || null
       };
 
@@ -233,7 +249,7 @@
 
       await saveUserProfile(user.uid, payload);
 
-      // ✅ تثبيت الدور على الجهاز
+      // ✅ ثبت الدور محليًا (يمنع التحويل التلقائي)
       setActiveRole(role);
 
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
@@ -244,14 +260,17 @@
         const v = validateRoleFields();
         if(!v.ok){ setMsg(v.msg); return; }
 
+        const common = validateCommon();
+        if(!common.ok){ setMsg(common.msg); return; }
+
         setMsg("جارٍ إنشاء الحساب…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
         const cred = await emailSignUp(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        if(e?.code==="bad-phone") setMsg("❌ رقم الهاتف غير صحيح.");
-        else setMsg(niceAuthError(e));
+        if(String(e?.message||"").includes("bad-phone")) return;
+        setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
       }
@@ -262,14 +281,17 @@
         const v = validateRoleFields();
         if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
 
+        const common = validateCommon();
+        if(!common.ok){ setMsg(common.msg); return; }
+
         setMsg("جارٍ تسجيل الدخول…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
         const cred = await emailSignIn(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        if(e?.code==="bad-phone") setMsg("❌ رقم الهاتف غير صحيح.");
-        else setMsg(niceAuthError(e));
+        if(String(e?.message||"").includes("bad-phone")) return;
+        setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
       }
