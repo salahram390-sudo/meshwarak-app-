@@ -242,9 +242,8 @@
     const $ = (id)=>document.getElementById(id);
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
-    // ===== Messaging init (Toast + System Notifications + Sound/Vibrate)
+    // ✅ Messaging init
     await initMessaging({
-      role: "passenger",
       appName: "مشوارك",
       icon: "./favicon.png",
       toastId: "toast",
@@ -329,7 +328,7 @@
       "السويس": ["السويس","الجناين","عتاقة"],
       "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد"],
       "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء"],
-      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني"],
+      "مطروح": ["مرسى مطروح","العلمين","الحمام","الحمام","سيدي براني"],
       "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم"],
       "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
@@ -775,74 +774,33 @@
       }
     }
 
-    async function fireStatusNotification(st, r){
+    async function fireStatusNotification(st){
       if(st === lastRideStatus) return;
       lastRideStatus = st;
 
       if(st === "offered"){
-        await notify({
-          title: "مشوارك",
-          body: "وصل عرض سعر من السائق",
-          tone: "offer",
-          tag: "ride_offer",
-          toastHtml: "💰 <b>وصل عرض سعر من السائق</b>",
-          toastMs: 3500,
-        });
+        await notify({ title:"مشوارك", body:"وصل عرض سعر من السائق", tone:"offer", tag:"ride_offer",
+          toastHtml:"💰 <b>وصل عرض سعر من السائق</b>", toastMs:3500 });
       }
-
       if(st === "accepted"){
-        await notify({
-          title: "مشوارك",
-          body: "تم قبول الرحلة",
-          tone: "accepted",
-          tag: "ride_accepted",
-          toastHtml: "✅ <b>تم قبول الرحلة</b>",
-          toastMs: 3200,
-        });
+        await notify({ title:"مشوارك", body:"تم قبول الرحلة", tone:"accepted", tag:"ride_accepted",
+          toastHtml:"✅ <b>تم قبول الرحلة</b>", toastMs:3200 });
       }
-
       if(st === "arrived"){
-        await notify({
-          title: "مشوارك",
-          body: "السائق وصل مكان القيام",
-          tone: "arrived",
-          tag: "ride_arrived",
-          toastHtml: "📍 <b>السائق وصل مكان القيام</b>",
-          toastMs: 3500,
-        });
+        await notify({ title:"مشوارك", body:"السائق وصل مكان القيام", tone:"arrived", tag:"ride_arrived",
+          toastHtml:"📍 <b>السائق وصل مكان القيام</b>", toastMs:3500 });
       }
-
       if(st === "started"){
-        await notify({
-          title: "مشوارك",
-          body: "بدأت الرحلة",
-          tone: "started",
-          tag: "ride_started",
-          toastHtml: "🚖 <b>بدأت الرحلة</b>",
-          toastMs: 3200,
-        });
+        await notify({ title:"مشوارك", body:"بدأت الرحلة", tone:"started", tag:"ride_started",
+          toastHtml:"🚖 <b>بدأت الرحلة</b>", toastMs:3200 });
       }
-
       if(st === "completed"){
-        await notify({
-          title: "مشوارك",
-          body: "تم إنهاء الرحلة",
-          tone: "ended",
-          tag: "ride_completed",
-          toastHtml: "🏁 <b>تم إنهاء الرحلة</b>",
-          toastMs: 3500,
-        });
+        await notify({ title:"مشوارك", body:"تم إنهاء الرحلة", tone:"ended", tag:"ride_completed",
+          toastHtml:"🏁 <b>تم إنهاء الرحلة</b>", toastMs:3500 });
       }
-
       if(st === "canceled"){
-        await notify({
-          title: "مشوارك",
-          body: "تم إلغاء الطلب",
-          tone: "ended",
-          tag: "ride_canceled",
-          toastHtml: "❌ <b>تم إلغاء الطلب</b>",
-          toastMs: 3500,
-        });
+        await notify({ title:"مشوارك", body:"تم إلغاء الطلب", tone:"ended", tag:"ride_canceled",
+          toastHtml:"❌ <b>تم إلغاء الطلب</b>", toastMs:3500 });
       }
     }
 
@@ -864,8 +822,7 @@
         const r=snap.data();
         const st=r.status || "-";
 
-        // إشعار احترافي + صوت + تنبيه نظام (لو الشاشة مقفولة/الصفحة مخفية)
-        await fireStatusNotification(st, r);
+        await fireStatusNotification(st);
 
         if(st==="open"){
           ridePill.textContent="✔ تم طلب المشوار… جارٍ البحث عن سائق";
@@ -905,7 +862,6 @@
             try{
               acceptBtn.disabled=true;
               offerMsg.textContent="جارٍ القبول…";
-
               await ensureNotificationPermission();
 
               await updateDoc(ref, {
@@ -915,14 +871,8 @@
               });
 
               offerMsg.textContent="✅ تم القبول.";
-              await notify({
-                title:"مشوارك",
-                body:"تم قبول العرض — تم بدء الرحلة",
-                tone:"accepted",
-                tag:"offer_accept",
-                toastHtml:"✅ <b>تم قبول العرض</b> — الرحلة بدأت",
-                toastMs:2600,
-              });
+              await notify({ title:"مشوارك", body:"تم قبول العرض", tone:"accepted", tag:"offer_accept",
+                toastHtml:"✅ <b>تم قبول العرض</b> — جاري بدء الرحلة", toastMs:2600 });
 
             }catch(e){
               console.error(e);
@@ -1046,7 +996,8 @@
       }catch(e){
         console.error(e);
         msg.textContent="❌ حصل خطأ أثناء طلب المشوار.";
-        await notify({ title:"مشوارك", body:"حصل خطأ أثناء طلب المشوار", tone:"ended", tag:"ride_error", toastHtml:"❌ حصل خطأ أثناء طلب المشوار" });
+        await notify({ title:"مشوارك", body:"حصل خطأ أثناء طلب المشوار", tone:"ended", tag:"ride_error",
+          toastHtml:"❌ حصل خطأ أثناء طلب المشوار" });
       }finally{
         updateUI(); fixMap();
         if(!currentRideId) createBtn.disabled = false;
