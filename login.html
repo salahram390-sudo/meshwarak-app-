@@ -38,7 +38,7 @@
 <body>
   <div class="box">
     <h1>🔐 مشوارك — تسجيل / دخول</h1>
-    <p>إيميل + كلمة مرور + رقم الهاتف + (راكب/سائق) + المحافظة + المركز</p>
+    <p>إيميل + كلمة مرور + رقم الهاتف + المحافظة + المركز</p>
 
     <div class="field" style="margin-top:0">
       <label>الاسم</label>
@@ -54,12 +54,13 @@
     <div class="field">
       <label>الإيميل (ممكن تكتب اسم فقط)</label>
       <input id="email" placeholder="" autocomplete="email"/>
-      <div class="small" style="margin-top:6px">لو كتبت اسم بدون @ هيتحول لإيميل وهمي تلقائيًا.</div>
+      <div class="small" style="margin-top:6px">لو كتبت reminder بدون @ هيتحول لإيميل تلقائيًا.</div>
     </div>
 
     <div class="field">
       <label>كلمة المرور</label>
       <input id="password" type="password" placeholder="" autocomplete="current-password"/>
+      <div class="small" style="margin-top:6px">أقل شيء 6 أحرف.</div>
     </div>
 
     <div class="field">
@@ -73,6 +74,7 @@
       </div>
     </div>
 
+    <!-- حقول السائق -->
     <div id="driverFields" class="card" style="margin-top:10px">
       <div class="field" style="margin-top:0">
         <label>نوع المركبة</label>
@@ -116,8 +118,10 @@
       <div class="small" style="margin-top:6px">اكتب على الأقل حرفين.</div>
     </div>
 
+    <!-- ✅ زرين: تسجيل + تسجيل دخول -->
     <div class="btns">
-      <button class="btn primary" id="loginBtn" type="button">تسجيل / دخول</button>
+      <button class="btn primary" id="signupBtn" type="button">🆕 تسجيل</button>
+      <button class="btn" id="signinBtn" type="button">🔐 تسجيل دخول</button>
     </div>
 
     <div class="hint" id="msg" style="margin-top:12px"></div>
@@ -126,13 +130,14 @@
   <script type="module">
     import {
       auth, db, qs,
-      emailLoginOrSignup, ensureUserDoc, saveUserProfile,
+      emailSignUp, emailSignIn,
+      ensureUserDoc, saveUserProfile,
       normalizeEmail, normalizePhone,
       setActiveRole
     } from "./app.js";
 
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const $ = (id)=>document.getElementById(id);
 
@@ -154,7 +159,8 @@
     const modelEl = $("model");
     const driverFields = $("driverFields");
 
-    const loginBtn = $("loginBtn");
+    const signupBtn = $("signupBtn");
+    const signinBtn = $("signinBtn");
 
     window.addEventListener("error", (e)=>{
       try{ msg.textContent = "❌ خطأ: " + (e?.message || "unknown"); }catch{}
@@ -169,7 +175,7 @@
     const OTHER="__other__";
     let selectedRole = null;
 
-    // ✅ مناطق
+    // ========= مناطق
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -193,7 +199,7 @@
       "السويس": ["السويس","الجناين","عتاقة"],
       "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد"],
       "جنوب سيناء": ["شرم الشيخ","دهب","نويبع","طور سيناء"],
-      "مطروح": ["مرسى مطروح","العلمين","الحمام","سيدي براني"],
+      "مطروح": ["مرسى مطروح","العلمين","الحمام","الضبعة","سيدي براني"],
       "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم"],
       "الأقصر": ["الأقصر","إسنا","الزينية","أرمنت"]
     };
@@ -278,10 +284,9 @@
     rolePassenger.addEventListener("click", ()=> setRole("passenger"));
     roleDriver.addEventListener("click", ()=> setRole("driver"));
 
-    // ✅ default role من query (?role=passenger|driver)
+    // default role من query
     const wanted = qs("role");
-    if(wanted==="driver" || wanted==="passenger") setRole(wanted);
-    else setRole("passenger");
+    setRole((wanted==="driver") ? "driver" : "passenger");
 
     function getArea(){
       const governorate = (govEl.value || "").trim() || null;
@@ -295,145 +300,155 @@
       return { governorate, center: cVal || null };
     }
 
-    function goAfterLogin(role){
-      setActiveRole(role);
-      location.href = (role==="passenger") ? "passenger.html" : "driver.html";
-    }
-
     function lockUI(locked){
-      loginBtn.disabled = locked;
+      signupBtn.disabled = locked;
+      signinBtn.disabled = locked;
+
       rolePassenger.disabled = locked;
       roleDriver.disabled = locked;
+
       govEl.disabled = locked;
       centerEl.disabled = locked || !govEl.value;
       centerOtherEl.disabled = locked;
+
       emailEl.disabled = locked;
       passEl.disabled = locked;
       phoneEl.disabled = locked;
       nameEl.disabled = locked;
+
       vehicleEl.disabled = locked;
       modelEl.disabled = locked;
     }
 
-    async function handleLogin(){
+    async function validateForm(){
       msg.textContent = "";
 
       const email = normalizeEmail(emailEl.value || "");
       const password = String(passEl.value || "");
       const phone = normalizePhone(phoneEl.value || "");
 
-      if(!phone){ msg.textContent = "❌ اكتب رقم هاتف صحيح."; return; }
-      if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط)."; return; }
-      if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return; }
-      if(!selectedRole){ msg.textContent = "❌ اختر راكب أو سائق."; return; }
+      if(!phone){ msg.textContent = "❌ اكتب رقم هاتف صحيح."; return null; }
+      if(!email){ msg.textContent = "❌ اكتب الإيميل (أو اسم فقط)."; return null; }
+      if(!password || password.length < 6){ msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف."; return null; }
+      if(!selectedRole){ msg.textContent = "❌ اختر راكب أو سائق."; return null; }
 
       const area = getArea();
       if(!area.governorate || !area.center){
         msg.textContent = "❌ اختر المحافظة + المركز.";
-        return;
+        return null;
       }
 
       if(selectedRole==="driver"){
         const v=(vehicleEl.value||"").trim();
         const m=(modelEl.value||"").trim();
-        if(!v){ msg.textContent="❌ اختر نوع المركبة."; return; }
-        if(!m || m.length<2){ msg.textContent="❌ اكتب موديل المركبة."; return; }
+        if(!v){ msg.textContent="❌ اختر نوع المركبة."; return null; }
+        if(!m || m.length<2){ msg.textContent="❌ اكتب موديل المركبة."; return null; }
       }
 
+      return { email, password, phone, area };
+    }
+
+    function buildPayload(existing, area){
+      const roles = existing?.roles || { passenger:true };
+      roles[selectedRole] = true;
+
+      return {
+        roles,
+        activeRole: selectedRole,
+        email: existing?.email || normalizeEmail(emailEl.value||""),
+        name: (nameEl.value||"").trim() || existing?.name || null,
+        phone: existing?.phone || normalizePhone(phoneEl.value||"") || null,
+        governorate: area.governorate,
+        center: area.center,
+        vehicle: roles.driver ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
+        model: roles.driver ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
+      };
+    }
+
+    async function afterAuth(res, area){
+      const uid = res.user.uid;
+
+      const snap = await getDoc(doc(db,"users",uid)).catch(()=>null);
+      const existing = (snap && snap.exists()) ? snap.data() : null;
+
+      const payload = buildPayload(existing, area);
+
+      // لو داخل كسائق لازم بياناته
+      if(selectedRole==="driver"){
+        const ok = (payload.vehicle && String(payload.model||"").trim().length>=2);
+        if(!ok){
+          msg.textContent="❌ أكمل بيانات المركبة (نوع + موديل).";
+          lockUI(false);
+          setRole("driver");
+          return;
+        }
+      }
+
+      await ensureUserDoc(uid, payload);
+      await saveUserProfile(uid, payload);
+
+      setActiveRole(selectedRole);
+      location.href = (selectedRole==="passenger") ? "./passenger.html" : "./driver.html";
+    }
+
+    async function handleSignUp(){
+      const v = await validateForm();
+      if(!v) return;
+
       lockUI(true);
-      msg.textContent = "جارٍ الدخول…";
+      msg.textContent = "جارٍ إنشاء الحساب…";
 
       try{
-        const res = await emailLoginOrSignup(email, password);
-        const uid = res.user.uid;
-
-        const snap = await getDoc(doc(db,"users",uid)).catch(()=>null);
-        const existing = (snap && typeof snap.exists==="function" && snap.exists()) ? snap.data() : null;
-
-        const roles = existing?.roles || { passenger:true };
-        roles[selectedRole] = true;
-
-        if(selectedRole === "driver"){
-          const vNeed = (existing?.vehicle || vehicleEl.value || "").trim();
-          const mNeed = (existing?.model || modelEl.value || "").trim();
-          if(!vNeed || !mNeed || mNeed.length < 2){
-            lockUI(false);
-            setRole("driver");
-            msg.textContent = "❌ أكمل بيانات المركبة (نوع + موديل) ثم اضغط تسجيل.";
-            return;
-          }
-        }
-
-        await ensureUserDoc(uid, {
-          roles,
-          activeRole: selectedRole,
-          email: res.user.email || email,
-          name: (nameEl.value||"").trim() || existing?.name || null,
-          phone: existing?.phone || phone || null,
-          governorate: area.governorate,
-          center: area.center,
-
-          // ✅ خزّن بيانات المركبة فقط لو داخل كسائق (غير كده سيب القديم)
-          vehicle: (selectedRole==="driver") ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
-          model:   (selectedRole==="driver") ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
-        });
-
-        await saveUserProfile(uid, {
-          roles,
-          activeRole: selectedRole,
-          email: res.user.email || email,
-          name: (nameEl.value||"").trim() || existing?.name || null,
-          phone: existing?.phone || phone || null,
-          governorate: area.governorate,
-          center: area.center,
-          vehicle: (selectedRole==="driver") ? ((existing?.vehicle)||vehicleEl.value||null) : (existing?.vehicle || null),
-          model:   (selectedRole==="driver") ? ((existing?.model)||((modelEl.value||"").trim()||null)) : (existing?.model || null),
-          updatedAt: serverTimestamp()
-        });
-
-        msg.textContent = "✅ تم الدخول.";
-        goAfterLogin(selectedRole);
-
+        const res = await emailSignUp(v.email, v.password);
+        msg.textContent = "✅ تم التسجيل.";
+        await afterAuth(res, v.area);
       }catch(e){
         console.error(e);
         const code = e?.code || e?.message || "unknown";
-
-        if(code === "bad-email"){
-          msg.textContent = "❌ اكتب الإيميل أو اسم فقط.";
-        }else if(code === "bad-pass"){
-          msg.textContent = "❌ كلمة المرور أقل شيء 6 أحرف.";
-        }else if(code==="auth/operation-not-allowed"){
-          msg.textContent = "❌ فعل Email/Password من Firebase Auth أولاً.";
-        }else if(code==="auth/invalid-api-key" || code==="auth/configuration-not-found"){
-          msg.textContent = "❌ Firebase config غلط في app.js.";
-        }else if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials"){
-          msg.textContent = "❌ كلمة المرور غير صحيحة.";
-        }else if(code==="auth/network-request-failed"){
-          msg.textContent = "❌ مشكلة شبكة/حظر/VPN. جرّب بدون VPN.";
-        }else{
-          msg.textContent = "❌ فشل الدخول: " + code;
-        }
+        if(code==="auth/email-already-in-use") msg.textContent="❌ الإيميل مسجل بالفعل. استخدم تسجيل دخول.";
+        else if(code==="bad-email") msg.textContent="❌ اكتب الإيميل أو اسم فقط.";
+        else if(code==="bad-pass") msg.textContent="❌ كلمة المرور أقل شيء 6 أحرف.";
+        else msg.textContent = "❌ فشل التسجيل: " + code;
       }finally{
         lockUI(false);
       }
     }
 
-    loginBtn.addEventListener("click", handleLogin);
+    async function handleSignIn(){
+      const v = await validateForm();
+      if(!v) return;
 
-    // ✅ تحويل تلقائي فقط لو المستخدم داخل وفتح login.html مع ?role
+      lockUI(true);
+      msg.textContent = "جارٍ تسجيل الدخول…";
+
+      try{
+        const res = await emailSignIn(v.email, v.password);
+        msg.textContent = "✅ تم الدخول.";
+        await afterAuth(res, v.area);
+      }catch(e){
+        console.error(e);
+        const code = e?.code || e?.message || "unknown";
+        if(code==="auth/wrong-password" || code==="auth/invalid-login-credentials") msg.textContent="❌ كلمة المرور غير صحيحة.";
+        else if(code==="auth/user-not-found") msg.textContent="❌ الحساب غير موجود. استخدم تسجيل.";
+        else msg.textContent = "❌ فشل الدخول: " + code;
+      }finally{
+        lockUI(false);
+      }
+    }
+
+    signupBtn.addEventListener("click", handleSignUp);
+    signinBtn.addEventListener("click", handleSignIn);
+
+    // لو المستخدم عامل Login بالفعل: افتح الصفحة حسب ?role
     onAuthStateChanged(auth, async (u)=>{
       if(!u) return;
 
-      const roleWanted = qs("role");
-      if(roleWanted !== "passenger" && roleWanted !== "driver"){
-        // خلي المستخدم يختار ويضغط تسجيل/دخول (عشان يقدر يبدّل الدور)
-        return;
-      }
+      const roleWanted = (qs("role")==="driver") ? "driver" : "passenger";
 
-      const snap = await getDoc(doc(db,"users",u.uid)).catch(()=>null);
-      const data = (snap && snap.exists()) ? snap.data() : null;
-
+      // لو سائق وبياناته ناقصة -> نخليه يكمل
       if(roleWanted==="driver"){
+        const snap = await getDoc(doc(db,"users",u.uid)).catch(()=>null);
+        const data = (snap && snap.exists()) ? snap.data() : null;
         const ok = (data?.vehicle && String(data?.model||"").trim().length>=2);
         if(ok){
           setActiveRole("driver");
