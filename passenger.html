@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>مشوارك - راكب</title>
 
+  <!-- ✅ Favicon -->
+  <link rel="icon" href="./favicon.png">
+
   <link rel="stylesheet" href="./styles.css">
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#050B16" />
@@ -249,20 +252,16 @@
     const OTHER="__other__";
     const VEHICLES = ["tuktuk","motor_delivery","car","microbus","tamanya","caboot"];
 
-    // ✅ متغيرات لازم تبقى GLOBAL علشان updateUI
     let selectedVehicle = localStorage.getItem(LS.vehicle) || null;
     let from = null, to = null;
 
-    // ✅ Safe map wrappers
     let fixMap = ()=>{};
     let leafletOK = false;
     let map = null;
 
-    // ========= auth
     const { user } = await requireAuthAndRole("passenger");
     logoutBtn.addEventListener("click", doLogout);
 
-    // ===== مناطق (نفس login.html)
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -398,7 +397,6 @@
       saveAreaLS(); renderAreaPill(); updateUI();
     });
 
-    // ===== vehicles
     function renderVehicleUI(){
       if(!vehGrid) return;
       vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
@@ -418,12 +416,13 @@
     });
     renderVehicleUI();
 
-    // ===== بيانات الراكب
     const passengerProfile = await getUserDoc(user.uid).catch(()=>null);
     const fallbackName = (email)=>((email||"").split("@")[0]||"مستخدم").replace(/[._-]+/g," ").trim()||"مستخدم";
     const passengerName = (passengerProfile?.name || "").trim() || fallbackName(user.email);
     const passengerPhone = (passengerProfile?.phone || "").trim() || null;
-    whoEl.textContent = `${passengerName} • ${(user.phoneNumber || user.email || "-")}`;
+
+    // ✅ FINAL: اعرض رقم الهاتف المحفوظ في users.phone
+    whoEl.textContent = `${passengerName} • ${(passengerPhone || user.email || "-")}`;
 
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
@@ -433,7 +432,6 @@
       restoreAreaFromLS();
     }
 
-    // ===== السعر
     const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
     const savedPrice = Number(localStorage.getItem(LS.price)||"15");
     priceRange.value = String(clamp(savedPrice, 15, 300));
@@ -443,7 +441,6 @@
       localStorage.setItem(LS.price, priceRange.value);
     });
 
-    // ===== map (SAFE)
     let divPin = ()=>null;
     let fromMarker=null,toMarker=null,line=null,myMarker=null,myPos=null;
 
@@ -615,7 +612,6 @@
     $("fromSearchBtn").addEventListener("click", ()=>search("from"));
     $("toSearchBtn").addEventListener("click", ()=>search("to"));
 
-    // ===== rides
     let unsubRide=null;
     let currentRideId = localStorage.getItem(LS.lastRideId) || null;
 
@@ -785,7 +781,7 @@
         if(!gov || !center){ msg.textContent="❌ اختر المحافظة + المركز."; updateUI(); return; }
         if(!selectedVehicle){ msg.textContent="❌ اختر نوع المركبة."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
-        if(!passengerPhone){ msg.textContent="❌ رقم الهاتف غير مسجل. افتح حسابي واحفظه."; return; }
+        if(!passengerPhone){ msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه."; return; }
 
         createBtn.disabled=true;
         const priceEGP = Number(priceRange.value) || 15;
@@ -875,12 +871,10 @@
       }
     });
 
-    // init
     setRideUI(currentRideId ? "open" : "none");
     updateUI();
     autoLocate();
 
-    // ===== bottom sheet drag (كما هو)
     const sheet=$("sheet"), handle=$("sheetHandle"), content=$("sheetContent");
     const clamp2=(v,min,max)=>Math.max(min,Math.min(max,v));
     const getPoints=()=>{
