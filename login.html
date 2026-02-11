@@ -21,6 +21,7 @@
       user-select:none;
       font-weight:900;
       -webkit-tap-highlight-color: transparent;
+      color:inherit;
     }
     .roleBtn.active{
       background: rgba(43,108,255,.14);
@@ -133,11 +134,11 @@
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole
+      setActiveRole, enableRole,
+      normalizePhone, clean
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
-    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
     const rolePassengerBtn = $("rolePassenger");
     const roleDriverBtn = $("roleDriver");
@@ -156,9 +157,9 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
-    // ===== role (query + last choice)
     const url = new URL(location.href);
     const LS_ROLE = "mw_last_role";
+
     let role =
       (url.searchParams.get("role")==="driver") ? "driver" :
       (url.searchParams.get("role")==="passenger") ? "passenger" :
@@ -171,7 +172,6 @@
       roleDriverBtn.classList.toggle("active", role==="driver");
       driverBox.style.display = (role==="driver") ? "block" : "none";
     }
-
     rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"));
     roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
     setRole(role);
@@ -194,6 +194,13 @@
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
+    function validateCommon(){
+      const phoneRaw = clean(phoneEl.value);
+      const phoneNorm = phoneRaw ? normalizePhone(phoneRaw) : null;
+      if(phoneRaw && !phoneNorm) return { ok:false, msg:"❌ رقم الهاتف غير صحيح." };
+      return { ok:true, phoneNorm };
+    }
+
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
 
@@ -205,19 +212,25 @@
     }
 
     async function afterAuth(user){
-      // ✅ نفس الإيميل يشتغل للدورين
+      // ensure base doc
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
         email: user.email || clean(emailEl.value) || null
       });
 
-      // ✅ حفظ البروفايل (وتحديث بيانات السائق لو مختار سائق)
+      // enable selected role safely
+      await enableRole(user.uid, role);
+
+      const common = validateCommon();
+      if(!common.ok){ setMsg(common.msg); return; }
+
+      // save profile
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
         name: clean(nameEl.value) || null,
-        phone: clean(phoneEl.value) || null,
+        phone: common.phoneNorm,
         email: user.email || clean(emailEl.value) || null
       };
 
@@ -229,16 +242,17 @@
 
       await saveUserProfile(user.uid, payload);
 
-      // ✅ أهم سطر: يمنع التحويل التلقائي لراكب
       setActiveRole(role);
-
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function doSignup(){
       try{
-        const v = validateRoleFields();
-        if(!v.ok){ setMsg(v.msg); return; }
+        const v1 = validateRoleFields();
+        if(!v1.ok){ setMsg(v1.msg); return; }
+
+        const v2 = validateCommon();
+        if(!v2.ok){ setMsg(v2.msg); return; }
 
         setMsg("جارٍ إنشاء الحساب…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
@@ -254,9 +268,11 @@
 
     async function doLogin(){
       try{
-        // في تسجيل الدخول: لو داخل كسائق ومش مكمّل بياناته هنا => برضه نلزمه يكمّل قبل التحويل
-        const v = validateRoleFields();
-        if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
+        const v1 = validateRoleFields();
+        if(!v1.ok){ setMsg(v1.msg); return; }
+
+        const v2 = validateCommon();
+        if(!v2.ok){ setMsg(v2.msg); return; }
 
         setMsg("جارٍ تسجيل الدخول…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
