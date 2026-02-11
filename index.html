@@ -22,13 +22,11 @@
       <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
       <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
 
-      <!-- ✅ أزرار الدخول: لازم تثبت الدور قبل فتح login -->
       <div class="actions" id="guestBtns" style="justify-content:center">
         <a class="btn success" id="guestPassenger" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
         <a class="btn primary" id="guestDriver" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
       </div>
 
-      <!-- صندوق المستخدم الحالي -->
       <div id="meBox" class="card" style="margin-top:14px; display:none; text-align:right">
         <div class="hint" id="meText" style="margin-top:0"></div>
 
@@ -63,9 +61,8 @@
   </script>
 
   <script type="module">
-    import { auth, db, setActiveRole, ensureUserDoc } from "./app.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { auth, db, setActiveRole, ensureUserDoc, getUserDoc } from "./app.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
     const guestBtns = document.getElementById("guestBtns");
 
@@ -75,35 +72,21 @@
     const openPassengerBtn = document.getElementById("openPassengerBtn");
     const openDriverBtn = document.getElementById("openDriverBtn");
 
-    // ✅ تثبيت الدور حتى قبل الدخول
+    // تثبيت الدور قبل فتح login
     const guestPassenger = document.getElementById("guestPassenger");
     const guestDriver = document.getElementById("guestDriver");
     guestPassenger?.addEventListener("click", ()=>{ try{ setActiveRole("passenger"); }catch{} });
     guestDriver?.addEventListener("click", ()=>{ try{ setActiveRole("driver"); }catch{} });
 
+    logoutBtn?.addEventListener("click", async ()=>{
+      try{ await signOut(auth); }catch{}
+      location.href = "./index.html";
+    });
+
     function fallbackNameFromEmail(email){
       const x = (email || "").split("@")[0] || "مستخدم";
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
     }
-
-    async function getUserDocX(uid){
-      const ref = doc(db, "users", uid);
-      const snap = await getDoc(ref);
-      return snap.exists() ? snap.data() : null;
-    }
-
-    logoutBtn?.addEventListener("click", async ()=>{
-      try{
-        await auth.signOut();
-      }catch{
-        try{
-          // fallback
-          const { signOut } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
-          await signOut(auth);
-        }catch{}
-      }
-      location.href = "./index.html";
-    });
 
     function vehText(v){
       return (v==="tuktuk")?"توكتوك":
@@ -123,16 +106,16 @@
 
       guestBtns.style.display = "none";
 
-      // ✅ اضمن إن أي حساب عنده role راكب + سائق (حل الحسابات القديمة/الجديدة)
+      // ضمان user doc
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: "passenger",
         email: user.email || null,
       }).catch(()=>{});
 
-      const data = await getUserDocX(user.uid).catch(()=>null);
-      const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
+      const data = await getUserDoc(user.uid).catch(()=>null);
 
+      const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
       const gov = data?.governorate || "-";
       const cen = data?.center || "-";
 
@@ -150,19 +133,12 @@
         `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
         `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
 
-      // ✅ فتح راكب (دائمًا يثبت role)
       openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
       openPassengerBtn.onclick = ()=>{
-        if(hasPassenger){
-          setActiveRole("passenger");
-          location.href = "./passenger.html";
-        }else{
-          setActiveRole("passenger");
-          location.href = "./login.html?role=passenger";
-        }
+        setActiveRole("passenger");
+        location.href = hasPassenger ? "./passenger.html" : "./login.html?role=passenger";
       };
 
-      // ✅ فتح سائق (دائمًا يثبت role)
       if(!hasDriver){
         openDriverBtn.textContent = "إعداد السائق";
         openDriverBtn.onclick = ()=>{
@@ -214,4 +190,3 @@
   </script>
 </body>
 </html>
-```0
