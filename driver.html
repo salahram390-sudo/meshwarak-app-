@@ -212,12 +212,64 @@
     const toast = $("toast");
     const mapFallback = $("mapFallback");
 
-    function showToast(html, ms=2400){
+    // ===== Toast + Sound + System Notification
+    function showToast(html, ms=2600){
       toast.innerHTML = html;
       toast.classList.add("show");
       clearTimeout(showToast._t);
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
     }
+
+    function playBeep(type="notify"){
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+
+        const now = ctx.currentTime;
+        const freq =
+          type==="new" ? 880 :
+          type==="offer" ? 820 :
+          type==="accepted" ? 740 :
+          type==="arrived" ? 660 :
+          type==="started" ? 520 :
+          type==="ended" ? 420 : 600;
+
+        o.frequency.setValueAtTime(freq, now);
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.18, now+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now+0.6);
+
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(now);
+        o.stop(now+0.62);
+
+        setTimeout(()=>{ try{ ctx.close(); }catch{} }, 800);
+      }catch{}
+    }
+
+    async function ensureNotificationPermission(){
+      try{
+        if(!("Notification" in window)) return false;
+        if(Notification.permission === "granted") return true;
+        if(Notification.permission === "denied") return false;
+        const p = await Notification.requestPermission();
+        return p === "granted";
+      }catch{
+        return false;
+      }
+    }
+
+    function notifySystem(title, body){
+      try{
+        if(!("Notification" in window)) return;
+        if(Notification.permission !== "granted") return;
+        new Notification(title, { body, icon:"./favicon.png" });
+      }catch{}
+    }
+
     function safeNum(x){ const n=Number(x); return Number.isFinite(n)?n:null; }
 
     // ========= auth
@@ -683,6 +735,39 @@
       window.open(url, "_blank");
     }
 
+    // ====== Trip Notifications (state change)
+    let lastTripStatus = null;
+    function fireTripNotify(st){
+      if(st === lastTripStatus) return;
+      lastTripStatus = st;
+
+      if(st === "accepted"){
+        playBeep("accepted");
+        showToast("✅ <b>تم قبول الرحلة</b>");
+        notifySystem("مشوارك - السائق", "تم قبول الرحلة");
+      }else if(st === "arrived"){
+        playBeep("arrived");
+        showToast("📍 <b>تم تسجيل الوصول</b>");
+        notifySystem("مشوارك - السائق", "تم تسجيل الوصول");
+      }else if(st === "started"){
+        playBeep("started");
+        showToast("🚖 <b>بدأت الرحلة</b>");
+        notifySystem("مشوارك - السائق", "بدأت الرحلة");
+      }else if(st === "completed"){
+        playBeep("ended");
+        showToast("🏁 <b>تم إنهاء الرحلة</b>");
+        notifySystem("مشوارك - السائق", "تم إنهاء الرحلة");
+      }else if(st === "canceled"){
+        playBeep("ended");
+        showToast("❌ <b>تم إلغاء الرحلة</b>");
+        notifySystem("مشوارك - السائق", "تم إلغاء الرحلة");
+      }else if(st === "offered"){
+        playBeep("offer");
+        showToast("💰 <b>تم إرسال عرض السعر</b>");
+        notifySystem("مشوارك - السائق", "تم إرسال عرض السعر");
+      }
+    }
+
     function watchTrip(tripId){
       if(!tripId) return;
       if(unsubTrip) unsubTrip();
@@ -697,6 +782,8 @@
 
         const r = snap.data();
         const status = r.status || "-";
+
+        fireTripNotify(status);
 
         const pLat = safeNum(r.from?.lat);
         const pLng = safeNum(r.from?.lng);
@@ -813,6 +900,7 @@
         }else{
           tripPill.textContent = "لا يوجد رحلة";
           currentTripId = null;
+          lastTripStatus = null;
           stopWatchTrip();
           currentTripCard.style.display = "none";
           currentTripCard.innerHTML = "";
@@ -862,27 +950,21 @@
         <div class="hint" style="margin-top:10px" id="m_${r.id}"></div>
       `;
 
-      const focusBtn = el.querySelector(`[data-focus="${r.id}"]`);
-      if(focusBtn){
-        focusBtn.addEventListener("click", async ()=>{
-          if(!leafletOK || !dmap) return;
-          if(fromLat!=null && fromLng!=null){
-            setPassengerOnMap(fromLat, fromLng);
-            dmap.setView([fromLat, fromLng], 16, { animate:false });
-            fixMap();
-            await drawRoutesReal({withDropoff:false}); // Route للسائق -> القيام
-          }
-        });
-      }
+      el.querySelector(`[data-focus="${r.id}"]`)?.addEventListener("click", async ()=>{
+        if(!leafletOK || !dmap) return;
+        if(fromLat!=null && fromLng!=null){
+          setPassengerOnMap(fromLat, fromLng);
+          dmap.setView([fromLat, fromLng], 16, { animate:false });
+          fixMap();
+          await drawRoutesReal({withDropoff:false});
+        }
+      });
 
       el.querySelector(`[data-offer="${r.id}"]`)?.addEventListener("click", ()=>{
         const w = el.querySelector(`#offerWrap_${r.id}`);
         w.style.display = (w.style.display==="none") ? "block" : "none";
       });
 
-      // (باقي كود offer/accept/reject زي ما هو عندك بدون تغيير جوهري)
-      // ملاحظة: أنا سيبت نفس منطقك بالكامل علشان ما نكسرش أي حاجة.
-      // ===========
       el.querySelector(`[data-send-offer="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -937,7 +1019,9 @@
 
           m.textContent = res.msg;
           if(res.ok){
-            showToast("💰 <b>تم اقتراح سعر</b> — في انتظار رد الراكب");
+            playBeep("offer");
+            showToast("💰 <b>تم اقتراح سعر</b> — في انتظار رد الراكب", 3000);
+            notifySystem("مشوارك - السائق", "تم اقتراح سعر، في انتظار رد الراكب");
           }
         }catch(e){
           console.error(e);
@@ -1016,7 +1100,10 @@
 
           m.textContent = res.msg;
           if(res.ok){
-            showToast("✅ <b>تم قبول الطلب</b> — تم فتح الرحلة الحالية");
+            playBeep("accepted");
+            showToast("✅ <b>تم قبول الطلب</b> — تم فتح الرحلة الحالية", 3200);
+            notifySystem("مشوارك - السائق", "تم قبول الطلب — تم فتح الرحلة الحالية");
+            // ✅ لا رجوع للرئيسية: الرحلة هتظهر تلقائيًا من watchDriverStatus
           }
         }catch(e){
           console.error(e);
@@ -1024,7 +1111,7 @@
         }
       });
 
-      el.querySelector(`[data-reject="${r.id}"]`)?.addEventListener("click", async ()=>{
+      el.querySelector(`[data-reject="${r.id}"]`)?.addEventListener("click", ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         m.textContent = "تم الرفض. لن يظهر لك هذا الطلب الآن.";
         el.style.display = "none";
@@ -1074,7 +1161,7 @@
         limit(25)
       );
 
-      unsubRides = onSnapshot(qy, (snap)=>{
+      unsubRides = onSnapshot(qy, async (snap)=>{
         listEl.innerHTML = "";
 
         if(snap.empty){
@@ -1089,7 +1176,10 @@
         });
 
         if(!firstRidesLoad && newCount > 0){
-          showToast(`🔔 <b>طلب جديد وصل</b> (${newCount})`);
+          await ensureNotificationPermission();
+          playBeep("new");
+          showToast(`🔔 <b>طلب جديد وصل</b> (${newCount})`, 3200);
+          notifySystem("مشوارك - السائق", `طلب جديد وصل (${newCount})`);
         }
 
         knownIds = new Set(snap.docs.map(x=>x.id));
@@ -1147,7 +1237,6 @@
 
         setMeOnMap(lastPos.lat, lastPos.lng);
 
-        // ✅ لو في رحلة: حدث Route الحقيقي بس throttled
         if(passengerMarker){
           await drawRoutesReal({withDropoff:true});
         }
@@ -1191,6 +1280,8 @@
         return;
       }
 
+      await ensureNotificationPermission();
+
       setOnlineUI(true);
 
       const okGps = startGPS();
@@ -1199,6 +1290,7 @@
           await pushStatus({ online:true, available: !currentTripId, currentTripId: currentTripId || null });
           msg.textContent = "✅ Online شغال.. بيتم إرسال موقعك.";
           showToast("✅ <b>أنت Online</b> — موقعك بيتبعت");
+          notifySystem("مشوارك - السائق", "أنت Online — موقعك بيتبعت");
         }catch(e){
           console.error(e);
           msg.textContent = `⚠️ Online اشتغل لكن في مشكلة في الحفظ.`;
@@ -1223,6 +1315,7 @@
         }, { merge:true });
         msg.textContent = "✅ تم الإيقاف Offline.";
         showToast("⚪ <b>أنت Offline</b>");
+        notifySystem("مشوارك - السائق", "أنت Offline");
       }catch(e){
         console.error(e);
         msg.textContent = `⚠️ Offline اتعمل لكن حصل خطأ.`;
@@ -1246,6 +1339,7 @@
     watchDriverStatus();
     subscribeRides(true);
     autoLocateOnce();
+    ensureNotificationPermission().catch(()=>{});
     setTimeout(()=>{ try{ fixMap(); }catch{} }, 350);
 
     window.addEventListener("error", ()=>{ msg.textContent = "⚠️ حصل خطأ في الصفحة."; });
