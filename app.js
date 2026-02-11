@@ -1,4 +1,4 @@
-// app.js — FINAL v13 (Fix login/signup logic + role helpers) — Mashwarak
+// app.js — FINAL v13 (Multi-Role: passenger + driver) — Mashwarak
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -33,7 +33,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ خلي الجلسة تفضل محفوظة
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ========= utils
@@ -42,7 +41,21 @@ export function qs(key) {
   return u.searchParams.get(key);
 }
 
-// ✅ لو المستخدم كتب "salah" فقط بدون @ → يتحول تلقائيًا لـ salah@meshwarak.local
+// ✅ Local active role (per device)
+const LS_ACTIVE_ROLE = "mw_active_role";
+export function setActiveRole(role){
+  if(role !== "passenger" && role !== "driver") return;
+  try{ localStorage.setItem(LS_ACTIVE_ROLE, role); }catch{}
+}
+export function getActiveRole(){
+  try{
+    const r = localStorage.getItem(LS_ACTIVE_ROLE);
+    return (r==="passenger" || r==="driver") ? r : null;
+  }catch{
+    return null;
+  }
+}
+
 export function normalizeEmail(input) {
   let x = String(input || "").trim().toLowerCase();
   if (!x) return null;
@@ -71,11 +84,7 @@ export function normalizePhone(input) {
   x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
 
   x = x.replace(/[^\d+]/g, "");
-
-  if (x.includes("+")) {
-    x = "+" + x.replace(/\+/g, "");
-  }
-
+  if (x.includes("+")) x = "+" + x.replace(/\+/g, "");
   if (x.startsWith("00")) x = "+" + x.slice(2);
 
   if (/^01\d{9}$/.test(x)) x = "+20" + x;
@@ -108,27 +117,27 @@ export async function ensureUserDoc(uid, patch = {}) {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await setDoc(
-      ref,
-      {
-        role: patch.role || "passenger",
-        name: patch.name || null,
-        phone: patch.phone || null,
-        email: patch.email || null,
-        governorate: patch.governorate || null,
-        center: patch.center || null,
-        currentRideId: null,
+    await setDoc(ref, {
+      // ✅ Multi-role
+      roles: patch.roles || { passenger:true },
+      activeRole: patch.activeRole || "passenger",
 
-        // driver
-        vehicle: patch.vehicle || null,
-        model: patch.model || null,
-        plate: patch.plate || null,
+      name: patch.name || null,
+      phone: patch.phone || null,
+      email: patch.email || null,
+      governorate: patch.governorate || null,
+      center: patch.center || null,
+      currentRideId: null,
 
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+      // driver
+      vehicle: patch.vehicle || null,
+      model: patch.model || null,
+      plate: patch.plate || null,
+
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge:true });
+
     return true;
   }
 
@@ -140,14 +149,6 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ✅ تغيير الدور بسرعة (مفيد لصفحة login)
-export async function setUserRole(uid, role) {
-  if (role !== "passenger" && role !== "driver") throw new Error("bad-role");
-  await saveUserProfile(uid, { role });
-  return role;
-}
-
-// ✅ تحديث رقم الهاتف فقط
 export async function setUserPhone(uid, phoneRaw) {
   const phone = normalizePhone(phoneRaw);
   if (!phone) throw new Error("bad-phone");
@@ -156,7 +157,6 @@ export async function setUserPhone(uid, phoneRaw) {
 }
 
 // ========= ✅ Auto Login: signIn else createUser
-// ✅ FIX: متعملش Signup لو الباسورد غلط (ده كان سبب auth/email-already-in-use)
 export async function emailLoginOrSignup(emailRaw, passRaw) {
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
@@ -168,38 +168,24 @@ export async function emailLoginOrSignup(emailRaw, passRaw) {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (e) {
     const code = e?.code || "";
-
-    // الحساب مش موجود -> Signup
-    if (code === "auth/user-not-found") {
+    if (
+      code === "auth/user-not-found" ||
+      code === "auth/invalid-credential" ||
+      code === "auth/invalid-login-credentials"
+    ) {
       return await createUserWithEmailAndPassword(auth, email, password);
     }
-
-    // في بعض الحالات Firebase بيرجع invalid-credential للحساب اللي مش موجود
-    // نجرب Signup مرة واحدة، ولو طلع email-already-in-use يبقى المشكلة كلمة مرور غلط
-    if (code === "auth/invalid-credential") {
-      try {
-        return await createUserWithEmailAndPassword(auth, email, password);
-      } catch (e2) {
-        if (e2?.code === "auth/email-already-in-use") {
-          // رجّع نفس خطأ تسجيل الدخول (يعني الباسورد غلط)
-          throw e;
-        }
-        throw e2;
-      }
-    }
-
-    // أي حاجة تانية (wrong-password / invalid-login-credentials ...) -> رجّع الخطأ زي ما هو
     throw e;
   }
 }
 
-// ========= auth guard
+// ========= auth guard (يعتمد على activeRole)
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
       (u) => { unsub(); resolve(u); },
-      (err) => { unsub(); reject(err); }
+      (e) => { unsub(); reject(e); }
     );
   });
 
@@ -210,9 +196,11 @@ export async function requireAuthAndRole(requiredRole = null) {
 
   let data = await getUserDoc(user.uid).catch(() => null);
 
+  // أول مرة: أنشئ doc
   if (!data) {
     await ensureUserDoc(user.uid, {
-      role: "passenger",
+      roles: { passenger:true },
+      activeRole: "passenger",
       email: user.email || null,
       name: null,
       phone: null,
@@ -220,17 +208,20 @@ export async function requireAuthAndRole(requiredRole = null) {
     data = await getUserDoc(user.uid).catch(() => null);
   }
 
-  const role = data?.role || null;
+  // ✅ الدور الحالي: LocalStorage أولاً ثم Firestore
+  const localRole = getActiveRole();
+  const activeRole = localRole || data?.activeRole || null;
 
-  if (requiredRole && role !== requiredRole) {
+  if (requiredRole && activeRole !== requiredRole) {
     location.href = "./index.html";
     throw new Error("wrong role");
   }
 
-  return { user, data };
+  return { user, data, activeRole };
 }
 
 export async function doLogout() {
   await signOut(auth);
+  try{ localStorage.removeItem(LS_ACTIVE_ROLE); }catch{}
   location.href = "./login.html";
 }
