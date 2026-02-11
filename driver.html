@@ -7,26 +7,17 @@
 
   <link rel="icon" href="./favicon.png">
   <link rel="manifest" href="./manifest.json">
-
-  <!-- styles -->
   <link rel="stylesheet" href="./styles.css" />
 
-  <!-- ✅ Leaflet (لازم قبل أي كود بيستخدم L) -->
+  <!-- ✅ Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-    defer
-  ></script>
 
   <style>
-    /* ====== Toast */
     #toast{
       position:fixed; left:14px; right:14px; bottom:14px;
       background:rgba(10,18,34,.92);
@@ -45,7 +36,7 @@
     }
     #toast.show{opacity:1; transform: translateY(0);}
 
-    /* ====== Map */
+    /* ✅ Map */
     #dmap{
       width:100%;
       height:260px;
@@ -53,9 +44,19 @@
       overflow:hidden;
       border:1px solid rgba(255,255,255,.10);
       background:#0b1222;
+      position: relative;
+    }
+    #mapFallback{
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; opacity:.85;
+      padding:14px;
+      text-align:center;
+      pointer-events:none;
+      font-size:13px;
+      line-height:1.7;
     }
 
-    /* Emoji pin */
     .pin-emoji{background:transparent;border:none;}
     .pin-bubble{
       width:44px;height:44px;border-radius:16px;
@@ -66,23 +67,14 @@
       font-size:22px;
     }
 
-    /* Layout helpers (لو styles.css عندك فيه نفس الأسماء مش مشكلة) */
-    .wrap{
-      width:min(980px,92%);
-      margin:14px auto 90px;
-    }
+    .wrap{ width:min(980px,92%); margin:14px auto 90px; }
     .topbar{
       display:flex; gap:10px; flex-wrap:wrap;
       align-items:center; justify-content:space-between;
       margin-bottom:12px;
     }
-    .topbar .left{
-      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    }
-    .title{
-      font-weight:800; font-size:16px;
-      display:flex; gap:8px; align-items:center;
-    }
+    .topbar .left{ display:flex;gap:10px;align-items:center;flex-wrap:wrap; }
+    .title{ font-weight:800; font-size:16px; display:flex; gap:8px; align-items:center; }
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
     .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .pill{
@@ -161,10 +153,11 @@
       <div id="msg" class="hint" style="margin-top:12px"></div>
 
       <div style="margin-top:12px">
-        <div id="dmap"></div>
+        <div id="dmap">
+          <div id="mapFallback">🗺️ جارٍ تحميل الخريطة…<br>لو فضلت فاضية: افتح الصفحة بدون VPN أو جرّب تحديث (Refresh).</div>
+        </div>
       </div>
 
-      <!-- ✅ كارت إعداد المنطقة -->
       <div id="setupCard" class="card" style="margin-top:12px;display:none">
         <b>⚙️ إعداد المنطقة</b>
         <div class="hint" style="margin-top:6px">اختر المحافظة والمركز (أو اكتب يدويًا) ثم حفظ.</div>
@@ -202,10 +195,15 @@
     <div id="list" class="list" style="margin-top:12px"></div>
   </div>
 
-  <!-- ✅ مهم: السكربت بعد الـ HTML كله -->
+  <!-- ✅ Leaflet JS (بدون defer) — قبل سكربت الموديول مباشرة -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
-
     import {
       collection, query, where, limit,
       doc, runTransaction, serverTimestamp, setDoc,
@@ -214,8 +212,9 @@
 
     // ========= helpers
     const $ = (id)=>document.getElementById(id);
-    const clean = (s)=> (s||"").trim().replace(/\\s+/g," ");
+    const clean = (s)=> (s||"").trim().replace(/\s+/g," "); // ✅ FIX
     const toast = $("toast");
+    const mapFallback = $("mapFallback");
 
     function showToast(html, ms=2400){
       toast.innerHTML = html;
@@ -223,21 +222,7 @@
       clearTimeout(showToast._t);
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
     }
-
     function safeNum(x){ const n=Number(x); return Number.isFinite(n)?n:null; }
-
-    // ✅ Guard: لو Leaflet لسه محمّلش (عشان defer) نستنى شوية بسيطة
-    function waitForLeaflet(maxMs=2500){
-      return new Promise((resolve)=>{
-        const t0 = Date.now();
-        const tick = ()=>{
-          if(window.L) return resolve(true);
-          if(Date.now()-t0 > maxMs) return resolve(false);
-          setTimeout(tick, 60);
-        };
-        tick();
-      });
-    }
 
     // ========= auth
     const { user } = await requireAuthAndRole("driver");
@@ -282,7 +267,7 @@
     let unsubRides = null;
 
     // =========================================================
-    // ✅ FIX: الخريطة Safe (مفيش شاشة بيضا حتى لو Leaflet فشل)
+    // ✅ MAP INIT (Guaranteed Leaflet loaded)
     // =========================================================
     let fixMap = ()=>{};
     let leafletOK = false;
@@ -290,9 +275,8 @@
     let dmap = null;
     let divPin = ()=>null;
 
-    const leafletLoaded = await waitForLeaflet();
     try{
-      if(!leafletLoaded || !window.L) throw new Error("Leaflet not loaded");
+      if(!window.L) throw new Error("Leaflet not loaded");
 
       dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -301,6 +285,7 @@
       }).addTo(dmap);
 
       leafletOK = true;
+      if(mapFallback) mapFallback.style.display = "none";
 
       fixMap = () => {
         try{ dmap.invalidateSize(true); }catch{}
@@ -309,24 +294,25 @@
 
       divPin = (emoji) => L.divIcon({
         className: "pin-emoji",
-        html: \`<div class="pin-bubble">\${emoji}</div>\`,
+        html: `<div class="pin-bubble">${emoji}</div>`,
         iconSize: [44,44],
         iconAnchor: [22,44],
         popupAnchor: [0,-36]
       });
 
-      setTimeout(fixMap, 450);
-      window.addEventListener("load", ()=> setTimeout(fixMap, 250));
+      // ✅ Important on mobile
+      setTimeout(fixMap, 300);
+      window.addEventListener("load", ()=> setTimeout(fixMap, 200));
       document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
 
     }catch(e){
       console.error(e);
       leafletOK = false;
-      fixMap = ()=>{};
-      divPin = ()=>null;
-      try{
-        msg.innerHTML = \`<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>\`;
-      }catch{}
+      if(mapFallback){
+        mapFallback.style.display = "flex";
+        mapFallback.innerHTML = `❌ الخريطة لم تُحمّل.<br>جرّب بدون VPN / حدّث الصفحة.`;
+      }
+      msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`;
     }
 
     let meMarker = null;
@@ -643,7 +629,6 @@
       else { gpsPill.textContent = "GPS: غير معروف"; }
     }
 
-    // ====== متابعة الرحلة الحالية
     function stopWatchTrip(){
       if(unsubTrip){ try{ unsubTrip(); }catch{} unsubTrip=null; }
       if(!leafletOK || !dmap) return;
@@ -793,7 +778,6 @@
       }, ()=>{});
     }
 
-    // ====== كروت الطلبات
     function rideCard(r, gov, cen){
       const fromLat = safeNum(r.from?.lat);
       const fromLng = safeNum(r.from?.lng);
@@ -853,7 +837,6 @@
         w.style.display = (w.style.display==="none") ? "block" : "none";
       });
 
-      // إرسال عرض سعر
       el.querySelector(`[data-send-offer="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -916,7 +899,6 @@
         }
       });
 
-      // قبول مباشر
       el.querySelector(`[data-accept="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -996,7 +978,6 @@
         }
       });
 
-      // رفض محلي
       el.querySelector(`[data-reject="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         m.textContent = "تم الرفض. لن يظهر لك هذا الطلب الآن.";
@@ -1006,7 +987,6 @@
       return el;
     }
 
-    // ====== Live Subscribe للطلبات
     let firstRidesLoad = true;
     let knownIds = new Set();
 
@@ -1079,7 +1059,6 @@
 
     refreshBtn.addEventListener("click", ()=> subscribeRides(true));
 
-    // ====== Online / Offline + GPS Push
     async function pushStatus(extra = {}){
       const gov = clean(driverProfile?.governorate || "") || null;
       const cen = clean(driverProfile?.center || "") || null;
@@ -1216,6 +1195,7 @@
     watchDriverStatus();
     subscribeRides(true);
     autoLocateOnce();
+    setTimeout(()=>{ try{ fixMap(); }catch{} }, 350);
 
     window.addEventListener("error", ()=>{ msg.textContent = "⚠️ حصل خطأ في الصفحة."; });
   </script>
