@@ -1,4 +1,4 @@
-// app.js — FINAL v13 (Multi-Role: passenger + driver) — Mashwarak
+// app.js — FINAL v15 (Natural Register/Login + Multi-Role) — Mashwarak
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -18,7 +18,6 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ Firebase config (بتاعك)
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -28,20 +27,18 @@ const firebaseConfig = {
   appId: "1:450060838946:web:963cacdd125b253fa1827b",
 };
 
-// ========= init
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-// ========= utils
 export function qs(key) {
   const u = new URL(location.href);
   return u.searchParams.get(key);
 }
 
-// ✅ Local active role (per device)
+// ✅ Active role per device
 const LS_ACTIVE_ROLE = "mw_active_role";
 export function setActiveRole(role){
   if(role !== "passenger" && role !== "driver") return;
@@ -51,9 +48,7 @@ export function getActiveRole(){
   try{
     const r = localStorage.getItem(LS_ACTIVE_ROLE);
     return (r==="passenger" || r==="driver") ? r : null;
-  }catch{
-    return null;
-  }
+  }catch{ return null; }
 }
 
 export function normalizeEmail(input) {
@@ -65,7 +60,6 @@ export function normalizeEmail(input) {
     if (!x) x = "user";
     return `${x}@meshwarak.local`;
   }
-
   if (/^[^@]+@$/.test(x)) return x + "meshwarak.local";
   return x;
 }
@@ -75,7 +69,6 @@ export function normalizePassword(input) {
   return x.length >= 6 ? x : null;
 }
 
-// ✅ Phone normalization
 export function normalizePhone(input) {
   let x = String(input || "").trim();
   if (!x) return null;
@@ -100,12 +93,7 @@ export function normalizePhone(input) {
   return x;
 }
 
-export function formatPhoneForDisplay(phone) {
-  const p = String(phone || "").trim();
-  return p || "-";
-}
-
-// ========= users helpers
+// ========= Firestore helpers
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -118,7 +106,6 @@ export async function ensureUserDoc(uid, patch = {}) {
 
   if (!snap.exists()) {
     await setDoc(ref, {
-      // ✅ Multi-role
       roles: patch.roles || { passenger:true },
       activeRole: patch.activeRole || "passenger",
 
@@ -129,7 +116,6 @@ export async function ensureUserDoc(uid, patch = {}) {
       center: patch.center || null,
       currentRideId: null,
 
-      // driver
       vehicle: patch.vehicle || null,
       model: patch.model || null,
       plate: patch.plate || null,
@@ -137,49 +123,34 @@ export async function ensureUserDoc(uid, patch = {}) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     }, { merge:true });
-
     return true;
   }
-
   return false;
 }
 
 export async function saveUserProfile(uid, payload) {
   const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge:true });
 }
 
-export async function setUserPhone(uid, phoneRaw) {
-  const phone = normalizePhone(phoneRaw);
-  if (!phone) throw new Error("bad-phone");
-  await saveUserProfile(uid, { phone });
-  return phone;
-}
-
-// ========= ✅ Auto Login: signIn else createUser
-export async function emailLoginOrSignup(emailRaw, passRaw) {
+// ========= Natural Auth
+export async function emailSignUp(emailRaw, passRaw){
   const email = normalizeEmail(emailRaw);
   const password = normalizePassword(passRaw);
-
-  if (!email) throw new Error("bad-email");
-  if (!password) throw new Error("bad-pass");
-
-  try {
-    return await signInWithEmailAndPassword(auth, email, password);
-  } catch (e) {
-    const code = e?.code || "";
-    if (
-      code === "auth/user-not-found" ||
-      code === "auth/invalid-credential" ||
-      code === "auth/invalid-login-credentials"
-    ) {
-      return await createUserWithEmailAndPassword(auth, email, password);
-    }
-    throw e;
-  }
+  if(!email) throw new Error("bad-email");
+  if(!password) throw new Error("bad-pass");
+  return await createUserWithEmailAndPassword(auth, email, password);
 }
 
-// ========= auth guard (يعتمد على activeRole)
+export async function emailSignIn(emailRaw, passRaw){
+  const email = normalizeEmail(emailRaw);
+  const password = normalizePassword(passRaw);
+  if(!email) throw new Error("bad-email");
+  if(!password) throw new Error("bad-pass");
+  return await signInWithEmailAndPassword(auth, email, password);
+}
+
+// ========= Guard
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(
@@ -194,25 +165,20 @@ export async function requireAuthAndRole(requiredRole = null) {
     throw new Error("not signed in");
   }
 
-  let data = await getUserDoc(user.uid).catch(() => null);
-
-  // أول مرة: أنشئ doc
-  if (!data) {
+  let data = await getUserDoc(user.uid).catch(()=>null);
+  if(!data){
     await ensureUserDoc(user.uid, {
       roles: { passenger:true },
       activeRole: "passenger",
       email: user.email || null,
-      name: null,
-      phone: null,
     });
-    data = await getUserDoc(user.uid).catch(() => null);
+    data = await getUserDoc(user.uid).catch(()=>null);
   }
 
-  // ✅ الدور الحالي: LocalStorage أولاً ثم Firestore
   const localRole = getActiveRole();
   const activeRole = localRole || data?.activeRole || null;
 
-  if (requiredRole && activeRole !== requiredRole) {
+  if(requiredRole && activeRole !== requiredRole){
     location.href = "./index.html";
     throw new Error("wrong role");
   }
@@ -220,7 +186,7 @@ export async function requireAuthAndRole(requiredRole = null) {
   return { user, data, activeRole };
 }
 
-export async function doLogout() {
+export async function doLogout(){
   await signOut(auth);
   try{ localStorage.removeItem(LS_ACTIVE_ROLE); }catch{}
   location.href = "./login.html";
