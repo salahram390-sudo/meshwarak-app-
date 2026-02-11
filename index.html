@@ -22,11 +22,13 @@
       <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
       <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
 
+      <!-- أزرار الضيف -->
       <div class="actions" id="guestBtns" style="justify-content:center">
         <a class="btn success" id="guestPassenger" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
         <a class="btn primary" id="guestDriver" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
       </div>
 
+      <!-- صندوق المستخدم الحالي -->
       <div id="meBox" class="card" style="margin-top:14px; display:none; text-align:right">
         <div class="hint" id="meText" style="margin-top:0"></div>
 
@@ -78,11 +80,6 @@
     guestPassenger?.addEventListener("click", ()=>{ try{ setActiveRole("passenger"); }catch{} });
     guestDriver?.addEventListener("click", ()=>{ try{ setActiveRole("driver"); }catch{} });
 
-    logoutBtn?.addEventListener("click", async ()=>{
-      try{ await signOut(auth); }catch{}
-      location.href = "./index.html";
-    });
-
     function fallbackNameFromEmail(email){
       const x = (email || "").split("@")[0] || "مستخدم";
       return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
@@ -97,6 +94,11 @@
         (v==="caboot")?"عربية كابوت": (v || "-");
     }
 
+    logoutBtn?.addEventListener("click", async ()=>{
+      try{ await signOut(auth); }catch{ try{ await auth.signOut(); }catch{} }
+      location.href = "./index.html";
+    });
+
     onAuthStateChanged(auth, async (user)=>{
       if(!user){
         meBox.style.display = "none";
@@ -106,7 +108,7 @@
 
       guestBtns.style.display = "none";
 
-      // ضمان user doc
+      // ✅ إصلاح/توحيد أي حساب قديم
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: "passenger",
@@ -128,17 +130,19 @@
       meBox.style.display = "block";
       meText.innerHTML =
         `👤 <b>${name}</b><br>` +
-        `📧 ${user.email}<br>` +
+        `📧 ${user.email || "-"}<br>` +
         `📍 ${gov} / ${cen}<br>` +
         `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
         `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
 
+      // فتح راكب
       openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
       openPassengerBtn.onclick = ()=>{
         setActiveRole("passenger");
         location.href = hasPassenger ? "./passenger.html" : "./login.html?role=passenger";
       };
 
+      // فتح سائق
       if(!hasDriver){
         openDriverBtn.textContent = "إعداد السائق";
         openDriverBtn.onclick = ()=>{
@@ -176,7 +180,7 @@
           await Promise.all(keys.map(k => caches.delete(k)));
         }
       }catch{}
-      location.reload(true);
+      location.reload();
     }
 
     hardRefreshBtn.addEventListener("click", hardRefresh);
