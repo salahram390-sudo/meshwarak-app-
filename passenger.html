@@ -11,8 +11,18 @@
   <meta name="theme-color" content="#050B16" />
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+    defer
+  ></script>
 
   <style>
     .toast{
@@ -26,6 +36,17 @@
     }
     .toast.show{display:block; animation:pop .22s ease}
     @keyframes pop{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+
+    /* نفس ستايل Pins بتاع السائق */
+    .pin-emoji{background:transparent;border:none;}
+    .pin-bubble{
+      width:44px;height:44px;border-radius:16px;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(10,18,34,.92);
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      font-size:22px;
+    }
 
     .rangeWrap{
       padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,.10);
@@ -78,49 +99,6 @@
     @media (max-width:520px){
       .vehGrid{ grid-template-columns: repeat(2, 1fr); }
     }
-
-    /* ===== Map look (زي السائق) */
-    #map{
-      background:#0b1222;
-    }
-    .pin-emoji{background:transparent;border:none;}
-    .pin-bubble{
-      width:44px;height:44px;border-radius:16px;
-      display:flex;align-items:center;justify-content:center;
-      background:rgba(10,18,34,.92);
-      border:1px solid rgba(255,255,255,.14);
-      box-shadow:0 10px 30px rgba(0,0,0,.35);
-      font-size:22px;
-    }
-
-    /* ===== Suggestions dropdown */
-    .sugWrap{ position:relative; }
-    .sugBox{
-      position:absolute;
-      inset-inline-start:0;
-      inset-inline-end:0;
-      top:calc(100% + 8px);
-      z-index:999;
-      background: linear-gradient(180deg, rgba(12,18,32,.98), rgba(10,18,34,.92));
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:16px;
-      overflow:hidden;
-      box-shadow:0 18px 55px rgba(0,0,0,.45);
-      display:none;
-      max-height:240px;
-      overflow:auto;
-    }
-    .sugBox.show{ display:block; }
-    .sugItem{
-      padding:10px 12px;
-      cursor:pointer;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      line-height:1.5;
-    }
-    .sugItem:last-child{ border-bottom:none; }
-    .sugItem:hover{ background:rgba(255,255,255,.06); }
-    .sugTitle{ font-weight:900; }
-    .sugSub{ opacity:.85; font-size:12px; margin-top:4px; }
   </style>
 </head>
 
@@ -162,7 +140,7 @@
               </div>
             </div>
             <div id="centerOtherWrap" style="display:none;margin-top:10px">
-              <input id="centerOtherInput" placeholder="اكتب اسم المركز/الحي" />
+              <input id="centerOtherInput" placeholder="" />
             </div>
             <div class="hint" style="margin-top:10px">
               * الطلب لن يظهر إلا للسائقين في نفس المحافظة + المركز.
@@ -191,10 +169,7 @@
           <div class="field" style="margin-top:0">
             <label>مكان القيام</label>
             <div class="grid3">
-              <div class="sugWrap">
-                <input id="fromText" placeholder="اكتب مكان القيام" autocomplete="off" />
-                <div class="sugBox" id="fromSug"></div>
-              </div>
+              <input id="fromText" placeholder="" />
               <button class="btn" id="fromSearchBtn" type="button">بحث</button>
             </div>
           </div>
@@ -202,10 +177,7 @@
           <div class="field" style="margin-top:0">
             <label>مكان الوصول</label>
             <div class="grid3">
-              <div class="sugWrap">
-                <input id="toText" placeholder="اكتب مكان الوصول" autocomplete="off" />
-                <div class="sugBox" id="toSug"></div>
-              </div>
+              <input id="toText" placeholder="" />
               <button class="btn" id="toSearchBtn" type="button">بحث</button>
             </div>
           </div>
@@ -252,8 +224,8 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const $ = (id)=>document.getElementById(id);
-    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
 
+    // ===== Toast
     const toast = $("toast");
     const showToast = (html, ms=2400)=>{
       toast.innerHTML = html;
@@ -261,19 +233,6 @@
       clearTimeout(showToast._t);
       showToast._t = setTimeout(()=>toast.classList.remove("show"), ms);
     };
-
-    // ✅ Guard: استنى Leaflet (عشان defer)
-    function waitForLeaflet(maxMs=2500){
-      return new Promise((resolve)=>{
-        const t0 = Date.now();
-        const tick = ()=>{
-          if(window.L) return resolve(true);
-          if(Date.now()-t0 > maxMs) return resolve(false);
-          setTimeout(tick, 60);
-        };
-        tick();
-      });
-    }
 
     const msg = $("msg");
     const whoEl = $("who");
@@ -300,9 +259,6 @@
 
     const vehGrid = $("vehGrid");
 
-    const fromSug = $("fromSug");
-    const toSug = $("toSug");
-
     const LS = {
       areaGov: "mw_area_gov",
       areaCenter: "mw_area_center",
@@ -318,16 +274,35 @@
     const VEHICLES = ["tuktuk","motor_delivery","car","microbus","tamanya","caboot"];
 
     let selectedVehicle = localStorage.getItem(LS.vehicle) || null;
+
     let from = null, to = null;
+
+    // ===== Leaflet Safe Load (زي السائق)
+    function waitForLeaflet(maxMs=2500){
+      return new Promise((resolve)=>{
+        const t0 = Date.now();
+        const tick = ()=>{
+          if(window.L) return resolve(true);
+          if(Date.now()-t0 > maxMs) return resolve(false);
+          setTimeout(tick, 60);
+        };
+        tick();
+      });
+    }
 
     let fixMap = ()=>{};
     let leafletOK = false;
     let map = null;
 
+    let divPin = ()=>null;
+    let fromMarker=null,toMarker=null,myMarker=null;
+    let routeLine=null;
+    let myPos=null;
+
     const { user } = await requireAuthAndRole("passenger");
     logoutBtn.addEventListener("click", doLogout);
 
-    // ✅ حفظ المحافظة/المركز في users (Debounce)
+    // ====== Save area to user doc (debounced)
     let saveAreaTimer = null;
     async function saveAreaToUserDocDebounced(){
       clearTimeout(saveAreaTimer);
@@ -340,10 +315,13 @@
             center: a.center,
             updatedAt: serverTimestamp()
           }, { merge:true });
-        }catch(e){ console.error(e); }
+        }catch(e){
+          console.error(e);
+        }
       }, 800);
     }
 
+    // ===== Areas
     const AREAS = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -406,12 +384,12 @@
     }
 
     function getSelectedArea(){
-      const gov=clean(govSelect.value)||null;
-      const cv=clean(centerSelect.value);
+      const gov=(govSelect.value||"").trim()||null;
+      const cv=(centerSelect.value||"").trim();
       if(!gov) return {gov:null, center:null};
       if(!cv) return {gov, center:null};
       if(cv===OTHER){
-        const m=clean(centerOtherInput.value);
+        const m=(centerOtherInput.value||"").trim();
         return {gov, center:(m.length>=2?m:null)};
       }
       return {gov, center:cv||null};
@@ -451,7 +429,7 @@
     }
 
     govSelect.addEventListener("change", ()=>{
-      const g=clean(govSelect.value);
+      const g=(govSelect.value||"").trim();
       if(!g){
         centerSelect.disabled=true;
         centerSelect.innerHTML=`<option value="">اختر المركز/الحي…</option>`;
@@ -482,8 +460,9 @@
       saveAreaToUserDocDebounced();
     });
 
+    // ===== Vehicle
     function renderVehicleUI(){
-      vehGrid?.querySelectorAll(".vehBtn").forEach(b=>{
+      vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
         const v = b.getAttribute("data-veh");
         b.classList.toggle("active", v === selectedVehicle);
       });
@@ -495,18 +474,20 @@
       renderVehicleUI();
       updateUI();
     }
-    vehGrid?.querySelectorAll(".vehBtn").forEach(b=>{
+    vehGrid.querySelectorAll(".vehBtn").forEach(b=>{
       b.addEventListener("click", ()=> setVehicle(b.getAttribute("data-veh")));
     });
     renderVehicleUI();
 
+    // ===== Passenger profile
     const passengerProfile = await getUserDoc(user.uid).catch(()=>null);
     const fallbackName = (email)=>((email||"").split("@")[0]||"مستخدم").replace(/[._-]+/g," ").trim()||"مستخدم";
-    const passengerName = clean(passengerProfile?.name) || fallbackName(user.email);
-    const passengerPhone = clean(passengerProfile?.phone) || null;
+    const passengerName = (passengerProfile?.name || "").trim() || fallbackName(user.email);
+    const passengerPhone = (passengerProfile?.phone || "").trim() || null;
 
     whoEl.textContent = `${passengerName} • ${(passengerPhone || user.email || "-")}`;
 
+    // Firestore -> LocalStorage
     if(passengerProfile?.governorate){
       govSelect.value = passengerProfile.governorate;
       fillCenters(passengerProfile.governorate, passengerProfile?.center || null);
@@ -517,6 +498,7 @@
 
     saveAreaToUserDocDebounced();
 
+    // ===== Price
     const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
     const savedPrice = Number(localStorage.getItem(LS.price)||"15");
     priceRange.value = String(clamp(savedPrice, 15, 300));
@@ -526,29 +508,23 @@
       localStorage.setItem(LS.price, priceRange.value);
     });
 
-    // ===== Map
-    let divPin = ()=>null;
-    let fromMarker=null,toMarker=null,myMarker=null,myPos=null;
-    let routeLine=null; // ✅ Route الحقيقي
-    let leafletLoadedOK = await waitForLeaflet();
-
+    // ====== Map init
+    const leafletLoaded = await waitForLeaflet();
     try{
-      if(!leafletLoadedOK || !window.L) throw new Error("Leaflet not loaded");
+      if(!leafletLoaded || !window.L) throw new Error("Leaflet not loaded");
+
       map = L.map("map", { zoomControl:false }).setView([30.0444,31.2357], 12);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-        maxZoom:19,
-        attribution:"© OpenStreetMap",
-        updateWhenIdle:true,
-        updateWhenZooming:false,
-        keepBuffer:2
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
       }).addTo(map);
 
       leafletOK = true;
 
       fixMap = ()=>{ try{ map.invalidateSize(true);}catch{} setTimeout(()=>{try{map.invalidateSize(true)}catch{}},250); };
       setTimeout(fixMap, 450);
-      addEventListener("load", ()=>setTimeout(fixMap, 250));
+      window.addEventListener("load", ()=>setTimeout(fixMap, 250));
       document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
 
       divPin=(emoji)=>L.divIcon({
@@ -566,14 +542,13 @@
       msg.innerHTML = `<span class="text-bad">❌ الخريطة لم تُحمّل. تأكد من الإنترنت أو جرّب تحديث الصفحة.</span>`;
     }
 
-    // ===== No example placeholders: already done in HTML
-
-    // ===== Persist text
+    // ===== Save texts
     fromText.value = localStorage.getItem(LS.fromText)||"";
     toText.value = localStorage.getItem(LS.toText)||"";
     fromText.addEventListener("input", ()=>localStorage.setItem(LS.fromText, fromText.value));
     toText.addEventListener("input", ()=>localStorage.setItem(LS.toText, toText.value));
 
+    // ===== Perm pill
     function setPermPill(state){
       permPill.classList.remove("ok","bad");
       if(state==="granted"){ permPill.textContent="الموقع: مسموح ✅"; permPill.classList.add("ok"); }
@@ -588,6 +563,79 @@
         p.onchange=()=>setPermPill(p.state);
       }catch{}
     })();
+
+    // ===== Route via OSRM (حقيقي)
+    async function fetchRouteOSRM(a, b){
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/`+
+        `${a.lng},${a.lat};${b.lng},${b.lat}`+
+        `?overview=full&geometries=geojson`;
+
+      const res = await fetch(url, { headers:{ Accept:"application/json" } });
+      if(!res.ok) throw new Error("osrm failed");
+      const data = await res.json();
+      const coords = data?.routes?.[0]?.geometry?.coordinates;
+      if(!coords?.length) return null;
+
+      // OSRM يرجع [lng,lat]
+      return coords.map(([lng,lat])=>({lat, lng}));
+    }
+
+    function clearRoute(){
+      if(!leafletOK || !map) return;
+      if(routeLine){ try{ map.removeLayer(routeLine); }catch{} routeLine=null; }
+    }
+
+    async function drawRouteReal(){
+      if(!leafletOK || !map) return;
+      clearRoute();
+      if(!from || !to) return;
+
+      try{
+        statusPill.textContent = "جارٍ رسم الطريق…";
+        const pts = await fetchRouteOSRM(from, to);
+        if(!pts){
+          statusPill.textContent = "لم يتم إيجاد طريق.";
+          return;
+        }
+        routeLine = L.polyline(pts, { weight: 5, opacity: 0.9 }).addTo(map);
+
+        // Fit bounds
+        try{
+          map.fitBounds(routeLine.getBounds(), { padding:[30,30] });
+        }catch{}
+
+        statusPill.textContent = "جاهز ✅";
+        fixMap();
+      }catch(e){
+        console.error(e);
+        statusPill.textContent = "تعذر رسم الطريق الآن.";
+      }
+    }
+
+    function setFrom(lat,lng){
+      from={lat,lng};
+      if(leafletOK && map){
+        if(fromMarker) map.removeLayer(fromMarker);
+        fromMarker=L.marker([lat,lng],{icon:divPin("🚩")}).addTo(map).bindPopup("🚩 القيام");
+        map.setView([lat,lng], 14, {animate:false});
+      }
+      drawRouteReal();
+      updateUI();
+      fixMap();
+    }
+
+    function setTo(lat,lng){
+      to={lat,lng};
+      if(leafletOK && map){
+        if(toMarker) map.removeLayer(toMarker);
+        toMarker=L.marker([lat,lng],{icon:divPin("🏁")}).addTo(map).bindPopup("🏁 الوصول");
+        map.setView([lat,lng], 14, {animate:false});
+      }
+      drawRouteReal();
+      updateUI();
+      fixMap();
+    }
 
     function explainLocationDenied(){
       msg.innerHTML="❌ يجب تفعيل إذن الموقع.<br>Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
@@ -625,206 +673,57 @@
 
     $("myLocBtn").addEventListener("click", ()=>autoLocate({force:true}));
 
-    // ===== Routing (OSRM) - طريق صحيح
-    async function drawRouteOSRM(){
-      if(!leafletOK || !map) return;
-      if(!from || !to) return;
-
-      try{
-        const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url, { headers:{ Accept:"application/json" } });
-        if(!res.ok) throw new Error("osrm failed");
-        const data = await res.json();
-        const coords = data?.routes?.[0]?.geometry?.coordinates;
-        if(!coords?.length) throw new Error("no geometry");
-
-        const latlngs = coords.map(([lng,lat])=>[lat,lng]);
-
-        if(routeLine) map.removeLayer(routeLine);
-        routeLine = L.polyline(latlngs).addTo(map);
-
-        // fit bounds
-        try{
-          const b = routeLine.getBounds();
-          map.fitBounds(b, { padding:[30,30] });
-        }catch{}
-
-        fixMap();
-      }catch(e){
-        // fallback: خط بسيط لو فشل الراوتر
-        console.error(e);
-        if(routeLine) { try{ map.removeLayer(routeLine);}catch{} routeLine=null; }
-        try{
-          routeLine = L.polyline([[from.lat,from.lng],[to.lat,to.lng]]).addTo(map);
-          map.fitBounds(routeLine.getBounds(), { padding:[30,30] });
-        }catch{}
-      }
-    }
-
-    function setFrom(lat,lng){
-      from={lat,lng};
-      if(leafletOK && map){
-        if(fromMarker) map.removeLayer(fromMarker);
-        fromMarker=L.marker([lat,lng],{icon:divPin("🚩")}).addTo(map).bindPopup("🚩 القيام");
-        map.setView([lat,lng], 14, {animate:false});
-      }
-      updateUI();
-      if(from && to) drawRouteOSRM();
-      fixMap();
-    }
-
-    function setTo(lat,lng){
-      to={lat,lng};
-      if(leafletOK && map){
-        if(toMarker) map.removeLayer(toMarker);
-        toMarker=L.marker([lat,lng],{icon:divPin("🏁")}).addTo(map).bindPopup("🏁 الوصول");
-        map.setView([lat,lng], 14, {animate:false});
-      }
-      updateUI();
-      if(from && to) drawRouteOSRM();
-      fixMap();
-    }
-
     function resetAll(){
       from=null; to=null;
       fromText.value=""; toText.value="";
       localStorage.removeItem(LS.fromText);
       localStorage.removeItem(LS.toText);
 
-      hideSug(fromSug); hideSug(toSug);
-
       if(leafletOK && map){
-        [fromMarker,toMarker,myMarker,routeLine].forEach(x=>{ if(x) try{map.removeLayer(x)}catch{} });
+        [fromMarker,toMarker,routeLine,myMarker].forEach(x=>{ if(x) try{map.removeLayer(x)}catch{} });
       }
-      fromMarker=toMarker=myMarker=routeLine=null;
+      fromMarker=toMarker=routeLine=myMarker=null;
 
       msg.textContent="";
-      updateUI(); fixMap();
+      updateUI();
+      fixMap();
     }
     $("resetBtn").addEventListener("click", resetAll);
 
-    // ===== Suggestions + Nominatim
-    function hideSug(box){ box.classList.remove("show"); box.innerHTML=""; }
-    function showSug(box){ box.classList.add("show"); }
-
-    function buildQueryText(q){
+    // ===== Nominatim
+    async function geocode(q){
       const {gov,center}=getSelectedArea();
-      let queryText=clean(q);
-      if(gov) queryText += `, ${gov}`;
-      if(center) queryText += `, ${center}`;
-      queryText += `, Egypt`;
-      return queryText;
-    }
+      let queryText=(q||"").trim();
+      if(gov) queryText+=`, ${gov}`;
+      if(center) queryText+=`, ${center}`;
+      queryText+=`, Egypt`;
 
-    async function nominatimSearch(q, limit=6){
-      const queryText = buildQueryText(q);
-      const params=new URLSearchParams({
-        format:"json",
-        limit:String(limit),
-        countrycodes:"eg",
-        q:queryText
-      });
-
-      // bias near my position
+      const params=new URLSearchParams({format:"json",limit:"5",countrycodes:"eg",q:queryText});
       if(myPos){
-        const d=0.45;
+        const d=0.35;
         params.set("viewbox", `${myPos.lng-d},${myPos.lat+d},${myPos.lng+d},${myPos.lat-d}`);
         params.set("bounded","1");
       }
 
       const url=`https://nominatim.openstreetmap.org/search?${params.toString()}`;
       const res=await fetch(url,{headers:{Accept:"application/json"}});
-      if(!res.ok) throw new Error("nominatim failed");
+      if(!res.ok) throw new Error("geocode failed");
       const data=await res.json();
-      return (data||[]).map(x=>({
-        lat:Number(x.lat),
-        lng:Number(x.lon),
-        display:String(x.display_name||""),
-        type:String(x.type||"")
-      }));
+      if(!data?.length) return null;
+      return {lat:Number(data[0].lat), lng:Number(data[0].lon), display:data[0].display_name};
     }
-
-    function renderSug(box, items, onPick){
-      if(!items.length){ hideSug(box); return; }
-      box.innerHTML = items.map((it,idx)=>{
-        const title = it.display.split(",").slice(0,2).join(",").trim() || it.display;
-        const sub = it.display;
-        return `
-          <div class="sugItem" data-idx="${idx}">
-            <div class="sugTitle">${title}</div>
-            <div class="sugSub">${sub}</div>
-          </div>
-        `;
-      }).join("");
-      showSug(box);
-
-      box.querySelectorAll(".sugItem").forEach(el=>{
-        el.addEventListener("click", ()=>{
-          const idx = Number(el.getAttribute("data-idx"));
-          const it = items[idx];
-          if(!it) return;
-          hideSug(box);
-          onPick(it);
-        });
-      });
-    }
-
-    let fromSugTimer=null, toSugTimer=null;
-
-    async function updateSug(type){
-      const box = (type==="from") ? fromSug : toSug;
-      const text = clean(type==="from" ? fromText.value : toText.value);
-
-      if(text.length < 2){ hideSug(box); return; }
-
-      try{
-        const items = await nominatimSearch(text, 6);
-        renderSug(box, items, (it)=>{
-          if(type==="from"){
-            fromText.value = it.display;
-            localStorage.setItem(LS.fromText, fromText.value);
-            setFrom(it.lat, it.lng);
-          }else{
-            toText.value = it.display;
-            localStorage.setItem(LS.toText, toText.value);
-            setTo(it.lat, it.lng);
-          }
-        });
-      }catch(e){
-        console.error(e);
-        hideSug(box);
-      }
-    }
-
-    fromText.addEventListener("input", ()=>{
-      clearTimeout(fromSugTimer);
-      fromSugTimer = setTimeout(()=>updateSug("from"), 250);
-    });
-    toText.addEventListener("input", ()=>{
-      clearTimeout(toSugTimer);
-      toSugTimer = setTimeout(()=>updateSug("to"), 250);
-    });
-
-    // اقفل الاقتراحات لما تضغط برا
-    document.addEventListener("click", (e)=>{
-      const t = e.target;
-      if(!(t.closest && t.closest(".sugWrap"))){
-        hideSug(fromSug); hideSug(toSug);
-      }
-    });
 
     async function search(type){
       msg.textContent="";
-      const text=clean(type==="from"?fromText.value:toText.value);
+      const text=(type==="from"?fromText.value:toText.value).trim();
       if(!text) { msg.textContent="اكتب اسم المكان ثم اضغط بحث."; return; }
       try{
         msg.textContent="جارٍ البحث…";
-        const items = await nominatimSearch(text, 5);
-        if(!items.length){ msg.textContent="لم يتم العثور على المكان."; return; }
+        const r=await geocode(text);
+        if(!r){ msg.textContent="لم يتم العثور على المكان."; return; }
         msg.textContent="";
-        const best = items[0];
-        if(type==="from") setFrom(best.lat,best.lng);
-        else setTo(best.lat,best.lng);
+        if(type==="from") setFrom(r.lat,r.lng);
+        else setTo(r.lat,r.lng);
       }catch(e){
         console.error(e);
         msg.textContent="حصل خطأ في البحث. جرّب مرة أخرى.";
@@ -834,7 +733,7 @@
     $("fromSearchBtn").addEventListener("click", ()=>search("from"));
     $("toSearchBtn").addEventListener("click", ()=>search("to"));
 
-    // ===== Ride logic (كما هو عندك)
+    // ===== Ride state
     let unsubRide=null;
     let currentRideId = localStorage.getItem(LS.lastRideId) || null;
 
@@ -1005,6 +904,7 @@
         if(!selectedVehicle){ msg.textContent="❌ اختر نوع المركبة."; updateUI(); return; }
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
 
+        // منع الطلبات الوهمية: لازم رقم هاتف محفوظ
         if(!passengerPhone){
           msg.textContent="❌ رقم الهاتف غير مسجل. افتح تسجيل الدخول واحفظه.";
           return;
@@ -1022,8 +922,8 @@
           governorate: gov,
           center: center,
           from, to,
-          fromText: clean(fromText.value)||null,
-          toText: clean(toText.value)||null,
+          fromText: fromText.value.trim()||null,
+          toText: toText.value.trim()||null,
           priceEGP,
           passengerUid: user.uid,
           passengerEmail: user.email,
@@ -1102,7 +1002,7 @@
     updateUI();
     autoLocate();
 
-    // ===== Sheet drag (كما هو)
+    // ===== Bottom Sheet
     const sheet=$("sheet"), handle=$("sheetHandle"), content=$("sheetContent");
     const clamp2=(v,min,max)=>Math.max(min,Math.min(max,v));
     const getPoints=()=>{
@@ -1159,7 +1059,6 @@
       renderSheet(current,false);
       setTimeout(fixMap,220);
     });
-
   </script>
 </body>
 </html>
