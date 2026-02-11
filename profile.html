@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك - حسابي</title>
+  <link rel="icon" href="./favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <meta name="theme-color" content="#050B16" />
 </head>
 
 <body>
@@ -46,8 +48,8 @@
 
       <div class="field">
         <label>رقم الهاتف (للتواصل)</label>
-        <input id="phoneCommon" placeholder="مثال: 01xxxxxxxxx" inputmode="tel" autocomplete="tel" />
-        <div class="hint" style="margin-top:6px">* مهم علشان السائق يقدر يتصل بيك.</div>
+        <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" autocomplete="tel" />
+        <div class="hint" style="margin-top:6px">* مهم علشان السائق/الراكب يقدر يتواصل معاك.</div>
       </div>
 
       <div id="driverOnly" style="display:none;margin-top:10px">
@@ -55,25 +57,26 @@
 
         <div class="grid2">
           <div class="field" style="margin-top:0">
-            <label>نوع المركبة</label>
+            <label>نوع المركبة (للسائق)</label>
             <select id="vehicle">
+              <option value="">اختر نوع المركبة…</option>
               <option value="tuktuk">توكتوك</option>
               <option value="motor_delivery">موتسيكل دليفري</option>
-              <option value="car">سيارة ملاكي</option>
+              <option value="car">ملاكي</option>
               <option value="microbus">ميكروباص</option>
               <option value="tamanya">تمناية</option>
               <option value="caboot">عربية كابوت</option>
             </select>
           </div>
           <div class="field" style="margin-top:0">
-            <label>موديل / سنة الصنع</label>
-            <input id="model" placeholder="مثال: 2020" />
+            <label>موديل / كود المركبة</label>
+            <input id="model" placeholder="مثال: 2020 / BYD / إلخ" />
           </div>
         </div>
 
         <div class="field">
-          <label>رقم اللوحة / كود</label>
-          <input id="plate" placeholder="مثال: ب س 1234" />
+          <label>رقم اللوحة (اختياري)</label>
+          <input id="plate" placeholder="مثال: س ج 1234" />
         </div>
       </div>
 
@@ -96,52 +99,56 @@
 
     const who = document.getElementById("who");
     const info = document.getElementById("info");
-    const msg = document.getElementById("msg");
+    const msg  = document.getElementById("msg");
 
-    const nameEl = document.getElementById("name");
-    const govEl = document.getElementById("gov");
+    const nameEl   = document.getElementById("name");
+    const govEl    = document.getElementById("gov");
     const centerEl = document.getElementById("center");
-    const phoneCommonEl = document.getElementById("phoneCommon");
+    const phoneEl  = document.getElementById("phone");
 
     const driverOnly = document.getElementById("driverOnly");
-    const vehicleEl = document.getElementById("vehicle");
-    const modelEl = document.getElementById("model");
-    const plateEl = document.getElementById("plate");
+    const vehicleEl  = document.getElementById("vehicle");
+    const modelEl    = document.getElementById("model");
+    const plateEl    = document.getElementById("plate");
 
     const logoutBtn = document.getElementById("logoutBtn");
-    const saveBtn = document.getElementById("saveBtn");
+    const saveBtn   = document.getElementById("saveBtn");
 
     logoutBtn.addEventListener("click", doLogout);
 
     const { user, activeRole } = await requireAuthAndRole(null);
     who.textContent = user.phoneNumber || user.email || "-";
 
-    const role = (activeRole === "driver") ? "driver" : "passenger";
-    info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;
-    driverOnly.style.display = (role === "driver") ? "block" : "none";
+    info.innerHTML = `✅ مسجل دخول كـ <b>${activeRole === "driver" ? "سائق" : "راكب"}</b>`;
+    if(activeRole === "driver") driverOnly.style.display = "block";
 
     const u = await getUserDoc(user.uid).catch(()=>null);
 
-    nameEl.value = u?.name || "";
-    govEl.value = u?.governorate || "";
+    nameEl.value   = u?.name || "";
+    govEl.value    = u?.governorate || "";
     centerEl.value = u?.center || "";
-    phoneCommonEl.value = u?.phone || "";
+    phoneEl.value  = u?.phone || "";
 
-    if(role === "driver"){
-      vehicleEl.value = u?.vehicle || "tuktuk";
-      modelEl.value = u?.model || "";
-      plateEl.value = u?.plate || "";
+    if(activeRole === "driver"){
+      vehicleEl.value = u?.vehicle || "";
+      modelEl.value   = u?.model || "";
+      plateEl.value   = u?.plate || "";
+    }
+
+    function setMsg(text, ok=false){
+      msg.className = "hint " + (ok ? "text-ok" : "text-bad");
+      msg.textContent = text || "";
     }
 
     saveBtn.addEventListener("click", async ()=>{
-      msg.textContent = "جارٍ الحفظ…";
+      setMsg("جارٍ الحفظ…", true);
       saveBtn.disabled = true;
 
       try{
-        const phoneNorm = normalizePhone(phoneCommonEl.value);
+        const phoneNorm = normalizePhone(phoneEl.value);
 
-        if(phoneCommonEl.value.trim() && !phoneNorm){
-          msg.textContent = "❌ رقم الهاتف غير صحيح.";
+        if(phoneEl.value.trim() && !phoneNorm){
+          setMsg("❌ رقم الهاتف غير صحيح.", false);
           saveBtn.disabled = false;
           return;
         }
@@ -153,18 +160,29 @@
           phone: phoneNorm
         };
 
-        // ✅ لو سائق: حدّث بيانات المركبة فقط
-        if(role === "driver"){
-          payload.vehicle = vehicleEl.value || null;
-          payload.model = modelEl.value.trim() || null;
-          payload.plate = plateEl.value.trim() || null;
+        if(activeRole === "driver"){
+          const v = (vehicleEl.value || "").trim();
+          const m = (modelEl.value || "").trim();
+          if(!v){
+            setMsg("❌ اختر نوع المركبة.", false);
+            saveBtn.disabled = false;
+            return;
+          }
+          if(m.length < 2){
+            setMsg("❌ اكتب موديل/كود المركبة (حرفين على الأقل).", false);
+            saveBtn.disabled = false;
+            return;
+          }
+          payload.vehicle = v;
+          payload.model   = m;
+          payload.plate   = (plateEl.value || "").trim() || null;
         }
 
         await saveUserProfile(user.uid, payload);
-        msg.textContent = "✅ تم الحفظ.";
+        setMsg("✅ تم الحفظ.", true);
       }catch(e){
         console.error(e);
-        msg.textContent = "❌ فشل الحفظ.";
+        setMsg("❌ فشل الحفظ.", false);
       }finally{
         saveBtn.disabled = false;
       }
