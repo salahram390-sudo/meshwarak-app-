@@ -1,5 +1,4 @@
-// sw.js — FINAL v13 (Cache + Push Notifications FCM)
-// ✅ غيّر الرقم عند أي تحديث كبير لتفريغ كاش الأجهزة القديمة
+// sw.js — FINAL v13 (Cache + FCM Background Push)
 const CACHE = "meshwarak-v13";
 
 const ASSETS = [
@@ -12,12 +11,28 @@ const ASSETS = [
   "./profile.html",
   "./styles.css",
   "./app.js",
+  "./messaging.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png"
 ];
 
-// ملفات خارجية ما نكاشّهاش (Firebase/CDN/APIs/Maps)
+// ========= Firebase Messaging (Compat in SW)
+importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+  apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
+  authDomain: "meshwark-8adf8.firebaseapp.com",
+  projectId: "meshwark-8adf8",
+  storageBucket: "meshwark-8adf8.appspot.com",
+  messagingSenderId: "450060838946",
+  appId: "1:450060838946:web:963cacdd125b253fa1827b",
+});
+
+let messaging = null;
+try { messaging = firebase.messaging(); } catch {}
+
 function isBypass(url) {
   return (
     url.startsWith("https://www.gstatic.com/") ||
@@ -29,7 +44,6 @@ function isBypass(url) {
     url.includes("router.project-osrm.org")
   );
 }
-
 function isHtml(req) {
   return req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
 }
@@ -37,13 +51,10 @@ function isCodeAsset(pathname) {
   return pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".html");
 }
 
-// =======================
-// ✅ INSTALL / ACTIVATE
-// =======================
+// ===== install
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-
     await Promise.all(
       ASSETS.map(async (path) => {
         try {
@@ -53,11 +64,11 @@ self.addEventListener("install", (e) => {
         } catch {}
       })
     );
-
     await self.skipWaiting();
   })());
 });
 
+// ===== activate
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
@@ -66,9 +77,7 @@ self.addEventListener("activate", (e) => {
   })());
 });
 
-// =======================
-// ✅ FETCH (نفس منطقك)
-// =======================
+// ===== fetch
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = req.url;
@@ -77,7 +86,6 @@ self.addEventListener("fetch", (e) => {
 
   const pathname = new URL(url).pathname;
 
-  // HTML/JS/CSS: Network-first
   if (isHtml(req) || isCodeAsset(pathname)) {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
@@ -99,7 +107,6 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // باقي الملفات: Cache-first + تحديث خلفي
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: true });
@@ -122,37 +129,25 @@ self.addEventListener("fetch", (e) => {
 });
 
 // =======================
-// ✅ PUSH NOTIFICATIONS (FCM Compatible)
+// ✅ FCM Background handler (الأهم)
 // =======================
-// FCM Web Push غالبًا بييجي event.data.json() بالشكل ده:
-// { notification:{title, body, image}, data:{ url, role, rideId, type } }
-// أو ممكن ييجي { title, body, ... } حسب الإرسال من السيرفر
-self.addEventListener("push", (event) => {
-  event.waitUntil((async () => {
-    let payload = {};
-    try {
-      payload = event.data ? event.data.json() : {};
-    } catch {
-      try { payload = { body: event.data.text() }; } catch { payload = {}; }
-    }
-
-    const n = payload.notification || payload || {};
-    const data = payload.data || n.data || payload.data || {};
+if (messaging) {
+  messaging.onBackgroundMessage((payload) => {
+    const n = payload?.notification || {};
+    const data = payload?.data || {};
 
     const title = n.title || "مشوارك";
-    const body  = n.body  || "لديك تحديث جديد";
-    const icon  = "./icon-192.png";
+    const body = n.body || "لديك تحديث جديد";
+    const icon = "./icon-192.png";
     const badge = "./icon-192.png";
 
-    // ✅ لينك فتح التطبيق عند الضغط
-    // لو data.url مش موجودة: هنفتح index
     const url =
       data.url ||
       (data.role === "driver" ? "./driver.html" :
        data.role === "passenger" ? "./passenger.html" :
        "./index.html");
 
-    const options = {
+    self.registration.showNotification(title, {
       body,
       icon,
       badge,
@@ -160,17 +155,13 @@ self.addEventListener("push", (event) => {
       vibrate: [120, 80, 120],
       tag: data.tag || data.rideId || data.type || "meshwarak",
       renotify: true,
-      requireInteraction: false, // خليها true لو عايز الإشعار يفضل ظاهر لحد ما المستخدم يقفله
-      // actions اختيارية (مش كل الأجهزة بتظهرها)
       actions: [
         { action: "open", title: "فتح" },
         { action: "dismiss", title: "إغلاق" }
       ]
-    };
-
-    await self.registration.showNotification(title, options);
-  })());
-});
+    });
+  });
+}
 
 // فتح الصفحة المناسبة عند الضغط على الإشعار
 self.addEventListener("notificationclick", (event) => {
@@ -182,25 +173,19 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
 
-    // لو نافذة مفتوحة بالفعل: ركّز عليها
     for (const c of allClients) {
       try {
         const u = new URL(c.url);
         const t = new URL(targetUrl, self.location.origin);
-
-        // نفس الصفحة (بدون query) -> focus
         if (u.pathname === t.pathname) {
           await c.focus();
-          // ابعت رسالة للصفحة علشان تعمل Navigation داخلي/فتح رحلة
           c.postMessage({ type: "PUSH_CLICK", data });
           return;
         }
       } catch {}
     }
 
-    // مفيش نافذة: افتح جديد
     const opened = await clients.openWindow(targetUrl);
-    // لو اتفتحت: ابعت نفس الرسالة
     if (opened) {
       try { opened.postMessage({ type: "PUSH_CLICK", data }); } catch {}
     }
