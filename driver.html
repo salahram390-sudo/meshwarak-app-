@@ -315,6 +315,43 @@
     let unsubMyOffers = null;
 
     // =========================================================
+    // ✅ LIVE TRIP PUSH (driverLive داخل rides/{tripId})
+    // =========================================================
+    let liveTripRef = null;
+    let lastTripLiveAt = 0;
+
+    function setLiveTripRef(tripId){
+      liveTripRef = tripId ? doc(db, "rides", tripId) : null;
+      lastTripLiveAt = 0;
+    }
+
+    async function pushTripLive(force=false){
+      try{
+        if(!liveTripRef) return;
+        if(!lastPos) return;
+
+        const now = Date.now();
+        if(!force && (now - lastTripLiveAt) < 3500) return;
+        lastTripLiveAt = now;
+
+        await setDoc(liveTripRef, {
+          driverLive: {
+            uid: user.uid,
+            lat: lastPos.lat,
+            lng: lastPos.lng,
+            heading: lastPos.heading ?? null,
+            speed: lastPos.speed ?? null,
+            at: serverTimestamp()
+          },
+          driverLiveAt: serverTimestamp()
+        }, { merge:true });
+      }catch(e){
+        // صامت — علشان ما يعملش spam errors
+        console.error(e);
+      }
+    }
+
+    // =========================================================
     // ✅ MAP INIT
     // =========================================================
     let fixMap = ()=>{};
@@ -737,6 +774,7 @@
 
     function stopWatchTrip(){
       if(unsubTrip){ try{ unsubTrip(); }catch{} unsubTrip=null; }
+      setLiveTripRef(null);
       clearRoutes();
       if(!leafletOK || !dmap) return;
       if(passengerMarker){ try{ dmap.removeLayer(passengerMarker);}catch{} passengerMarker=null; }
@@ -775,6 +813,8 @@
       if(!tripId) return;
       if(unsubTrip) unsubTrip();
 
+      setLiveTripRef(tripId); // ✅ يجهّز بث driverLive داخل الرحلة
+
       const rideRef = doc(db, "rides", tripId);
       unsubTrip = onSnapshot(rideRef, async (snap)=>{
         if(!snap.exists()){
@@ -788,6 +828,7 @@
 
         await tripNotify(status);
 
+        // ✅ pickup/dropoff
         const pLat = safeNum(r.from?.lat);
         const pLng = safeNum(r.from?.lng);
         const toLat = safeNum(r.to?.lat);
@@ -796,12 +837,24 @@
         if(pLat!=null && pLng!=null) setPassengerOnMap(pLat,pLng);
         if(toLat!=null && toLng!=null) setToOnMap(toLat,toLng);
 
+        // ✅ لو الراكب بيبعت passengerLive هنستخدمه فورًا بدل الـ from
+        const plLat = safeNum(r.passengerLive?.lat);
+        const plLng = safeNum(r.passengerLive?.lng);
+        if(plLat!=null && plLng!=null){
+          setPassengerOnMap(plLat, plLng);
+        }
+
+        // ✅ ارسم Routes
         await drawRoutesReal({withDropoff:true});
+
+        // ✅ ادفع live مرة عند كل تحديث مهم
+        await pushTripLive(false);
 
         if(["completed","canceled","done"].includes(status)){
           currentTripCard.style.display="block";
           currentTripCard.innerHTML=`<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
           setDoc(statusRef, { available: !!isOnline, currentTripId: null, lastSeenAt: serverTimestamp() }, { merge:true }).catch(()=>{});
+          setLiveTripRef(null);
           return;
         }
 
@@ -847,7 +900,7 @@
         const tripMsg = currentTripCard.querySelector("#tripMsg");
         const navPickupBtn = currentTripCard.querySelector("#navPickupBtn");
         const navToBtn = currentTripCard.querySelector("#navToBtn");
-        navPickupBtn?.addEventListener("click", ()=> openGoogleMapsNav(pLat, pLng));
+        navPickupBtn?.addEventListener("click", ()=> openGoogleMapsNav((plLat??pLat), (plLng??pLng)));
         navToBtn?.addEventListener("click", ()=> openGoogleMapsNav(toLat, toLng));
 
         currentTripCard.querySelector("#arrivedBtn")?.addEventListener("click", async ()=>{
@@ -881,6 +934,7 @@
             await updateDoc(rideRef, { status:"completed", completedAt: serverTimestamp() });
             tripMsg.textContent="✅ تم إنهاء الرحلة.";
             await setDoc(statusRef, { currentTripId:null, available:!!isOnline, lastSeenAt:serverTimestamp() }, {merge:true}).catch(()=>{});
+            setLiveTripRef(null);
           }catch(e){
             console.error(e);
             tripMsg.textContent="❌ فشل.";
@@ -999,6 +1053,9 @@
 
         setMeOnMap(lastPos.lat, lastPos.lng);
 
+        // ✅ ابعت live للرحلة (driverLive)
+        await pushTripLive(false);
+
         if(passengerMarker){
           await drawRoutesReal({withDropoff:true});
         }
@@ -1017,6 +1074,7 @@
         try{
           if(!isOnline) return;
           await pushStatus();
+          await pushTripLive(false); // ✅ keep alive أثناء الرحلة
         }catch(e){ console.error(e); }
       }, 4000);
 
