@@ -6,16 +6,23 @@
   <title>مشوارك - الراكب</title>
   <link rel="stylesheet" href="./styles.css">
 
-  <!-- Leaflet (لو مشروعك مستخدمه بالفعل) -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     /* ===== Page Layout ===== */
+    body.page{
+      min-height: 100vh;
+      display:flex;
+      flex-direction:column;
+      overflow-x:hidden;
+    }
+
     .topbar{
       position: sticky;
       top: 0;
-      z-index: 60;
+      z-index: 2000; /* أعلى من Leaflet */
       background: rgba(5, 11, 22, 0.72);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -50,12 +57,7 @@
       font-size: 18px;
     }
 
-    /* ===== Map + Bottom Sheet (حل مشكلة الخانات) ===== */
-    body.page{
-      min-height: 100vh;
-      display:flex;
-      flex-direction:column;
-    }
+    /* ===== Map ===== */
     .mapWrap{
       position: relative;
       flex: 1;
@@ -65,14 +67,32 @@
     #map{
       position:absolute;
       inset:0;
+      z-index: 1;
+    }
+
+    /* Leaflet layers/controls fix (لا تغطي الشيت) */
+    .leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow{
+      z-index: 2 !important;
+    }
+    .leaflet-control-container{
+      z-index: 800 !important;  /* أقل من الشيت */
+      position: relative;
+    }
+    .leaflet-top, .leaflet-bottom{
+      z-index: 800 !important;
+    }
+
+    /* ===== Bottom Sheet (FIX) ===== */
+    :root{
+      --sheetZ: 1600; /* أعلى من Leaflet controls */
     }
 
     .sheet{
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: 12px;
-      z-index: 70;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: var(--sheetZ);
 
       background: var(--card);
       border: 1px solid var(--stroke);
@@ -82,7 +102,15 @@
 
       max-height: 65vh;
       overflow: hidden;
+      transform: translateZ(0);
     }
+
+    /* لما الكيبورد يفتح (Android) نرفع الشيت */
+    body.kb-open .sheet{
+      bottom: calc(150px + env(safe-area-inset-bottom));
+      max-height: 55vh;
+    }
+
     .sheetHeader{
       padding: 10px 14px 0;
       display:flex;
@@ -99,6 +127,10 @@
       padding: 14px;
       overflow-y: auto;
       max-height: calc(65vh - 24px);
+      -webkit-overflow-scrolling: touch;
+    }
+    body.kb-open .sheetBody{
+      max-height: calc(55vh - 24px);
     }
 
     .sectionTitle{
@@ -156,20 +188,15 @@
         inset 0 1px 0 rgba(255,255,255,0.16);
     }
 
-    /* زر رجوع أسفل */
     .footerActions{
       display:flex;
       gap: 10px;
       margin-top: 14px;
     }
-    .footerActions .btn{
-      width: 100%;
-    }
+    .footerActions .btn{ width: 100%; }
 
-    /* إصلاح تكبير/تصغير بداخل الشيت */
-    select{
-      appearance: none;
-    }
+    /* select arrow fix */
+    select{ appearance: none; }
   </style>
 </head>
 
@@ -191,16 +218,14 @@
     </div>
   </div>
 
-  <!-- الخريطة -->
   <div class="mapWrap">
     <div id="map"></div>
   </div>
 
-  <!-- Bottom Sheet -->
   <div class="sheet" id="sheet">
     <div class="sheetHeader"><div class="sheetHandle"></div></div>
 
-    <div class="sheetBody">
+    <div class="sheetBody" id="sheetBody">
       <div class="sectionTitle">منطقتك (لاختيار السائقين)</div>
 
       <div class="grid2">
@@ -263,9 +288,7 @@
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, setActiveRole } from "./app.js";
-    import {
-      collection, addDoc, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // ===== Auth
     setActiveRole("passenger");
@@ -274,6 +297,7 @@
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     const msg = document.getElementById("msg");
+    const sheetBody = document.getElementById("sheetBody");
 
     // ===== Leaflet Map
     let map, markerFrom=null, markerTo=null;
@@ -281,8 +305,7 @@
     let fromLatLng=null, toLatLng=null;
 
     function initMap(){
-      // fallback center (أسوان) — تقدر تغيره
-      const center = [24.0889, 32.8998];
+      const center = [24.0889, 32.8998]; // أسوان
 
       map = L.map("map", { zoomControl: true }).setView(center, 13);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -292,6 +315,7 @@
 
       map.on("click", (e)=>{
         if(!pickMode) return;
+
         if(pickMode === "from"){
           fromLatLng = e.latlng;
           if(markerFrom) markerFrom.remove();
@@ -306,9 +330,12 @@
           msg.textContent = "✅ تم تحديد الوصول.";
         }
       });
+
+      // مهم: بعد ظهور الخريطة داخل flex/position
+      setTimeout(()=> map.invalidateSize(), 250);
+      window.addEventListener("resize", ()=> map.invalidateSize());
     }
 
-    // انتظر تحميل Leaflet
     const waitLeaflet = setInterval(()=>{
       if(window.L){
         clearInterval(waitLeaflet);
@@ -316,7 +343,7 @@
       }
     }, 30);
 
-    // ===== Region data (مثال بسيط) — عدله حسب محافظاتك/مراكز مشروعك
+    // ===== Region data
     const regions = {
       "أسوان": ["أسوان", "دراو", "كوم أمبو", "إدفو"],
       "القاهرة": ["مدينة نصر", "المعادي", "حلوان", "مصر الجديدة"],
@@ -326,7 +353,6 @@
     const govSelect = document.getElementById("govSelect");
     const centerSelect = document.getElementById("centerSelect");
 
-    // املأ المحافظات
     Object.keys(regions).forEach(g=>{
       const op = document.createElement("option");
       op.value = g;
@@ -380,6 +406,28 @@
     const toText = document.getElementById("toText");
     const createRideBtn = document.getElementById("createRideBtn");
 
+    // ===== Keyboard helper (يرفع الشيت ويعمل سكرول للحقل)
+    function scrollIntoSheet(el){
+      try{
+        const r = el.getBoundingClientRect();
+        const b = sheetBody.getBoundingClientRect();
+        const overflow = (r.bottom - b.bottom);
+        if(overflow > -20){
+          sheetBody.scrollBy({ top: overflow + 40, behavior: "smooth" });
+        }
+      }catch{}
+    }
+
+    [fromText, toText, govSelect, centerSelect].forEach((el)=>{
+      el.addEventListener("focus", ()=>{
+        document.body.classList.add("kb-open");
+        setTimeout(()=> scrollIntoSheet(el), 60);
+      });
+      el.addEventListener("blur", ()=>{
+        setTimeout(()=> document.body.classList.remove("kb-open"), 150);
+      });
+    });
+
     createRideBtn.onclick = async ()=>{
       msg.textContent = "";
       const governorate = govSelect.value;
@@ -411,7 +459,6 @@
 
           governorate,
           center,
-
           vehicleType,
 
           fromText: fromText.value.trim(),
@@ -425,7 +472,6 @@
         });
 
         msg.textContent = "✅ تم إرسال الطلب.";
-        // احفظ الطلب الحالي لو عندك صفحة متابعة
         localStorage.setItem("currentRideId", docRef.id);
 
       }catch(e){
