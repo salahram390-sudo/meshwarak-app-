@@ -824,7 +824,6 @@
 
         await tripNotify(status);
 
-        // ✅ pickup/dropoff (fallback)
         const fromLat = safeNum(r.from?.lat);
         const fromLng = safeNum(r.from?.lng);
         const toLat = safeNum(r.to?.lat);
@@ -832,7 +831,6 @@
 
         if(toLat!=null && toLng!=null) setToOnMap(toLat,toLng);
 
-        // ✅ passengerLive (الأولوية)
         const plLat = safeNum(r.passengerLive?.lat);
         const plLng = safeNum(r.passengerLive?.lng);
         const pickupLat = (plLat!=null ? plLat : fromLat);
@@ -851,7 +849,7 @@
           return;
         }
 
-        // ✅ عرض كل بيانات الراكب (ومنها العنوان)
+        // ✅ بيانات الراكب كاملة
         const pName = r.passengerName || "راكب";
         const pEmail = r.passengerEmail || "-";
         const pPhone = r.passengerPhone || "";
@@ -935,30 +933,6 @@
           }
         });
       });
-    }
-
-    function watchDriverStatus(){
-      if(unsubStatus) unsubStatus();
-      unsubStatus = onSnapshot(statusRef, (snap)=>{
-        const st = snap.exists() ? snap.data() : null;
-        const online = !!st?.online;
-        const tripId = st?.currentTripId || null;
-
-        setOnlineUI(online);
-
-        if(tripId){
-          tripPill.textContent = `🚖 رحلة: ${tripId}`;
-          currentTripId = tripId;
-          watchTrip(tripId);
-          try{ currentTripCard.scrollIntoView({behavior:"smooth", block:"start"}); }catch{}
-        }else{
-          tripPill.textContent = "لا يوجد رحلة";
-          currentTripId = null;
-          stopWatchTrip();
-          currentTripCard.style.display = "none";
-          currentTripCard.innerHTML = "";
-        }
-      }, ()=>{});
     }
 
     // ✅ لو أنت أرسلت عرض والراكب وافق => افتح الرحلة تلقائيًا
@@ -1313,12 +1287,10 @@
               return { ok:false, msg:"الطلب لم يعد قابل للقبول." };
             }
 
-            // تحقق المنطقة
             if(clean(cur.governorate) !== gov || clean(cur.center) !== cen){
               return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
             }
 
-            // ✅ تحقق نوع المركبة لو الطلب محدده
             const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
             const reqVeh = clean(cur.requestedVehicle || "");
             if(reqVeh && myVeh && myVeh !== reqVeh){
@@ -1380,7 +1352,6 @@
       listEl.innerHTML = `<div class="card"><div class="hint">لا يمكن تحميل الطلبات الآن.</div></div>`;
     }
 
-    // ✅ تحسين: لو myVeh مش موجود (لسبب ما) ما نقفلش الطلبات كلها
     async function subscribeRides(reset=false){
       if(unsubRides){ try{unsubRides()}catch{} unsubRides=null; }
 
@@ -1416,7 +1387,6 @@
           limit(25)
         );
       }else{
-        // fallback (نادر): بدون فلترة مركبة
         qy = query(
           collection(db, "rides"),
           where("status", "==", "open"),
@@ -1454,18 +1424,7 @@
 
     refreshBtn.addEventListener("click", ()=> subscribeRides(true));
 
-    // ========= init
-    setOnlineUI(false);
-    setGpsUI("unknown");
-
-    await loadDriverProfile();
-    await ensureVehicleReady();
-    await ensureAreaSelected();
-
-    // init selects
-    fillGov();
-    restoreAreaLS();
-
+    // ✅ Watch driver_status (مرة واحدة فقط)
     function watchDriverStatus(){
       if(unsubStatus) unsubStatus();
       unsubStatus = onSnapshot(statusRef, (snap)=>{
@@ -1479,6 +1438,7 @@
           tripPill.textContent = `🚖 رحلة: ${tripId}`;
           currentTripId = tripId;
           watchTrip(tripId);
+          try{ currentTripCard.scrollIntoView({behavior:"smooth", block:"start"}); }catch{}
         }else{
           tripPill.textContent = "لا يوجد رحلة";
           currentTripId = null;
@@ -1488,6 +1448,17 @@
         }
       }, ()=>{});
     }
+
+    // ========= init
+    setOnlineUI(false);
+    setGpsUI("unknown");
+
+    await loadDriverProfile();
+    await ensureVehicleReady();
+    await ensureAreaSelected();
+
+    fillGov();
+    restoreAreaLS();
 
     watchDriverStatus();
     watchMyOfferedAndAccepted();
