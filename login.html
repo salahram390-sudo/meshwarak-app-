@@ -12,13 +12,13 @@
   <style>
     .wrap{width:min(520px,92%);margin:18px auto 80px}
     .card{
-      .card *{max-width:100%}
       background: linear-gradient(180deg, rgba(15,24,44,.96), rgba(8,14,28,.86));
       border:1px solid rgba(255,255,255,.12);
       border-radius:22px;
       padding:14px;
       box-shadow:0 18px 60px rgba(0,0,0,.35);
     }
+    .card *{max-width:100%}
     .row{display:flex;gap:10px;flex-wrap:wrap}
     .row .btn{flex:1}
 /* ✅ Segmented control (راكب/سائق) زي الصورة */
@@ -113,8 +113,8 @@
 <body>
   <div class="wrap">
     <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div class="logo" style="width:52px;height:52px;border-radius:18px;display:grid;place-items:center;font-weight:950">م</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <div class="logo" style="width:52px;height:52px;border-radius:18px;display:grid;place-items:center;font-weight:950">مشوارك</div>
 <div class="roleRow">
   <button class="roleBtn" id="rolePassenger" type="button">
     <span class="ico">🚕</span> <span>راكب</span>
