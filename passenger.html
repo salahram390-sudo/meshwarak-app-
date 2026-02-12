@@ -17,7 +17,7 @@
     .topbar{
       position: sticky; top: 0; z-index: 60;
       background: rgba(5, 11, 22, 0.72);
-      backdrop-filter: blur(16px);
+      backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .topbar-inner{
@@ -34,9 +34,9 @@
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       max-width: 52vw;
     }
-    .logo{ width:44px; height:44px; border-radius:16px; font-size:18px; flex:0 0 auto; }
+    .logo{ width:44px; height:44px; border-radius:16px; font-size:18px; flex:0 0 auto; display:grid; place-items:center; }
     .top-actions{ display:flex; gap:8px; align-items:center; flex:0 0 auto; }
-    .top-actions .btn{ padding:10px 12px; border-radius:18px; font-size:14px; min-height:44px; }
+    .top-actions .btn{ padding:10px 12px; border-radius:18px; font-size:14px; min-height:44px; width:auto; }
 
     .mapWrap{ position:relative; flex:1; min-height: calc(100vh - 70px); overflow:hidden; background:#0b1222; }
     #map{ position:absolute; inset:0; z-index:1; }
@@ -47,11 +47,11 @@
       background: var(--card);
       border: 1px solid var(--stroke);
       border-radius: 26px;
-      box-shadow: 0 30px 90px rgba(0,0,0,.55);
-      backdrop-filter: blur(18px);
+      box-shadow: 0 26px 70px rgba(0,0,0,.50);
+      backdrop-filter: blur(10px);
       overflow: hidden;
       height: 54vh;
-      transition: height .22s ease;
+      transition: height .18s ease;
       will-change: height;
     }
     .sheet.dragging{ transition:none; }
@@ -75,7 +75,7 @@
       touch-action: pan-y;
     }
 
-    .sectionTitle{ margin: 6px 0 10px; font-weight:900; font-size:14px; color: rgba(255,255,255,.88); }
+    .sectionTitle{ margin: 6px 0 10px; font-weight:900; font-size:14px; color: rgba(255,255,255,.90); }
     .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
     .note{ margin-top:10px; font-size:12px; color: rgba(255,255,255,.65); line-height:1.5; }
     .sep{ height:1px; background: rgba(255,255,255,0.06); margin:14px 0; }
@@ -97,18 +97,17 @@
       background: linear-gradient(135deg, var(--blue1), var(--blue2));
       border-color: rgba(255,255,255,0.16);
       box-shadow:
-        0 18px 60px rgba(0,0,0,0.35),
-        0 0 0 3px rgba(46,107,255,0.14),
+        0 16px 44px rgba(0,0,0,0.30),
+        0 0 0 3px rgba(46,107,255,0.12),
         inset 0 1px 0 rgba(255,255,255,0.16);
     }
 
     .actions{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
-    .actions .btn{ flex: 1 1 140px; min-height:52px; }
+    .actions .btn{ flex: 1 1 140px; min-height:52px; width:auto; }
 
     .footerActions{ display:flex; gap:10px; margin-top:14px; }
     .footerActions .btn{ width:100%; }
 
-    /* ✅ helper chips */
     .miniRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
     .miniChip{
       font-size:12px;
@@ -124,27 +123,20 @@
     .miniChip.ok{ background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.25); }
     .miniChip.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.25); }
 
-    /* ✅ input row for search buttons */
-    .inputRow{
-      display:flex;
-      gap:10px;
-      align-items:center;
-    }
-    .inputRow input{
-      flex:1 1 auto;
-      min-height: 46px;
-    }
+    /* input row (لو styles.css مش محمّل لأي سبب) */
+    .inputRow{ display:flex; gap:10px; align-items:stretch; }
+    .inputRow input{ flex:1 1 auto; min-width:0; }
     .iconBtn{
-      flex:0 0 auto;
-      min-width: 52px;
-      height: 46px;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.06);
+      min-width: 54px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(10, 16, 32, 0.55);
       color: #fff;
       cursor:pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select:none;
     }
-    .iconBtn:active{ transform: translateY(1px); }
+    .iconBtn:active{ transform: scale(.985); }
 
     @media (max-width:420px){
       .grid2{ grid-template-columns: 1fr; }
@@ -267,17 +259,34 @@
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, doLogout, db, setActiveRole } from "./app.js";
+    import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
     import {
       collection, addDoc, serverTimestamp,
       doc, onSnapshot, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    // ===== helpers
+    const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
+    const safeNum = (x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
+    function dist2(a,b){
+      const dx = a.lat - b.lat, dy = a.lng - b.lng;
+      return dx*dx + dy*dy;
+    }
+    function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
+    function debounce(fn, ms){
+      let t=null;
+      return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+    }
 
     // ===== Auth
     setActiveRole("passenger");
     const { user } = await requireAuthAndRole("passenger");
     document.getElementById("who").textContent = user.email || user.phoneNumber || "-";
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
+
+    // ✅ load profile saved from login.html (phone/address/name)
+    let passengerProfile = null;
+    try{ passengerProfile = await getUserDoc(user.uid); }catch{ passengerProfile=null; }
 
     const msg = document.getElementById("msg");
     const fromChip = document.getElementById("fromChip");
@@ -288,6 +297,7 @@
     let map, markerFrom=null, markerTo=null, meMarker=null, driverMarker=null, routeLine=null;
     let pickMode = null; // "from" | "to"
     let fromLatLng=null, toLatLng=null;
+    let meLatLng = null;
 
     function setChip(el, ok, text){
       el.textContent = text;
@@ -367,8 +377,7 @@
         }
       });
 
-      // حاول يجيب الموقع مرة أول ما يفتح
-      setTimeout(()=>{ locateMe(false); }, 400);
+      setTimeout(()=>{ locateMe(false); }, 450);
       invalidateMapSoon();
     }
 
@@ -390,6 +399,8 @@
       navigator.geolocation.getCurrentPosition((pos)=>{
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+
+        meLatLng = { lat, lng };
 
         if(map){
           map.setView([lat,lng], 16, { animate:false });
@@ -485,34 +496,65 @@
     setVehicle("car");
 
     // ======================================================
-    // ✅ Geocoding + Search Buttons
+    // ✅ Geocoding (Closest + Egypt + Bias to my location + Prefer selected governorate)
     // ======================================================
     let lastGeoAt = 0;
-    function debounce(fn, ms){
-      let t=null;
-      return (...args)=>{
-        clearTimeout(t);
-        t=setTimeout(()=>fn(...args), ms);
-      };
-    }
 
-    async function geocodeNominatim(q){
+    async function geocodeNominatim(q, { governorate="", near=null } = {}){
       const now = Date.now();
       if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
       lastGeoAt = Date.now();
 
+      // ✅ نزيد الدقة: نضيف المحافظة + Egypt داخل query
+      const g = clean(governorate);
+      const q2 = g ? `${clean(q)}, ${g}, Egypt` : `${clean(q)}, Egypt`;
+
+      // ✅ Bias لموقعك (viewbox) + bounded=1
+      let extra = `&countrycodes=eg&limit=7&addressdetails=1&accept-language=ar`;
+      if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
+        const d = 0.22; // ~ 20-30 كم تقريبًا (سريع + مناسب للمدن)
+        const left   = (near.lng - d);
+        const right  = (near.lng + d);
+        const top    = (near.lat + d);
+        const bottom = (near.lat - d);
+        extra += `&viewbox=${left},${top},${right},${bottom}&bounded=1`;
+      }
+
       const url =
         "https://nominatim.openstreetmap.org/search" +
-        "?format=json&limit=1&addressdetails=1" +
-        "&accept-language=ar" +
-        "&q=" + encodeURIComponent(q);
+        `?format=json` +
+        `&q=` + encodeURIComponent(q2) +
+        extra;
 
       const res = await fetch(url, { headers: { "Accept": "application/json" }});
       if(!res.ok) throw new Error("geocode_failed");
       const data = await res.json();
       if(!data || !data.length) return null;
-      const it = data[0];
-      return { lat: Number(it.lat), lng: Number(it.lon), name: it.display_name || q };
+
+      // ✅ اختيار أفضل نتيجة:
+      // 1) نفضّل اللي في نفس المحافظة (لو متاحة في address)
+      // 2) ولو موقعك معروف: نختار الأقرب ليك
+      const wantGov = clean(governorate);
+      const mapped = data.map(it=>{
+        const lat = Number(it.lat);
+        const lng = Number(it.lon);
+        const addr = it.address || {};
+        const state = clean(addr.state || addr.county || addr.city || addr.town || "");
+        const scoreGov = (wantGov && state && (state.includes(wantGov) || wantGov.includes(state))) ? 1 : 0;
+        const scoreDist = (near && Number.isFinite(lat) && Number.isFinite(lng)) ? dist2({lat,lng}, near) : 999999;
+        return { lat, lng, name: it.display_name || q, scoreGov, scoreDist };
+      }).filter(x=>Number.isFinite(x.lat) && Number.isFinite(x.lng));
+
+      if(!mapped.length) return null;
+
+      mapped.sort((a,b)=>{
+        // محافظة أولاً (1 أعلى)
+        if(b.scoreGov !== a.scoreGov) return b.scoreGov - a.scoreGov;
+        // أقرب مسافة ثانيًا
+        return a.scoreDist - b.scoreDist;
+      });
+
+      return mapped[0];
     }
 
     const fromText = document.getElementById("fromText");
@@ -520,18 +562,20 @@
     const fromSearchBtn = document.getElementById("fromSearchBtn");
     const toSearchBtn = document.getElementById("toSearchBtn");
 
-    async function applyGeocode(kind, q){
-      const text = (q || "").trim();
+    async function applyGeocode(kind, q, { silent=false } = {}){
+      const text = clean(q);
       if(text.length < 3){
-        msg.textContent = "⚠️ اكتب 3 أحرف على الأقل.";
+        if(!silent) msg.textContent = "⚠️ اكتب 3 أحرف على الأقل.";
         return false;
       }
 
-      msg.textContent = "🔎 جارٍ البحث عن المكان…";
+      if(!silent) msg.textContent = "🔎 جارٍ البحث عن أقرب مكان…";
+
       try{
-        const r = await geocodeNominatim(text);
+        const gov = govSelect.value || "";
+        const r = await geocodeNominatim(text, { governorate: gov, near: meLatLng });
         if(!r){
-          msg.textContent = "⚠️ لم يتم العثور على مكان مطابق.";
+          if(!silent) msg.textContent = "⚠️ لم يتم العثور على مكان قريب مطابق.";
           return false;
         }
 
@@ -551,17 +595,17 @@
 
         drawRouteFromTo();
         fitFromTo();
-        msg.textContent = "✅ تم تحديد المكان على الخريطة.";
+        if(!silent) msg.textContent = "✅ تم تحديد أقرب مكان على الخريطة.";
         return true;
       }catch(e){
         console.error(e);
-        msg.textContent = "❌ تعذر البحث الآن. جرّب تاني.";
+        if(!silent) msg.textContent = "❌ تعذر البحث الآن. جرّب تاني.";
         return false;
       }
     }
 
-    const debFrom = debounce(()=> applyGeocode("from", fromText.value), 700);
-    const debTo   = debounce(()=> applyGeocode("to", toText.value), 700);
+    const debFrom = debounce(()=> applyGeocode("from", fromText.value, { silent:true }), 700);
+    const debTo   = debounce(()=> applyGeocode("to", toText.value, { silent:true }), 700);
 
     fromText.addEventListener("input", debFrom);
     toText.addEventListener("input", debTo);
@@ -629,7 +673,7 @@
       setSheetSnap("mid");
     };
 
-    // ===== Send ride
+    // ===== Send ride (✅ saves passenger phone/address for driver)
     createRideBtn.onclick = async ()=>{
       msg.textContent = "";
       const governorate = govSelect.value;
@@ -639,11 +683,12 @@
         msg.textContent = "❌ اختر المحافظة والمركز.";
         return;
       }
-      if(!fromText.value.trim() || !toText.value.trim()){
+      if(!clean(fromText.value) || !clean(toText.value)){
         msg.textContent = "❌ اكتب مكان القيام ومكان الوصول.";
         return;
       }
 
+      // لو كتب نص بس وما اتحددش، نحاول نحدده قبل الإرسال
       if(!fromLatLng){
         const ok = await applyGeocode("from", fromText.value);
         if(!ok) return;
@@ -662,12 +707,20 @@
       msg.textContent = "جارٍ إرسال الطلب…";
 
       try{
+        // refresh profile سريع
+        try{ passengerProfile = await getUserDoc(user.uid); }catch{}
+
+        const passengerPhone = passengerProfile?.phone || user.phoneNumber || null;
+        const passengerAddress = passengerProfile?.address || null;
+        const passengerName = passengerProfile?.name || null;
+
         const ridesRef = collection(db, "rides");
         const docRef = await addDoc(ridesRef, {
           passengerUid: user.uid,
           passengerEmail: user.email || null,
-          passengerPhone: user.phoneNumber || null,
-          passengerName: null,
+          passengerPhone: passengerPhone || null,
+          passengerAddress: passengerAddress || null,
+          passengerName: passengerName || null,
 
           governorate,
           center,
@@ -675,10 +728,14 @@
           requestedVehicle: vehicleType,
           vehicleType,
 
-          fromText: fromText.value.trim(),
-          toText: toText.value.trim(),
+          fromText: clean(fromText.value),
+          toText: clean(toText.value),
           from: { lat: fromLatLng.lat, lng: fromLatLng.lng },
           to:   { lat: toLatLng.lat,   lng: toLatLng.lng },
+
+          // ✅ نقطة بداية live
+          passengerLive: meLatLng ? { lat: meLatLng.lat, lng: meLatLng.lng, at: serverTimestamp() } : null,
+          passengerLiveAt: meLatLng ? serverTimestamp() : null,
 
           status: "open",
           createdAt: serverTimestamp(),
@@ -705,8 +762,6 @@
 
     const SNAP = { min: 0.30, mid: 0.54, max: 0.84 };
     let currentSnap = "mid";
-
-    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
     function setSheetHeight(px){
       const maxPx = Math.round(window.innerHeight * SNAP.max);
@@ -765,7 +820,7 @@
     window.addEventListener("resize", ()=> setSheetSnap(currentSnap));
 
     // ======================================================
-    // ✅ LIVE TRACKING (Passenger <-> Driver)  (UPDATED)
+    // ✅ LIVE TRACKING (Passenger <-> Driver)
     // ======================================================
     const trackBtn = document.getElementById("trackBtn");
     const focusBtn = document.getElementById("focusBtn");
@@ -812,6 +867,8 @@
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
+        meLatLng = { lat, lng };
+
         // تحديث ماركر الراكب (موقعك)
         if(map){
           if(!meMarker){
@@ -827,12 +884,11 @@
           if(rideRef){
             await updateDoc(rideRef, {
               passengerLive: { lat, lng, at: serverTimestamp() },
-              passengerLiveAt: serverTimestamp()
+              passengerLiveAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
             });
           }
-        }catch(e){
-          // صامت
-        }
+        }catch(e){}
       }, (err)=>{
         console.error(err);
         trackHint.textContent = "❌ فشل التتبع. فعّل إذن الموقع.";
@@ -845,7 +901,7 @@
       else await startTracking();
     });
 
-    // ✅ fallback: driver_status (لو driverLive مش موجود)
+    // fallback: driver_status
     function watchDriverStatusFallback(uid){
       if(unsubDriverStatus){ try{unsubDriverStatus()}catch{} unsubDriverStatus=null; }
       if(!uid) return;
@@ -854,15 +910,11 @@
       unsubDriverStatus = onSnapshot(stRef, (snap)=>{
         if(!snap.exists()) return;
         const d = snap.data();
-        const lat = Number(d.lat);
-        const lng = Number(d.lng);
-        if(!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const lat = safeNum(d.lat);
+        const lng = safeNum(d.lng);
+        if(lat==null || lng==null) return;
 
-        if(!driverMarker){
-          driverMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚗 السائق");
-        }else{
-          driverMarker.setLatLng([lat,lng]);
-        }
+        setDriverOnMap(lat, lng);
       });
     }
 
@@ -892,31 +944,27 @@
         const duid = r.driverUid || null;
         if(duid && duid !== currentDriverUid){
           currentDriverUid = duid;
-          // هنفعل fallback كاحتياط
-          watchDriverStatusFallback(duid);
+          watchDriverStatusFallback(duid); // احتياط
         }
 
-        // ✅ عرض السائق من ride.driverLive (ده الأساسي)
-        const dLat = Number(r.driverLive?.lat);
-        const dLng = Number(r.driverLive?.lng);
-        if(Number.isFinite(dLat) && Number.isFinite(dLng)){
-          setDriverOnMap(dLat, dLng);
-        }
+        // الأساسي: driverLive داخل ride (لو موجود)
+        const dLat = safeNum(r.driverLive?.lat);
+        const dLng = safeNum(r.driverLive?.lng);
+        if(dLat!=null && dLng!=null) setDriverOnMap(dLat, dLng);
 
-        // ✅ تشغيل التتبع تلقائيًا بعد تعيين السائق / بداية الرحلة
+        // تشغيل التتبع تلقائيًا بعد تعيين السائق / بداية الرحلة
         const shouldAutoTrack = !!duid && ["accepted","arrived","started"].includes(st);
         if(shouldAutoTrack && !trackingOn){
           await startTracking();
         }
 
-        // عرض حالة بسيطة
         trackHint.textContent = `حالة الطلب: ${st}${duid ? " • تم تعيين سائق ✅" : ""}`;
 
         // نقاط القيام/الوصول من الدوك
-        const pLat = Number(r.from?.lat), pLng = Number(r.from?.lng);
-        const tLat = Number(r.to?.lat),   tLng = Number(r.to?.lng);
+        const pLat = safeNum(r.from?.lat), pLng = safeNum(r.from?.lng);
+        const tLat = safeNum(r.to?.lat),   tLng = safeNum(r.to?.lng);
 
-        if(Number.isFinite(pLat) && Number.isFinite(pLng) && map){
+        if(pLat!=null && pLng!=null && map){
           fromLatLng = L.latLng(pLat,pLng);
           if(!markerFrom){
             markerFrom = L.marker([pLat,pLng]).addTo(map).bindPopup("القيام");
@@ -924,7 +972,7 @@
           setChip(fromChip, true, "القيام: تم تحديده ✅");
         }
 
-        if(Number.isFinite(tLat) && Number.isFinite(tLng) && map){
+        if(tLat!=null && tLng!=null && map){
           toLatLng = L.latLng(tLat,tLng);
           if(!markerTo){
             markerTo = L.marker([tLat,tLng]).addTo(map).bindPopup("الوصول");
@@ -934,7 +982,6 @@
 
         drawRouteFromTo();
 
-        // لو الرحلة خلصت
         if(["completed","canceled","done"].includes(st)){
           stopTracking();
           msg.textContent = "✅ تم إنهاء الرحلة.";
