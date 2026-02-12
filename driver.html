@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>مشوارك — السائق</title>
 
   <link rel="icon" href="./favicon.png">
@@ -10,12 +10,9 @@
   <link rel="stylesheet" href="./styles.css" />
   <meta name="theme-color" content="#050B16" />
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
+  <!-- ✅ Leaflet (مرة واحدة فقط) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     #toast{
@@ -73,7 +70,7 @@
       margin-bottom:12px;
     }
     .topbar .left{ display:flex;gap:10px;align-items:center;flex-wrap:wrap; }
-    .title{ font-weight:800; font-size:16px; display:flex; gap:8px; align-items:center; }
+    .title{ font-weight:900; font-size:16px; display:flex; gap:8px; align-items:center; }
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
     .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .pill{
@@ -101,9 +98,10 @@
       background:rgba(255,255,255,.06);
       color:#fff;
       cursor:pointer;
-      font-weight:700;
+      font-weight:800;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+      min-height:44px;
     }
     .btn.primary{background:rgba(43,108,255,.85);border-color:rgba(43,108,255,.35)}
     .btn.danger{background:rgba(239,68,68,.75);border-color:rgba(239,68,68,.35)}
@@ -233,12 +231,6 @@
     <div id="list" class="list" style="margin-top:12px"></div>
   </div>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc, setActiveRole } from "./app.js";
     import { initMessaging, notify, ensureNotificationPermission } from "./messaging.js";
@@ -289,7 +281,6 @@
     const cenOtherInput = $("cenOtherInput");
     const saveAreaBtn = $("saveAreaBtn");
 
-    // ✅ vehicle card
     const vehicleCard = $("vehicleCard");
     const vehSel = $("vehSel");
     const vehModel = $("vehModel");
@@ -327,9 +318,7 @@
 
     async function pushTripLive(force=false){
       try{
-        if(!liveTripRef) return;
-        if(!lastPos) return;
-
+        if(!liveTripRef || !lastPos) return;
         const now = Date.now();
         if(!force && (now - lastTripLiveAt) < 3500) return;
         lastTripLiveAt = now;
@@ -343,25 +332,36 @@
             speed: lastPos.speed ?? null,
             at: serverTimestamp()
           },
-          driverLiveAt: serverTimestamp()
+          driverLiveAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         }, { merge:true });
       }catch(e){
-        // صامت — علشان ما يعملش spam errors
         console.error(e);
       }
     }
 
     // =========================================================
-    // ✅ MAP INIT
+    // ✅ MAP INIT (بعد تحميل Leaflet)
     // =========================================================
     let fixMap = ()=>{};
     let leafletOK = false;
     let dmap = null;
     let divPin = ()=>null;
 
-    try{
-      if(!window.L) throw new Error("Leaflet not loaded");
+    function waitLeaflet(){
+      return new Promise((resolve)=>{
+        const t = setInterval(()=>{
+          if(window.L){
+            clearInterval(t);
+            resolve();
+          }
+        }, 25);
+      });
+    }
 
+    await waitLeaflet();
+
+    try{
       dmap = L.map("dmap", { zoomControl:false }).setView([30.0444, 31.2357], 12);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -384,7 +384,7 @@
         popupAnchor: [0,-36]
       });
 
-      setTimeout(fixMap, 300);
+      setTimeout(fixMap, 280);
       window.addEventListener("load", ()=> setTimeout(fixMap, 200));
       document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 200); });
 
@@ -399,8 +399,6 @@
     let meMarker = null;
     let passengerMarker = null;
     let toMarker = null;
-
-    // ✅ Route حقيقي
     let routeToPickup = null;
     let routeToDropoff = null;
     let lastRouteAt = 0;
@@ -415,7 +413,7 @@
     function setPassengerOnMap(lat,lng){
       if(!leafletOK || !dmap) return;
       if(!passengerMarker){
-        passengerMarker = L.marker([lat,lng],{icon:divPin("🚩")}).addTo(dmap).bindPopup("🚩 القيام");
+        passengerMarker = L.marker([lat,lng],{icon:divPin("🚩")}).addTo(dmap).bindPopup("🚩 الراكب (Live/القيام)");
       }else passengerMarker.setLatLng([lat,lng]);
     }
     function setToOnMap(lat,lng){
@@ -659,7 +657,6 @@
       return driverProfile;
     }
 
-    // ✅ ensure vehicle ready
     async function ensureVehicleReady(){
       if(!driverProfile) await loadDriverProfile();
 
@@ -753,7 +750,6 @@
       }
     });
 
-    // ====== Online UI
     function setOnlineUI(on){
       isOnline = on;
       onlinePill.classList.remove("ok","bad");
@@ -813,7 +809,7 @@
       if(!tripId) return;
       if(unsubTrip) unsubTrip();
 
-      setLiveTripRef(tripId); // ✅ يجهّز بث driverLive داخل الرحلة
+      setLiveTripRef(tripId);
 
       const rideRef = doc(db, "rides", tripId);
       unsubTrip = onSnapshot(rideRef, async (snap)=>{
@@ -828,26 +824,23 @@
 
         await tripNotify(status);
 
-        // ✅ pickup/dropoff
-        const pLat = safeNum(r.from?.lat);
-        const pLng = safeNum(r.from?.lng);
+        // ✅ pickup/dropoff (fallback)
+        const fromLat = safeNum(r.from?.lat);
+        const fromLng = safeNum(r.from?.lng);
         const toLat = safeNum(r.to?.lat);
         const toLng = safeNum(r.to?.lng);
 
-        if(pLat!=null && pLng!=null) setPassengerOnMap(pLat,pLng);
         if(toLat!=null && toLng!=null) setToOnMap(toLat,toLng);
 
-        // ✅ لو الراكب بيبعت passengerLive هنستخدمه فورًا بدل الـ from
+        // ✅ passengerLive (الأولوية)
         const plLat = safeNum(r.passengerLive?.lat);
         const plLng = safeNum(r.passengerLive?.lng);
-        if(plLat!=null && plLng!=null){
-          setPassengerOnMap(plLat, plLng);
-        }
+        const pickupLat = (plLat!=null ? plLat : fromLat);
+        const pickupLng = (plLng!=null ? plLng : fromLng);
 
-        // ✅ ارسم Routes
+        if(pickupLat!=null && pickupLng!=null) setPassengerOnMap(pickupLat, pickupLng);
+
         await drawRoutesReal({withDropoff:true});
-
-        // ✅ ادفع live مرة عند كل تحديث مهم
         await pushTripLive(false);
 
         if(["completed","canceled","done"].includes(status)){
@@ -858,9 +851,11 @@
           return;
         }
 
+        // ✅ عرض كل بيانات الراكب (ومنها العنوان)
         const pName = r.passengerName || "راكب";
         const pEmail = r.passengerEmail || "-";
         const pPhone = r.passengerPhone || "";
+        const pAddr  = r.passengerAddress || "";
         const price = (r.priceEGP ?? r.offerPriceEGP ?? "-");
 
         const canArrive = (status === "accepted");
@@ -877,6 +872,7 @@
           <div class="hint" style="margin-top:10px">
             <b>الراكب:</b> ${pName} (${pEmail})
             <br><b>هاتف:</b> ${pPhone || "لا يوجد"}
+            <br><b>العنوان:</b> ${pAddr || "لا يوجد"}
             <br><b>من:</b> ${r.fromText ?? "-"}
             <br><b>إلى:</b> ${r.toText ?? "-"}
             <br><b>السعر:</b> ${price} EG
@@ -884,7 +880,7 @@
 
           <div class="actions" style="margin-top:12px">
             ${pPhone ? `<a class="btn success" href="tel:${pPhone}">📞 اتصال بالراكب</a>` : `<button class="btn" disabled>📞 لا يوجد رقم</button>`}
-            ${(pLat!=null && pLng!=null) ? `<button class="btn" id="navPickupBtn" type="button">🧭 ملاحة للقيام</button>` : ``}
+            ${(pickupLat!=null && pickupLng!=null) ? `<button class="btn" id="navPickupBtn" type="button">🧭 ملاحة للراكب</button>` : ``}
             ${(toLat!=null && toLng!=null) ? `<button class="btn" id="navToBtn" type="button">🧭 ملاحة للوصول</button>` : ``}
           </div>
 
@@ -898,16 +894,14 @@
         `;
 
         const tripMsg = currentTripCard.querySelector("#tripMsg");
-        const navPickupBtn = currentTripCard.querySelector("#navPickupBtn");
-        const navToBtn = currentTripCard.querySelector("#navToBtn");
-        navPickupBtn?.addEventListener("click", ()=> openGoogleMapsNav((plLat??pLat), (plLng??pLng)));
-        navToBtn?.addEventListener("click", ()=> openGoogleMapsNav(toLat, toLng));
+        currentTripCard.querySelector("#navPickupBtn")?.addEventListener("click", ()=> openGoogleMapsNav(pickupLat, pickupLng));
+        currentTripCard.querySelector("#navToBtn")?.addEventListener("click", ()=> openGoogleMapsNav(toLat, toLng));
 
         currentTripCard.querySelector("#arrivedBtn")?.addEventListener("click", async ()=>{
           try{
             tripMsg.textContent="جارٍ التحديث…";
             await ensureNotificationPermission();
-            await updateDoc(rideRef, { status:"arrived", arrivedAt: serverTimestamp() });
+            await updateDoc(rideRef, { status:"arrived", arrivedAt: serverTimestamp(), updatedAt: serverTimestamp() });
             tripMsg.textContent="✅ تم تسجيل الوصول.";
           }catch(e){
             console.error(e);
@@ -919,7 +913,7 @@
           try{
             tripMsg.textContent="جارٍ بدء الرحلة…";
             await ensureNotificationPermission();
-            await updateDoc(rideRef, { status:"started", startedAt: serverTimestamp() });
+            await updateDoc(rideRef, { status:"started", startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
             tripMsg.textContent="✅ بدأت الرحلة.";
           }catch(e){
             console.error(e);
@@ -931,7 +925,7 @@
           try{
             tripMsg.textContent="جارٍ إنهاء الرحلة…";
             await ensureNotificationPermission();
-            await updateDoc(rideRef, { status:"completed", completedAt: serverTimestamp() });
+            await updateDoc(rideRef, { status:"completed", completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
             tripMsg.textContent="✅ تم إنهاء الرحلة.";
             await setDoc(statusRef, { currentTripId:null, available:!!isOnline, lastSeenAt:serverTimestamp() }, {merge:true}).catch(()=>{});
             setLiveTripRef(null);
@@ -1011,7 +1005,6 @@
       });
     }
 
-    // ========= GPS push status
     async function pushStatus(extra = {}){
       const gov = clean(driverProfile?.governorate || "") || null;
       const cen = clean(driverProfile?.center || "") || null;
@@ -1052,8 +1045,6 @@
         };
 
         setMeOnMap(lastPos.lat, lastPos.lng);
-
-        // ✅ ابعت live للرحلة (driverLive)
         await pushTripLive(false);
 
         if(passengerMarker){
@@ -1074,9 +1065,9 @@
         try{
           if(!isOnline) return;
           await pushStatus();
-          await pushTripLive(false); // ✅ keep alive أثناء الرحلة
+          await pushTripLive(false);
         }catch(e){ console.error(e); }
-      }, 4000);
+      }, 4500);
 
       return true;
     }
@@ -1174,6 +1165,7 @@
         <div class="hint" style="margin-top:8px">
           <b>الراكب:</b> ${r.passengerName ?? "-"} (${r.passengerEmail ?? "-"})
           <br><b>هاتف:</b> ${r.passengerPhone ?? "لا يوجد"}
+          <br><b>العنوان:</b> ${r.passengerAddress ?? "لا يوجد"}
           <br><b>من:</b> ${r.fromText ?? "-"}
           <br><b>إلى:</b> ${r.toText ?? "-"}
           <br><b>السعر:</b> <b>${price}</b> EG
@@ -1264,6 +1256,7 @@
               driverPhone,
               driverVehicle: driverVehicle || null,
               driverModel: driverModel || null,
+              updatedAt: serverTimestamp()
             });
 
             return { ok:true, msg:`✅ تم إرسال العرض: ${v} EG` };
@@ -1320,17 +1313,16 @@
               return { ok:false, msg:"الطلب لم يعد قابل للقبول." };
             }
 
-            if(cur.status === "open"){
-              if(cur.driverUid) return { ok:false, msg:"الطلب اتقبل بالفعل." };
-              if(clean(cur.governorate) !== gov || clean(cur.center) !== cen){
-                return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
-              }
+            // تحقق المنطقة
+            if(clean(cur.governorate) !== gov || clean(cur.center) !== cen){
+              return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
+            }
 
-              const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
-              const reqVeh = clean(cur.requestedVehicle || "");
-              if(myVeh && reqVeh && myVeh !== reqVeh){
-                return { ok:false, msg:"❌ هذا الطلب لنوع مركبة مختلف." };
-              }
+            // ✅ تحقق نوع المركبة لو الطلب محدده
+            const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
+            const reqVeh = clean(cur.requestedVehicle || "");
+            if(reqVeh && myVeh && myVeh !== reqVeh){
+              return { ok:false, msg:"❌ هذا الطلب لنوع مركبة مختلف." };
             }
 
             const finalPrice = (cur.offerPriceEGP ?? cur.priceEGP ?? null);
@@ -1344,7 +1336,8 @@
               driverPhone,
               driverVehicle: driverVehicle || null,
               driverModel: driverModel || null,
-              priceEGP: finalPrice
+              priceEGP: finalPrice,
+              updatedAt: serverTimestamp()
             });
 
             tx.set(statusRef, {
@@ -1383,23 +1376,13 @@
       return el;
     }
 
-    let firstRidesLoad = true;
-    let knownIds = new Set();
-
     function showSoftLoadError(){
-      listEl.innerHTML = `
-        <div class="card">
-          <div class="hint">لا يمكن تحميل الطلبات الآن.</div>
-        </div>
-      `;
+      listEl.innerHTML = `<div class="card"><div class="hint">لا يمكن تحميل الطلبات الآن.</div></div>`;
     }
 
+    // ✅ تحسين: لو myVeh مش موجود (لسبب ما) ما نقفلش الطلبات كلها
     async function subscribeRides(reset=false){
       if(unsubRides){ try{unsubRides()}catch{} unsubRides=null; }
-      if(reset){
-        firstRidesLoad = true;
-        knownIds = new Set();
-      }
 
       await loadDriverProfile();
 
@@ -1420,23 +1403,34 @@
 
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
-      const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || null;
+      const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "");
 
-      const qy = query(
-        collection(db, "rides"),
-        where("status", "==", "open"),
-        where("governorate", "==", gov),
-        where("center", "==", cen),
-        where("requestedVehicle", "==", myVeh),
-        limit(25)
-      );
+      let qy = null;
+      if(myVeh){
+        qy = query(
+          collection(db, "rides"),
+          where("status", "==", "open"),
+          where("governorate", "==", gov),
+          where("center", "==", cen),
+          where("requestedVehicle", "==", myVeh),
+          limit(25)
+        );
+      }else{
+        // fallback (نادر): بدون فلترة مركبة
+        qy = query(
+          collection(db, "rides"),
+          where("status", "==", "open"),
+          where("governorate", "==", gov),
+          where("center", "==", cen),
+          limit(25)
+        );
+      }
 
       unsubRides = onSnapshot(qy, async (snap)=>{
         listEl.innerHTML = "";
 
         if(snap.empty){
           listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
-          firstRidesLoad = false;
           return;
         }
 
@@ -1447,26 +1441,8 @@
 
         if(!docs.length){
           listEl.innerHTML = `<div class="card">لا توجد طلبات مفتوحة في منطقتك حالياً.</div>`;
-          firstRidesLoad = false;
           return;
         }
-
-        let newCount = 0;
-        docs.forEach(d=>{ if(!knownIds.has(d.id)) newCount++; });
-
-        if(!firstRidesLoad && newCount > 0){
-          await notify({
-            title:"مشوارك",
-            body:`وصل ${newCount} طلب جديد في منطقتك`,
-            tone:"notify",
-            tag:"new_orders",
-            toastHtml:`🔔 <b>طلب جديد وصل</b> (${newCount})`,
-            toastMs:3200
-          });
-        }
-
-        knownIds = new Set(docs.map(x=>x.id));
-        firstRidesLoad = false;
 
         docs.forEach(d=>{
           listEl.appendChild(rideCard({ id:d.id, ...d.data() }, gov, cen));
@@ -1486,11 +1462,38 @@
     await ensureVehicleReady();
     await ensureAreaSelected();
 
+    // init selects
+    fillGov();
+    restoreAreaLS();
+
+    function watchDriverStatus(){
+      if(unsubStatus) unsubStatus();
+      unsubStatus = onSnapshot(statusRef, (snap)=>{
+        const st = snap.exists() ? snap.data() : null;
+        const online = !!st?.online;
+        const tripId = st?.currentTripId || null;
+
+        setOnlineUI(online);
+
+        if(tripId){
+          tripPill.textContent = `🚖 رحلة: ${tripId}`;
+          currentTripId = tripId;
+          watchTrip(tripId);
+        }else{
+          tripPill.textContent = "لا يوجد رحلة";
+          currentTripId = null;
+          stopWatchTrip();
+          currentTripCard.style.display = "none";
+          currentTripCard.innerHTML = "";
+        }
+      }, ()=>{});
+    }
+
     watchDriverStatus();
     watchMyOfferedAndAccepted();
     subscribeRides(true);
     autoLocateOnce();
-    setTimeout(()=>{ try{ fixMap(); }catch{} }, 350);
+    setTimeout(()=>{ try{ fixMap(); }catch{} }, 320);
 
     window.addEventListener("beforeunload", ()=>{ try{ stopGPS(); }catch{} });
     window.addEventListener("error", ()=>{ msg.textContent = "⚠️ حصل خطأ في الصفحة."; });
