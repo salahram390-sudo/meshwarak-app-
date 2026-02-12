@@ -3,53 +3,116 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#050B16" />
   <title>مشوارك - الراكب</title>
 
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=11">
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    body.page{ min-height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+    body.page{
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      touch-action: manipulation;
+    }
 
+    /* ===== Topbar ===== */
     .topbar{
-      position: sticky; top: 0; z-index: 60;
+      position: sticky;
+      top: 0;
+      z-index: 60;
       background: rgba(5, 11, 22, 0.72);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .topbar-inner{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
       padding: 12px 14px;
     }
-    .brand{ display:flex; align-items:center; gap:10px; min-width:0; }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
     .brand h1{
-      margin:0; font-size:16px; font-weight:900;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      margin:0;
+      font-size:16px;
+      font-weight:900;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     .brand p{
-      margin:0; font-size:12px; color: rgba(255,255,255,0.70);
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      margin:0;
+      font-size:12px;
+      color: rgba(255,255,255,0.70);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
       max-width: 52vw;
     }
-    .logo{ width:44px; height:44px; border-radius:16px; font-size:18px; flex:0 0 auto; }
-    .top-actions{ display:flex; gap:8px; align-items:center; flex:0 0 auto; }
-    .top-actions .btn{ padding:10px 12px; border-radius:18px; font-size:14px; min-height:44px; }
+    .logo{
+      width:44px;
+      height:44px;
+      border-radius:16px;
+      font-size:18px;
+      flex:0 0 auto;
+      display:grid;
+      place-items:center;
+    }
+    .top-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex:0 0 auto;
+    }
+    .top-actions .btn{
+      width:auto;
+      padding:10px 12px;
+      border-radius:18px;
+      font-size:14px;
+      min-height:44px;
+    }
 
-    .mapWrap{ position:relative; flex:1; min-height: calc(100vh - 70px); overflow:hidden; background:#0b1222; }
-    #map{ position:absolute; inset:0; z-index:1; }
+    /* ===== Map ===== */
+    .mapWrap{
+      position:relative;
+      flex:1;
+      min-height: calc(100vh - 70px);
+      overflow:hidden;
+      background:#0b1222;
+    }
+    #map{
+      position:absolute;
+      inset:0;
+      z-index:1;
+    }
 
+    /* ✅ Bottom Sheet (Centered + Draggable) */
     .sheet{
-      position: fixed; left: 12px; right: 12px; bottom: 12px;
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      width: min(620px, calc(100% - 24px));
       z-index: 2000;
+
       background: var(--card);
       border: 1px solid var(--stroke);
       border-radius: 26px;
       box-shadow: 0 30px 90px rgba(0,0,0,.55);
       backdrop-filter: blur(18px);
       overflow: hidden;
+
       height: 52vh;
       transition: height .22s ease;
       will-change: height;
@@ -58,12 +121,20 @@
 
     .sheetHeader{
       padding: 10px 14px 12px;
-      display:flex; justify-content:center; align-items:center;
-      user-select:none; -webkit-tap-highlight-color: transparent;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
       touch-action: pan-y;
+      cursor: grab;
     }
+    .sheet.dragging .sheetHeader{ cursor: grabbing; }
+
     .sheetHandle{
-      width:56px; height:6px; border-radius:99px;
+      width:56px;
+      height:6px;
+      border-radius:99px;
       background: rgba(255,255,255,.16);
       border: 1px solid rgba(255,255,255,.10);
     }
@@ -75,12 +146,31 @@
       touch-action: pan-y;
     }
 
-    .sectionTitle{ margin: 6px 0 10px; font-weight:900; font-size:14px; color: rgba(255,255,255,.88); }
+    .sectionTitle{
+      margin: 6px 0 10px;
+      font-weight:900;
+      font-size:14px;
+      color: rgba(255,255,255,.88);
+      text-align:center;
+    }
+
     .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .note{ margin-top:10px; font-size:12px; color: rgba(255,255,255,.65); line-height:1.5; }
+    .note{
+      margin-top:10px;
+      font-size:12px;
+      color: rgba(255,255,255,.65);
+      line-height:1.5;
+      text-align:center;
+    }
     .sep{ height:1px; background: rgba(255,255,255,0.06); margin:14px 0; }
 
-    .pills{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px; }
+    /* Vehicle pills */
+    .pills{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
     .pillBtn{
       border-radius: 18px;
       padding: 12px 12px;
@@ -89,7 +179,10 @@
       cursor:pointer;
       color: var(--text);
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-      display:flex; align-items:center; justify-content:center; gap:10px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
       user-select:none;
       min-height: 52px;
     }
@@ -102,16 +195,36 @@
         inset 0 1px 0 rgba(255,255,255,0.16);
     }
 
-    .actions{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
-    .actions .btn{ flex: 1 1 140px; min-height:52px; }
+    .actions{
+      display:flex;
+      gap:12px;
+      margin-top:16px;
+      flex-wrap:wrap;
+    }
+    .actions .btn{
+      width:auto;
+      flex: 1 1 150px;
+      min-height:52px;
+    }
+    .actions .btn.primary{ width:100%; flex: 1 1 100%; }
 
-    .footerActions{ display:flex; gap:10px; margin-top:14px; }
+    .footerActions{
+      display:flex;
+      gap:10px;
+      margin-top:14px;
+    }
     .footerActions .btn{ width:100%; }
 
     select{ appearance:none; }
 
-    /* ✅ small helper chips */
-    .miniRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    /* helper chips */
+    .miniRow{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+      justify-content:center;
+    }
     .miniChip{
       font-size:12px;
       padding:8px 10px;
@@ -127,9 +240,9 @@
     .miniChip.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.25); }
 
     @media (max-width:420px){
-      .top-actions .btn{ padding:10px 10px; }
       .grid2{ grid-template-columns: 1fr; }
       .pills{ grid-template-columns: 1fr 1fr; }
+      .top-actions .btn{ padding:10px 10px; }
     }
   </style>
 </head>
@@ -147,7 +260,7 @@
       </div>
 
       <div class="top-actions">
-        <a class="btn" href="./index.html">الرئيسية</a>
+        <a class="btn" href="./index.html?v=11">الرئيسية</a>
         <button class="btn danger" id="logoutBtn" type="button">خروج</button>
       </div>
     </div>
@@ -210,8 +323,8 @@
       </div>
 
       <div class="miniRow">
-        <span class="miniChip" id="fromChip">الانطلاق: غير محدد</span>
-        <span class="miniChip" id="toChip">الوصول: غير محدد</span>
+        <span class="miniChip bad" id="fromChip">الانطلاق: غير محدد</span>
+        <span class="miniChip bad" id="toChip">الوصول: غير محدد</span>
       </div>
 
       <div class="actions">
@@ -221,19 +334,19 @@
       </div>
 
       <div class="actions">
-        <button class="btn primary" id="createRideBtn" type="button" style="width:100%">إرسال الطلب ✅</button>
+        <button class="btn primary" id="createRideBtn" type="button">إرسال الطلب ✅</button>
       </div>
 
       <div class="hint" id="msg" style="margin-top:10px"></div>
 
       <div class="footerActions">
-        <a class="btn" href="./index.html">↩ رجوع للرئيسية</a>
+        <a class="btn" href="./index.html?v=11">↩ رجوع للرئيسية</a>
       </div>
     </div>
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, doLogout, db, setActiveRole } from "./app.js";
+    import { requireAuthAndRole, doLogout, db, setActiveRole } from "./app.js?v=10";
     import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // ===== Auth
@@ -311,8 +424,7 @@
         }
       });
 
-      // حاول يجيب الموقع مرة أول ما يفتح
-      setTimeout(()=>{ locateMe(false); }, 400);
+      setTimeout(()=>{ locateMe(false); }, 450);
       invalidateMapSoon();
     }
 
@@ -344,17 +456,14 @@
             meMarker.setLatLng([lat,lng]);
           }
         }
-
         if(showMsg) msg.textContent="✅ تم تحديد موقعك.";
       }, (err)=>{
         console.error(err);
-        if(showMsg){
-          if(err?.code === 1) msg.textContent="❌ لازم تفعّل إذن الموقع من إعدادات المتصفح/الموبايل.";
-          else msg.textContent="❌ تعذر تحديد موقعك الآن. جرّب تاني.";
-        }
+        if(!showMsg) return;
+        if(err?.code === 1) msg.textContent="❌ لازم تفعّل إذن الموقع من إعدادات المتصفح/الموبايل.";
+        else msg.textContent="❌ تعذر تحديد موقعك الآن. جرّب تاني.";
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     }
-
     document.getElementById("myLocBtn").addEventListener("click", ()=> locateMe(true));
 
     // ===== Regions (كاملة)
@@ -432,7 +541,6 @@
     // ✅ Geocoding: كتابة "من/إلى" تحدد على الخريطة تلقائيًا
     // ======================================================
     let lastGeoAt = 0;
-
     function debounce(fn, ms){
       let t=null;
       return (...args)=>{
@@ -443,8 +551,7 @@
 
     async function geocodeNominatim(q){
       const now = Date.now();
-      // حماية بسيطة من spam
-      if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
+      if(now - lastGeoAt < 800) await new Promise(r=>setTimeout(r, 800 - (now - lastGeoAt)));
       lastGeoAt = Date.now();
 
       const url =
@@ -453,12 +560,7 @@
         "&accept-language=ar" +
         "&q=" + encodeURIComponent(q);
 
-      const res = await fetch(url, {
-        headers: {
-          "Accept": "application/json",
-          // User-Agent header ممنوع في المتصفح، فبنكتفي بحدود أقل للطلبات
-        }
-      });
+      const res = await fetch(url, { headers:{ "Accept":"application/json" } });
       if(!res.ok) throw new Error("geocode_failed");
       const data = await res.json();
       if(!data || !data.length) return null;
@@ -471,7 +573,7 @@
 
     async function applyGeocode(kind, q){
       const text = (q || "").trim();
-      if(text.length < 3) return;
+      if(text.length < 3 || !map) return;
 
       msg.textContent = "🔎 جارٍ تحديد المكان من النص…";
       try{
@@ -503,18 +605,16 @@
       }
     }
 
-    const debFrom = debounce(()=> applyGeocode("from", fromText.value), 700);
-    const debTo   = debounce(()=> applyGeocode("to", toText.value), 700);
+    const debFrom = debounce(()=> applyGeocode("from", fromText.value), 750);
+    const debTo   = debounce(()=> applyGeocode("to", toText.value), 750);
 
     fromText.addEventListener("input", debFrom);
     toText.addEventListener("input", debTo);
-
     fromText.addEventListener("blur", ()=> applyGeocode("from", fromText.value));
     toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
 
     // ===== Pick from map buttons
     const createRideBtn = document.getElementById("createRideBtn");
-
     document.getElementById("pickFromMapBtn").onclick = ()=>{
       pickMode = "from";
       msg.textContent = "📍 اضغط على الخريطة لتحديد الانطلاق.";
@@ -541,13 +641,8 @@
         return;
       }
 
-      // لو كتب نص بس وما اتحددش، نحاول نحددهم قبل الارسال
-      if(!fromLatLng){
-        await applyGeocode("from", fromText.value);
-      }
-      if(!toLatLng){
-        await applyGeocode("to", toText.value);
-      }
+      if(!fromLatLng) await applyGeocode("from", fromText.value);
+      if(!toLatLng) await applyGeocode("to", toText.value);
 
       if(!fromLatLng || !toLatLng){
         msg.textContent = "❌ لازم يتحدد الانطلاق والوصول على الخريطة (من النص أو بالاختيار اليدوي).";
@@ -598,7 +693,7 @@
     const sheet = document.getElementById("sheet");
     const sheetHeader = document.getElementById("sheetHeader");
 
-    const SNAP = { min: 0.28, mid: 0.52, max: 0.82 };
+    const SNAP = { min: 0.28, mid: 0.52, max: 0.84 };
     let currentSnap = "mid";
 
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
@@ -659,7 +754,6 @@
     sheetHeader.addEventListener("pointercancel", endDrag);
 
     window.addEventListener("resize", ()=> setSheetSnap(currentSnap));
-
   </script>
 </body>
 </html>
