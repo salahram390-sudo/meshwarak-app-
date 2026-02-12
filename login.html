@@ -21,15 +21,17 @@
     .row{display:flex;gap:10px;flex-wrap:wrap}
     .row .btn{flex:1}
 /* ✅ Segmented control (راكب/سائق) زي الصورة */
+/* ✅ Uber Segmented Control */
 .roleRow{
   display:flex;
   width:100%;
-  margin:12px 0 8px;
+  gap:0;
+  margin:12px 0 10px;
   padding:6px;
   border-radius:18px;
   border:1px solid rgba(255,255,255,.12);
   background:rgba(255,255,255,.05);
-  gap:6px;
+  overflow:hidden;
 }
 .roleBtn{
   flex:1;
@@ -37,14 +39,19 @@
   align-items:center;
   justify-content:center;
   gap:10px;
+
   padding:12px 12px;
   border-radius:14px;
-  border:1px solid rgba(255,255,255,.10);
+
+  border:0;
   background:transparent;
+
   color:#cfd7ff;
   font-weight:950;
   cursor:pointer;
-  min-height:48px;
+
+  min-height:52px;
+
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -52,8 +59,7 @@
 .roleBtn.active{
   background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(98,175,255,.70));
   color:#fff;
-  border-color: rgba(255,255,255,.16);
-  box-shadow: 0 14px 40px rgba(0,0,0,.35), 0 0 0 3px rgba(46,107,255,.16);
+  box-shadow: 0 14px 40px rgba(0,0,0,.35), 0 0 0 3px rgba(46,107,255,.12);
 }
     .field{margin-top:10px}
     .field input::placeholder{opacity:.55}
@@ -109,10 +115,14 @@
         </div>
       </div>
 
-      <div class="roleRow">
-        <button class="roleBtn" id="rolePassenger" type="button">🚕 راكب</button>
-        <button class="roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
-      </div>
+<div class="roleRow">
+  <button class="roleBtn" id="rolePassenger" type="button">
+    <span class="ico">🚕</span> <span>راكب</span>
+  </button>
+  <button class="roleBtn" id="roleDriver" type="button">
+    <span class="ico">🧑‍✈️</span> <span>سائق</span>
+  </button>
+</div>
 
       <div class="miniNote hint" id="roleHint" style="text-align:center">—</div>
 
