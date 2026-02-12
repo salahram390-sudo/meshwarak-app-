@@ -6,122 +6,298 @@
   <title>مشوارك - تسجيل الدخول</title>
 
   <link rel="icon" href="./favicon.png">
-  <link rel="stylesheet" href="./styles.css">
   <meta name="theme-color" content="#050B16" />
 
   <style>
-    /* تحسينات شكلية فقط (بدون تغيير أي منطق) */
-    .roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
-    .roleBtn{
-      min-width:160px;text-align:center;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06);
-      border-radius:16px;
-      padding:12px 14px;
-      cursor:pointer;
-      user-select:none;
-      font-weight:900;
-      -webkit-tap-highlight-color: transparent;
-      display:flex;align-items:center;justify-content:center;gap:10px;
-      transition: transform .08s ease, filter .12s ease, background .12s ease, border-color .12s ease;
-      box-shadow: 0 10px 28px rgba(0,0,0,.22);
-    }
-    .roleBtn:active{ transform: translateY(1px); filter: brightness(1.05); }
-    .roleBtn .ic{
-      width:34px;height:34px;border-radius:12px;
-      display:grid;place-items:center;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(0,0,0,.18);
-      font-size:18px;
-      opacity:.95;
-    }
-    .roleBtn.active{
-      background: linear-gradient(135deg, rgba(43,108,255,.22), rgba(43,108,255,.10));
-      border-color: rgba(43,108,255,.38);
-      box-shadow: 0 14px 38px rgba(43,108,255,.14), 0 16px 44px rgba(0,0,0,.28);
-    }
-    .roleBtn.active .ic{
-      background: rgba(43,108,255,.22);
-      border-color: rgba(43,108,255,.32);
-      opacity:1;
+    :root{
+      --bg:#050A14;
+      --card: rgba(12,18,32,.62);
+      --stroke: rgba(255,255,255,.10);
+      --txt:#EAF0FF;
+      --muted: rgba(234,240,255,.72);
+      --primary:#2B6CFF;
+      --primary2:#5C8CFF;
+      --violet:#7C3AED;
+      --success:#22C55E;
+      --danger:#FF5C7A;
+      --shadow: 0 22px 70px rgba(0,0,0,.55);
+      --r: 22px;
     }
 
-    .field label{display:block;margin-bottom:8px}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      color:var(--txt);
+      background:
+        radial-gradient(900px 600px at 80% 20%, rgba(43,108,255,.18), transparent 55%),
+        radial-gradient(700px 520px at 20% 0%, rgba(124,58,237,.16), transparent 55%),
+        radial-gradient(1000px 700px at 30% 90%, rgba(34,197,94,.10), transparent 60%),
+        var(--bg);
+      overflow-x:hidden;
+    }
+
+    /* subtle stars */
+    body:before{
+      content:"";
+      position:fixed; inset:0;
+      background-image:
+        radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,.18) 50%, transparent 52%),
+        radial-gradient(1px 1px at 35% 70%, rgba(255,255,255,.14) 50%, transparent 52%),
+        radial-gradient(1px 1px at 60% 35%, rgba(255,255,255,.12) 50%, transparent 52%),
+        radial-gradient(1px 1px at 80% 75%, rgba(255,255,255,.10) 50%, transparent 52%),
+        radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,.10) 50%, transparent 52%),
+        radial-gradient(1px 1px at 55% 85%, rgba(255,255,255,.08) 50%, transparent 52%);
+      opacity:.9;
+      pointer-events:none;
+    }
+
+    .wrap{
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      padding:18px 14px 28px;
+    }
+
+    .card{
+      width:min(560px, 100%);
+      background: linear-gradient(180deg, rgba(12,18,32,.72), rgba(10,18,34,.52));
+      border:1px solid var(--stroke);
+      border-radius: 26px;
+      padding:18px 16px 16px;
+      box-shadow: var(--shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .card:before{
+      content:"";
+      position:absolute; inset:-2px;
+      background:
+        radial-gradient(600px 220px at 70% 0%, rgba(43,108,255,.16), transparent 60%),
+        radial-gradient(520px 220px at 20% 20%, rgba(124,58,237,.14), transparent 62%);
+      pointer-events:none;
+      filter: blur(.2px);
+    }
+    .card > *{ position:relative; }
+
+    .logoWrap{display:flex;justify-content:center;margin-bottom:10px}
+    .logo{
+      width:64px;height:64px;border-radius:20px;
+      background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(34,197,94,.55));
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow: 0 18px 50px rgba(0,0,0,.42);
+      display:grid;place-items:center;
+      font-weight:900;
+      font-size:26px;
+    }
+
+    h1{margin:6px 0 6px;font-size:22px;letter-spacing:.2px;text-align:center}
+    .sub{
+      margin:0 0 12px;
+      text-align:center;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.7;
+    }
+
+    .chip{
+      display:inline-flex; gap:8px; align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color: rgba(234,240,255,.82);
+      font-size:12px;
+      margin:0 auto 12px;
+    }
+    .chipWrap{display:flex;justify-content:center}
+
+    /* segmented role */
+    .seg{
+      display:flex;
+      width:min(440px, 100%);
+      margin: 8px auto 14px;
+      border-radius: 18px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      overflow:hidden;
+    }
+    .seg button{
+      flex:1;
+      appearance:none;
+      border:0;
+      background: transparent;
+      color: rgba(234,240,255,.78);
+      padding:12px 10px;
+      font-weight:900;
+      cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      -webkit-tap-highlight-color: transparent;
+      transition: .18s ease;
+    }
+    .seg button svg{width:20px;height:20px;opacity:.85}
+    .seg button.active{
+      color: var(--txt);
+      background: linear-gradient(135deg, rgba(43,108,255,.32), rgba(124,58,237,.22));
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+    }
+    .seg button.active svg{opacity:1}
+    .seg button:not(.active):active{filter:brightness(1.08)}
+
+    .field{width:min(460px, 100%); margin: 0 auto; text-align:right; margin-top:12px}
+    label{display:block;margin:0 0 8px;color:rgba(234,240,255,.78);font-size:12px}
     input, select{
       width:100%;
       padding:14px 14px;
-      border-radius:16px;
+      border-radius:18px;
       border:1px solid rgba(255,255,255,.12);
       background: rgba(0,0,0,.18);
-      color:#fff;
+      color:var(--txt);
       outline:none;
       font-size:16px;
     }
-    input::placeholder{color:rgba(255,255,255,.55)}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:520px){ .row2{grid-template-columns:1fr} }
-    .divider{height:1px;background:rgba(255,255,255,.10);margin:14px 0}
-    .msgOk{color:#7CFFB2}
-    .msgBad{color:#FF8E8E}
+    input::placeholder{color:rgba(234,240,255,.42)}
 
-    /* زر ثانوي احترافي بدل الأخضر لإنشاء حساب */
-    .btn.alt{
-      background: rgba(255,255,255,.06);
+    .row2{
+      width:min(460px,100%);
+      margin:14px auto 0;
+      display:grid;
+      grid-template-columns:1fr;
+      gap:10px;
+    }
+
+    .btn{
       border:1px solid rgba(255,255,255,.14);
-      color:#EAF0FF;
+      background: rgba(255,255,255,.06);
+      color: var(--txt);
+      border-radius: 18px;
+      padding:14px 14px;
+      font-weight:900;
+      cursor:pointer;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .08s ease, filter .12s ease, opacity .12s ease;
+    }
+    .btn:active{transform: translateY(1px); filter: brightness(1.06)}
+    .btn:disabled{opacity:.55;cursor:not-allowed; transform:none; filter:none;}
+
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(43,108,255,.70));
+      border-color: rgba(43,108,255,.38);
+      box-shadow: 0 14px 34px rgba(43,108,255,.18);
+    }
+
+    .btn.alt{
+      background: linear-gradient(135deg, rgba(124,58,237,.88), rgba(124,58,237,.58));
+      border-color: rgba(124,58,237,.36);
+      box-shadow: 0 14px 34px rgba(124,58,237,.16);
+    }
+
+    .divider{
+      width:min(460px, 100%);
+      margin:14px auto 0;
+      height:1px;
+      background: rgba(255,255,255,.10);
+    }
+
+    .hint{width:min(460px,100%); margin:12px auto 0; color:var(--muted); font-size:13px; line-height:1.7}
+    .msgOk{color:#bfffe0}
+    .msgBad{color:#ffd0d8}
+
+    /* Driver box */
+    #driverBox{
+      width:min(460px,100%);
+      margin: 12px auto 0;
+      padding: 12px 12px;
+      border-radius: 20px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+      display:none;
+    }
+    #driverBox .row2b{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media(max-width:520px){ #driverBox .row2b{grid-template-columns:1fr} }
+
+    .backWrap{display:flex;justify-content:center;margin-top:12px}
+    .backLink{
+      width:min(460px,100%);
+      display:inline-flex;
+      justify-content:center;
+      text-decoration:none;
     }
   </style>
 </head>
 
 <body>
-  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
-    <div class="card" style="width:min(560px,100%);text-align:center">
+  <div class="wrap">
+    <div class="card">
 
-      <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
+      <div class="logoWrap">
+        <div class="logo">م</div>
       </div>
 
-      <h1 style="margin:0;font-size:20px">تسجيل الدخول / إنشاء حساب</h1>
-      <p class="hint" style="margin:8px 0 14px">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
+      <h1>تسجيل الدخول / إنشاء حساب</h1>
+      <p class="sub">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
 
-      <div class="roleTabs">
-        <button class="roleBtn" id="rolePassenger" type="button"><span class="ic">🚕</span><span>راكب</span></button>
-        <button class="roleBtn" id="roleDriver" type="button"><span class="ic">🧑‍✈️</span><span>سائق</span></button>
+      <div class="chipWrap">
+        <div class="chip">✅ <span>نفس الإيميل يشتغل في الاثنين</span></div>
       </div>
 
-      <div class="field" style="text-align:right">
+      <div class="seg" role="tablist" aria-label="اختيار الدور">
+        <button id="rolePassenger" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 16h10l1.5 3H5.5L7 16Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/>
+            <path d="M7.5 16 9 9.5h6L16.5 16" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M9 9.5c0-1.2.9-2.2 2-2.2h2c1.1 0 2 1 2 2.2" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="8" cy="19" r="1" fill="currentColor"/>
+            <circle cx="16" cy="19" r="1" fill="currentColor"/>
+          </svg>
+          راكب
+        </button>
+
+        <button id="roleDriver" type="button">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Z" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M4.8 20c.7-3.1 3.6-5.4 7.2-5.4S18.5 16.9 19.2 20" stroke="currentColor" stroke-width="1.6" opacity=".9"/>
+          </svg>
+          سائق
+        </button>
+      </div>
+
+      <div class="field">
         <label>الإيميل</label>
-        <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
+        <input id="email" type="ASSERT_CODE_INJECTION placeholder="example@gmail.com" autocomplete="email" />
       </div>
 
-      <div class="field" style="text-align:right;margin-top:12px">
-        <label>كلمة المرور <span class="hint">(6 أحرف على الأقل)</span></label>
+      <div class="field">
+        <label>كلمة المرور <span style="opacity:.75">(6 أحرف على الأقل)</span></label>
         <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <div class="row2" style="margin-top:14px">
-        <!-- ✅ تم تغيير الشكل فقط: إنشاء حساب لم يعد أخضر -->
+      <!-- ✅ الأزرار (الاتنين موجودين) -->
+      <div class="row2">
         <button class="btn alt" id="signupBtn" type="button">إنشاء حساب</button>
         <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
       </div>
 
       <div class="divider"></div>
 
-      <div class="field" style="text-align:right">
-        <label>الاسم <span class="hint">(اختياري)</span></label>
+      <div class="field">
+        <label>الاسم <span style="opacity:.75">(اختياري)</span></label>
         <input id="name" type="text" placeholder="اسمك" autocomplete="name" />
       </div>
 
-      <div class="field" style="text-align:right;margin-top:12px">
-        <label>رقم الهاتف <span class="hint">(مهم لتجنب الطلبات الوهمية)</span></label>
+      <div class="field">
+        <label>رقم الهاتف <span style="opacity:.75">(مهم لتجنب الطلبات الوهمية)</span></label>
         <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" />
       </div>
 
       <!-- Driver extra fields -->
-      <div id="driverBox" style="display:none;text-align:right;margin-top:14px">
-        <div class="divider"></div>
+      <div id="driverBox">
+        <div class="hint" style="margin:0 0 10px">🚗 بيانات السائق (لازم علشان تظهر الطلبات لنفس نوع المركبة)</div>
 
-        <div class="field">
+        <div class="field" style="margin-top:0">
           <label>نوع المركبة (للسائق)</label>
           <select id="vehicle">
             <option value="">اختر نوع المركبة…</option>
@@ -134,27 +310,26 @@
           </select>
         </div>
 
-        <div class="row2" style="margin-top:12px">
-          <div class="field">
+        <div class="row2b" style="margin-top:10px">
+          <div class="field" style="margin-top:0">
             <label>موديل/كود المركبة</label>
             <input id="model" type="text" placeholder="مثال: 2020 / BYD / إلخ" />
           </div>
-          <div class="field">
-            <label>رقم اللوحة <span class="hint">(اختياري)</span></label>
+          <div class="field" style="margin-top:0">
+            <label>رقم اللوحة <span style="opacity:.75">(اختياري)</span></label>
             <input id="plate" type="text" placeholder="مثال: س ج 1234" />
           </div>
         </div>
 
-        <p class="hint" style="margin:10px 0 0">
-          * بيانات المركبة تظهر للراكب عند قبول الرحلة.
-        </p>
+        <p class="hint" style="margin:10px 0 0">* بيانات المركبة تظهر للراكب عند قبول الرحلة.</p>
       </div>
 
-      <p id="msg" class="hint" style="margin:14px 0 0"></p>
+      <p id="msg" class="hint" style="margin-top:12px"></p>
 
-      <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
-        <a class="btn" href="./index.html" style="min-width:220px;text-align:center">↩️ رجوع للرئيسية</a>
+      <div class="backWrap">
+        <a class="btn backLink" href="./index.html">↩️ رجوع للرئيسية</a>
       </div>
+
     </div>
   </div>
 
@@ -185,7 +360,6 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
-    // ===== role (query + last choice)
     const url = new URL(location.href);
     const LS_ROLE = "mw_last_role";
     let role =
@@ -225,23 +399,20 @@
 
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
-
-      const v = clean(vehicleEl.value);
-      const m = clean(modelEl.value);
+      const v = clean(vehicleEl?.value);
+      const m = clean(modelEl?.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
       if(m.length < 2) return { ok:false, msg:"❌ اكتب موديل/كود المركبة (حرفين على الأقل)." };
       return { ok:true };
     }
 
     async function afterAuth(user){
-      // ✅ نفس الإيميل يشتغل للدورين
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
         email: user.email || clean(emailEl.value) || null
       });
 
-      // ✅ حفظ البروفايل (وتحديث بيانات السائق لو مختار سائق)
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
@@ -257,8 +428,6 @@
       }
 
       await saveUserProfile(user.uid, payload);
-
-      // ✅ أهم سطر: يمنع التحويل التلقائي لراكب
       setActiveRole(role);
 
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
@@ -283,7 +452,6 @@
 
     async function doLogin(){
       try{
-        // في تسجيل الدخول: لو داخل كسائق ومش مكمّل بياناته هنا => برضه نلزمه يكمّل قبل التحويل
         const v = validateRoleFields();
         if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
 
