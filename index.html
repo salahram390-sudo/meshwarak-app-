@@ -2,72 +2,69 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1020" />
-  <title>مشوارك - الرئيسية</title>
-  <!-- كسر كاش قوي -->
-  <link rel="stylesheet" href="./styles.css?v=20260212a">
-  <style>
-    /* يمنع أي “صفحة بيضا” حتى لو رجع من كاش قديم */
-    html,body{ background: var(--bg, #0b1020) !important; }
-    .card::before, .card::after, .glow::before, .glow::after { pointer-events:none !important; }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>مشوارك</title>
+  <link rel="stylesheet" href="./styles.css?v=9">
 </head>
 
 <body>
-  <div class="container" style="padding-top:18px">
-    <div class="card glow" style="max-width:520px;margin:0 auto;text-align:center">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+  <div class="container auth" style="padding-top:18px">
+    <div class="card auth-card">
+      <div class="auth-logo">
         <div class="logoBig">م</div>
-        <h1 style="margin:0">مشوارك 🚕</h1>
-        <div class="hint">اختر نوع الاستخدام</div>
+        <h1>مشوارك 🚕</h1>
+        <p class="hint">اختر نوع الاستخدام</p>
       </div>
 
-      <div class="actions" style="margin-top:16px;flex-direction:column;gap:10px">
-        <a class="btn primary" href="./login.html" id="goPassenger">راكب 🚕</a>
-        <a class="btn" href="./login.html" id="goDriver">سائق 🧑‍✈️</a>
+      <div class="grid2">
+        <a class="btn primary" href="./login.html">تسجيل / إنشاء حساب</a>
+        <a class="btn" href="./account.html">حسابي</a>
       </div>
 
-      <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
+      <div class="sep"></div>
 
-      <button class="btn" id="hardRefresh" type="button">↩ تحديث قوي (حل المشاكل)</button>
-      <div class="hint" id="pwaInfo" style="margin-top:10px"></div>
+      <div class="grid2">
+        <a class="btn" href="./passenger.html">الدخول كـ راكب</a>
+        <a class="btn" href="./driver.html">الدخول كـ سائق</a>
+      </div>
+
+      <div class="sep"></div>
+
+      <button class="btn" id="hardRefreshBtn" type="button">↩ تحديث قوي (حل المشاكل)</button>
+      <div class="hint" id="swHint" style="margin-top:10px"></div>
     </div>
   </div>
 
   <script type="module">
-    const goPassenger = document.getElementById("goPassenger");
-    const goDriver = document.getElementById("goDriver");
-    const hardRefresh = document.getElementById("hardRefresh");
-    const pwaInfo = document.getElementById("pwaInfo");
+    const swHint = document.getElementById("swHint");
+    const hardRefreshBtn = document.getElementById("hardRefreshBtn");
 
-    goPassenger.addEventListener("click", ()=>{
-      localStorage.setItem("role","passenger");
-    });
-    goDriver.addEventListener("click", ()=>{
-      localStorage.setItem("role","driver");
-    });
-
-    hardRefresh.addEventListener("click", async ()=>{
+    async function nukeSW(){
       try{
-        // يمسح كاش الـ SW عشان ما يرجعش صفحة بيضا/ستايل قديم
         if("serviceWorker" in navigator){
           const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
+          for(const r of regs) await r.unregister();
         }
         if("caches" in window){
           const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
+          for(const k of keys) await caches.delete(k);
         }
-      }catch(e){}
+        swHint.textContent = "✅ تم مسح الكاش و Service Worker.";
+      }catch(e){
+        swHint.textContent = "⚠️ تعذر المسح (مش مشكلة كبيرة).";
+      }
+    }
 
-      // Reload قوي
-      location.reload(true);
+    hardRefreshBtn.addEventListener("click", async ()=>{
+      swHint.textContent = "جارٍ التنظيف…";
+      await nukeSW();
+      // اجبار تحميل جديد
+      location.href = "./index.html?v=" + Date.now();
     });
 
-    // معلومة PWA بسيطة
-    const ok = ("serviceWorker" in navigator);
-    pwaInfo.textContent = ok ? "✅ التطبيق جاهز كـ PWA (SW متاح)." : "⚠️ جهازك/متصفحك لا يدعم Service Worker.";
+    // رسالة سريعة
+    swHint.textContent = "لو الصفحة ما اتحدثتش فوراً، جرّب Refresh.";
   </script>
 </body>
 </html>
