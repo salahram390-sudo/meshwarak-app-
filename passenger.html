@@ -12,129 +12,61 @@
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* ===== Page Layout ===== */
-    body.page{
-      min-height: 100vh;
-      display:flex;
-      flex-direction:column;
-      overflow:hidden;
-    }
+    body.page{ min-height:100vh; display:flex; flex-direction:column; overflow:hidden; }
 
     .topbar{
-      position: sticky;
-      top: 0;
-      z-index: 60;
+      position: sticky; top: 0; z-index: 60;
       background: rgba(5, 11, 22, 0.72);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .topbar-inner{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap: 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
       padding: 12px 14px;
     }
-    .brand{
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      min-width: 0;
-    }
+    .brand{ display:flex; align-items:center; gap:10px; min-width:0; }
     .brand h1{
-      margin:0;
-      font-size: 16px;
-      font-weight: 900;
-      letter-spacing: .2px;
-      white-space: nowrap;
-      overflow:hidden;
-      text-overflow: ellipsis;
+      margin:0; font-size:16px; font-weight:900;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     }
     .brand p{
-      margin:0;
-      font-size: 12px;
-      color: rgba(255,255,255,0.70);
-      white-space: nowrap;
-      overflow:hidden;
-      text-overflow: ellipsis;
+      margin:0; font-size:12px; color: rgba(255,255,255,0.70);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       max-width: 52vw;
     }
-    .logo{
-      width: 44px;
-      height: 44px;
-      border-radius: 16px;
-      font-size: 18px;
-      flex: 0 0 auto;
-    }
-    .top-actions{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex: 0 0 auto;
-    }
-    .top-actions .btn{
-      padding: 10px 12px;
-      border-radius: 18px;
-      font-size: 14px;
-      min-height: 44px;
-    }
+    .logo{ width:44px; height:44px; border-radius:16px; font-size:18px; flex:0 0 auto; }
+    .top-actions{ display:flex; gap:8px; align-items:center; flex:0 0 auto; }
+    .top-actions .btn{ padding:10px 12px; border-radius:18px; font-size:14px; min-height:44px; }
 
-    /* ===== Map ===== */
-    .mapWrap{
-      position: relative;
-      flex: 1;
-      min-height: calc(100vh - 70px);
-      overflow:hidden;
-      background: #0b1222;
-    }
-    #map{
-      position:absolute;
-      inset:0;
-      z-index: 1;
-    }
+    .mapWrap{ position:relative; flex:1; min-height: calc(100vh - 70px); overflow:hidden; background:#0b1222; }
+    #map{ position:absolute; inset:0; z-index:1; }
 
-    /* ===== Bottom Sheet (Draggable) ===== */
     .sheet{
-      position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
-      z-index: 2000; /* فوق الخريطة */
+      position: fixed; left: 12px; right: 12px; bottom: 12px;
+      z-index: 2000;
       background: var(--card);
       border: 1px solid var(--stroke);
       border-radius: 26px;
       box-shadow: 0 30px 90px rgba(0,0,0,.55);
       backdrop-filter: blur(18px);
       overflow: hidden;
-
-      /* هيتغير بالـ JS */
       height: 52vh;
-      transform: translateY(0);
-      transition: height .22s ease, transform .22s ease;
-      will-change: height, transform;
+      transition: height .22s ease;
+      will-change: height;
     }
-    .sheet.dragging{
-      transition: none;
-    }
+    .sheet.dragging{ transition:none; }
 
     .sheetHeader{
       padding: 10px 14px 12px;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      position: relative;
+      display:flex; justify-content:center; align-items:center;
+      user-select:none; -webkit-tap-highlight-color: transparent;
       touch-action: pan-y;
-      user-select:none;
-      -webkit-tap-highlight-color: transparent;
     }
     .sheetHandle{
-      width: 56px;
-      height: 6px;
-      border-radius: 99px;
+      width:56px; height:6px; border-radius:99px;
       background: rgba(255,255,255,.16);
       border: 1px solid rgba(255,255,255,.10);
     }
-
     .sheetBody{
       padding: 14px;
       overflow-y: auto;
@@ -143,36 +75,12 @@
       touch-action: pan-y;
     }
 
-    .sectionTitle{
-      margin: 6px 0 10px;
-      font-weight: 900;
-      font-size: 14px;
-      color: rgba(255,255,255,.88);
-    }
-    .grid2{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .note{
-      margin-top: 10px;
-      font-size: 12px;
-      color: rgba(255,255,255,.65);
-      line-height: 1.5;
-    }
-    .sep{
-      height: 1px;
-      background: rgba(255,255,255,0.06);
-      margin: 14px 0;
-    }
+    .sectionTitle{ margin: 6px 0 10px; font-weight:900; font-size:14px; color: rgba(255,255,255,.88); }
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .note{ margin-top:10px; font-size:12px; color: rgba(255,255,255,.65); line-height:1.5; }
+    .sep{ height:1px; background: rgba(255,255,255,0.06); margin:14px 0; }
 
-    /* أزرار نوع المركبة */
-    .pills{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-      margin-top: 10px;
-    }
+    .pills{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px; }
     .pillBtn{
       border-radius: 18px;
       padding: 12px 12px;
@@ -181,10 +89,7 @@
       cursor:pointer;
       color: var(--text);
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
+      display:flex; align-items:center; justify-content:center; gap:10px;
       user-select:none;
       min-height: 52px;
     }
@@ -197,30 +102,30 @@
         inset 0 1px 0 rgba(255,255,255,0.16);
     }
 
-    .actions{
-      display:flex;
-      gap: 12px;
-      margin-top: 16px;
-      flex-wrap: wrap;
-    }
-    .actions .btn{
-      flex: 1 1 140px;
-      min-height: 52px;
-    }
+    .actions{ display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+    .actions .btn{ flex: 1 1 140px; min-height:52px; }
 
-    .footerActions{
-      display:flex;
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .footerActions .btn{
-      width: 100%;
-    }
+    .footerActions{ display:flex; gap:10px; margin-top:14px; }
+    .footerActions .btn{ width:100%; }
 
-    /* select arrow fix */
     select{ appearance:none; }
 
-    /* Mobile tweaks */
+    /* ✅ small helper chips */
+    .miniRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .miniChip{
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.85);
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .miniChip.ok{ background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.25); }
+    .miniChip.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.25); }
+
     @media (max-width:420px){
       .top-actions .btn{ padding:10px 10px; }
       .grid2{ grid-template-columns: 1fr; }
@@ -252,8 +157,7 @@
     <div id="map"></div>
   </div>
 
-  <!-- Bottom Sheet -->
-  <div class="sheet" id="sheet" aria-label="Ride Sheet">
+  <div class="sheet" id="sheet">
     <div class="sheetHeader" id="sheetHeader">
       <div class="sheetHandle"></div>
     </div>
@@ -282,7 +186,6 @@
       <div class="sep"></div>
 
       <div class="sectionTitle">نوع المركبة</div>
-      <!-- ✅ رجّعنا كل الأنواع المتوافقة مع صفحة السائق -->
       <div class="pills" id="vehiclePills">
         <button class="pillBtn" data-type="car" type="button">🚗 ملاكي</button>
         <button class="pillBtn" data-type="tuktuk" type="button">🛺 توكتوك</button>
@@ -298,12 +201,17 @@
 
       <div class="field">
         <label>من</label>
-        <input id="fromText" type="text" placeholder="اكتب نقطة الانطلاق" />
+        <input id="fromText" type="text" placeholder="اكتب نقطة الانطلاق" autocomplete="off" />
       </div>
 
       <div class="field">
         <label>إلى</label>
-        <input id="toText" type="text" placeholder="اكتب نقطة الوصول" />
+        <input id="toText" type="text" placeholder="اكتب نقطة الوصول" autocomplete="off" />
+      </div>
+
+      <div class="miniRow">
+        <span class="miniChip" id="fromChip">الانطلاق: غير محدد</span>
+        <span class="miniChip" id="toChip">الوصول: غير محدد</span>
       </div>
 
       <div class="actions">
@@ -335,11 +243,42 @@
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     const msg = document.getElementById("msg");
+    const fromChip = document.getElementById("fromChip");
+    const toChip = document.getElementById("toChip");
 
     // ===== Leaflet Map
     let map, markerFrom=null, markerTo=null, meMarker=null;
     let pickMode = null; // "from" | "to"
     let fromLatLng=null, toLatLng=null;
+
+    function setChip(el, ok, text){
+      el.textContent = text;
+      el.classList.remove("ok","bad");
+      el.classList.add(ok ? "ok" : "bad");
+    }
+
+    function invalidateMapSoon(){
+      try{ map?.invalidateSize?.(true); }catch{}
+      setTimeout(()=>{ try{ map?.invalidateSize?.(true); }catch{} }, 180);
+      setTimeout(()=>{ try{ map?.invalidateSize?.(true); }catch{} }, 420);
+    }
+
+    function fitBothIfReady(){
+      if(!map) return;
+      const pts = [];
+      if(fromLatLng) pts.push([fromLatLng.lat, fromLatLng.lng]);
+      if(toLatLng) pts.push([toLatLng.lat, toLatLng.lng]);
+      if(pts.length === 1){
+        map.setView(pts[0], 15, { animate:false });
+        return;
+      }
+      if(pts.length === 2){
+        try{
+          const b = L.latLngBounds(pts);
+          map.fitBounds(b, { padding:[40,40] });
+        }catch{}
+      }
+    }
 
     function initMap(){
       const fallbackCenter = [24.0889, 32.8998]; // أسوان
@@ -358,18 +297,23 @@
           if(markerFrom) markerFrom.remove();
           markerFrom = L.marker(e.latlng).addTo(map).bindPopup("الانطلاق").openPopup();
           pickMode = null;
+          setChip(fromChip, true, `الانطلاق: تم تحديده ✅`);
           msg.textContent = "✅ تم تحديد الانطلاق.";
+          fitBothIfReady();
         }else if(pickMode === "to"){
           toLatLng = e.latlng;
           if(markerTo) markerTo.remove();
           markerTo = L.marker(e.latlng).addTo(map).bindPopup("الوصول").openPopup();
           pickMode = null;
+          setChip(toChip, true, `الوصول: تم تحديده ✅`);
           msg.textContent = "✅ تم تحديد الوصول.";
+          fitBothIfReady();
         }
       });
 
       // حاول يجيب الموقع مرة أول ما يفتح
       setTimeout(()=>{ locateMe(false); }, 400);
+      invalidateMapSoon();
     }
 
     const waitLeaflet = setInterval(()=>{
@@ -380,7 +324,7 @@
     }, 30);
 
     // ===== زر موقعي
-    async function locateMe(showMsg=true){
+    function locateMe(showMsg=true){
       if(!navigator.geolocation){
         if(showMsg) msg.textContent="❌ جهازك لا يدعم GPS.";
         return;
@@ -394,7 +338,8 @@
         if(map){
           map.setView([lat,lng], 16, { animate:false });
           if(!meMarker){
-            meMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 }).addTo(map).bindPopup("📍 موقعك");
+            meMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 })
+              .addTo(map).bindPopup("📍 موقعك");
           }else{
             meMarker.setLatLng([lat,lng]);
           }
@@ -412,7 +357,7 @@
 
     document.getElementById("myLocBtn").addEventListener("click", ()=> locateMe(true));
 
-    // ===== Regions (رجّعنا الكل زي صفحة السائق)
+    // ===== Regions (كاملة)
     const regions = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -444,14 +389,12 @@
     const govSelect = document.getElementById("govSelect");
     const centerSelect = document.getElementById("centerSelect");
 
-    Object.keys(regions)
-      .sort((a,b)=>a.localeCompare(b,"ar"))
-      .forEach(g=>{
-        const op = document.createElement("option");
-        op.value = g;
-        op.textContent = g;
-        govSelect.appendChild(op);
-      });
+    Object.keys(regions).sort((a,b)=>a.localeCompare(b,"ar")).forEach(g=>{
+      const op = document.createElement("option");
+      op.value = g;
+      op.textContent = g;
+      govSelect.appendChild(op);
+    });
 
     govSelect.addEventListener("change", ()=>{
       const g = govSelect.value;
@@ -469,7 +412,7 @@
       centerSelect.disabled = false;
     });
 
-    // ===== Vehicle pills (مهمة: نخزن في requestedVehicle زي صفحة السائق)
+    // ===== Vehicle pills
     let vehicleType = "car";
     const pillsWrap = document.getElementById("vehiclePills");
     function setVehicle(v){
@@ -485,11 +428,96 @@
     });
     setVehicle("car");
 
-    // ===== Buttons
+    // ======================================================
+    // ✅ Geocoding: كتابة "من/إلى" تحدد على الخريطة تلقائيًا
+    // ======================================================
+    let lastGeoAt = 0;
+
+    function debounce(fn, ms){
+      let t=null;
+      return (...args)=>{
+        clearTimeout(t);
+        t=setTimeout(()=>fn(...args), ms);
+      };
+    }
+
+    async function geocodeNominatim(q){
+      const now = Date.now();
+      // حماية بسيطة من spam
+      if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
+      lastGeoAt = Date.now();
+
+      const url =
+        "https://nominatim.openstreetmap.org/search" +
+        "?format=json&limit=1&addressdetails=1" +
+        "&accept-language=ar" +
+        "&q=" + encodeURIComponent(q);
+
+      const res = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          // User-Agent header ممنوع في المتصفح، فبنكتفي بحدود أقل للطلبات
+        }
+      });
+      if(!res.ok) throw new Error("geocode_failed");
+      const data = await res.json();
+      if(!data || !data.length) return null;
+      const it = data[0];
+      return { lat: Number(it.lat), lng: Number(it.lon), name: it.display_name || q };
+    }
+
+    const fromText = document.getElementById("fromText");
+    const toText = document.getElementById("toText");
+
+    async function applyGeocode(kind, q){
+      const text = (q || "").trim();
+      if(text.length < 3) return;
+
+      msg.textContent = "🔎 جارٍ تحديد المكان من النص…";
+      try{
+        const r = await geocodeNominatim(text);
+        if(!r){
+          msg.textContent = "⚠️ لم يتم العثور على مكان مطابق.";
+          return;
+        }
+
+        const ll = L.latLng(r.lat, r.lng);
+
+        if(kind === "from"){
+          fromLatLng = ll;
+          if(markerFrom) markerFrom.remove();
+          markerFrom = L.marker(ll).addTo(map).bindPopup("الانطلاق").openPopup();
+          setChip(fromChip, true, "الانطلاق: تم تحديده ✅");
+        }else{
+          toLatLng = ll;
+          if(markerTo) markerTo.remove();
+          markerTo = L.marker(ll).addTo(map).bindPopup("الوصول").openPopup();
+          setChip(toChip, true, "الوصول: تم تحديده ✅");
+        }
+
+        fitBothIfReady();
+        msg.textContent = "✅ تم تحديد المكان على الخريطة.";
+      }catch(e){
+        console.error(e);
+        msg.textContent = "❌ تعذر تحديد المكان من النص الآن. جرّب تاني.";
+      }
+    }
+
+    const debFrom = debounce(()=> applyGeocode("from", fromText.value), 700);
+    const debTo   = debounce(()=> applyGeocode("to", toText.value), 700);
+
+    fromText.addEventListener("input", debFrom);
+    toText.addEventListener("input", debTo);
+
+    fromText.addEventListener("blur", ()=> applyGeocode("from", fromText.value));
+    toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
+
+    // ===== Pick from map buttons
+    const createRideBtn = document.getElementById("createRideBtn");
+
     document.getElementById("pickFromMapBtn").onclick = ()=>{
       pickMode = "from";
       msg.textContent = "📍 اضغط على الخريطة لتحديد الانطلاق.";
-      // خليه يطلع الشيت شوية علشان تشوف الخريطة
       setSheetSnap("mid");
     };
     document.getElementById("pickToMapBtn").onclick = ()=>{
@@ -498,10 +526,7 @@
       setSheetSnap("mid");
     };
 
-    const fromText = document.getElementById("fromText");
-    const toText = document.getElementById("toText");
-    const createRideBtn = document.getElementById("createRideBtn");
-
+    // ===== Send ride
     createRideBtn.onclick = async ()=>{
       msg.textContent = "";
       const governorate = govSelect.value;
@@ -515,8 +540,17 @@
         msg.textContent = "❌ اكتب (من) و(إلى).";
         return;
       }
+
+      // لو كتب نص بس وما اتحددش، نحاول نحددهم قبل الارسال
+      if(!fromLatLng){
+        await applyGeocode("from", fromText.value);
+      }
+      if(!toLatLng){
+        await applyGeocode("to", toText.value);
+      }
+
       if(!fromLatLng || !toLatLng){
-        msg.textContent = "❌ لازم تحدد الانطلاق والوصول من الخريطة.";
+        msg.textContent = "❌ لازم يتحدد الانطلاق والوصول على الخريطة (من النص أو بالاختيار اليدوي).";
         return;
       }
 
@@ -534,8 +568,8 @@
           governorate,
           center,
 
-          requestedVehicle: vehicleType, // ✅ مهم للسائق
-          vehicleType, // (اختياري) لو حابب
+          requestedVehicle: vehicleType,
+          vehicleType,
 
           fromText: fromText.value.trim(),
           toText: toText.value.trim(),
@@ -549,10 +583,7 @@
 
         msg.textContent = "✅ تم إرسال الطلب.";
         localStorage.setItem("currentRideId", docRef.id);
-
-        // بعد الإرسال خليه يقفل شوية
         setSheetSnap("min");
-
       }catch(e){
         console.error(e);
         msg.textContent = "❌ حصل خطأ أثناء إرسال الطلب.";
@@ -566,14 +597,8 @@
     // ======================================================
     const sheet = document.getElementById("sheet");
     const sheetHeader = document.getElementById("sheetHeader");
-    const sheetBody = document.getElementById("sheetBody");
 
-    // نقاط السناب (نِسب من الشاشة)
-    const SNAP = {
-      min: 0.28,   // صغير
-      mid: 0.52,   // متوسط
-      max: 0.82    // كبير
-    };
+    const SNAP = { min: 0.28, mid: 0.52, max: 0.82 };
     let currentSnap = "mid";
 
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
@@ -583,43 +608,33 @@
       const minPx = Math.round(window.innerHeight * SNAP.min);
       const v = clamp(px, minPx, maxPx);
       sheet.style.height = v + "px";
-      // تحديث الخريطة بعد تغيير الحجم علشان ما تتكسرش
-      try{ map?.invalidateSize?.(true); }catch{}
-      setTimeout(()=>{ try{ map?.invalidateSize?.(true); }catch{} }, 160);
+      invalidateMapSoon();
     }
 
     function setSheetSnap(name){
       currentSnap = name;
-      const px = Math.round(window.innerHeight * SNAP[name]);
-      sheet.classList.remove("dragging");
-      setSheetHeight(px);
+      setSheetHeight(Math.round(window.innerHeight * SNAP[name]));
     }
 
-    // ضبط أولي
     setSheetSnap("mid");
 
-    // Drag vars
     let dragging = false;
     let startY = 0;
     let startH = 0;
 
-    // منع السحب من داخل السكرول إلا من الهيدر (عشان ما نبوّظ Scroll)
     sheetHeader.addEventListener("pointerdown", (e)=>{
       dragging = true;
       sheet.classList.add("dragging");
       startY = e.clientY;
       startH = sheet.getBoundingClientRect().height;
       sheetHeader.setPointerCapture(e.pointerId);
-      // أثناء السحب نقفل تفاعل الخريطة (أفضل على الموبايل)
       try{ map?.dragging?.disable(); map?.scrollWheelZoom?.disable(); }catch{}
     });
 
     sheetHeader.addEventListener("pointermove", (e)=>{
       if(!dragging) return;
       const dy = e.clientY - startY;
-      // dy موجب => نازل => يقل الارتفاع
-      const nextH = startH - dy;
-      setSheetHeight(nextH);
+      setSheetHeight(startH - dy);
       e.preventDefault();
     }, { passive:false });
 
@@ -637,22 +652,13 @@
       targets.sort((a,b)=>Math.abs(a.h - h) - Math.abs(b.h - h));
       setSheetSnap(targets[0].k);
 
-      // رجّع تفاعل الخريطة
       try{ map?.dragging?.enable(); map?.scrollWheelZoom?.enable(); }catch{}
     }
 
     sheetHeader.addEventListener("pointerup", endDrag);
     sheetHeader.addEventListener("pointercancel", endDrag);
 
-    // لما الشاشة تتغير (دوران/حجم)
-    window.addEventListener("resize", ()=>{
-      setSheetSnap(currentSnap);
-    });
-
-    // علشان مايحصلش click غريب على الخريطة لما تسحب
-    sheet.addEventListener("touchmove", (e)=>{
-      if(dragging) e.preventDefault();
-    }, { passive:false });
+    window.addEventListener("resize", ()=> setSheetSnap(currentSnap));
 
   </script>
 </body>
