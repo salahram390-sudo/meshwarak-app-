@@ -10,15 +10,52 @@
   <meta name="theme-color" content="#050B16" />
 
   <style>
+    /* تحسينات شكلية فقط (بدون تغيير أي منطق) */
+    .roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+    .roleBtn{
+      min-width:160px;text-align:center;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      border-radius:16px;
+      padding:12px 14px;
+      cursor:pointer;
+      user-select:none;
+      font-weight:900;
+      -webkit-tap-highlight-color: transparent;
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      transition: transform .08s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+      box-shadow: 0 10px 28px rgba(0,0,0,.22);
+    }
+    .roleBtn:active{ transform: translateY(1px); filter: brightness(1.05); }
+    .roleBtn .ic{
+      width:34px;height:34px;border-radius:12px;
+      display:grid;place-items:center;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      font-size:18px;
+      opacity:.95;
+    }
+    .roleBtn.active{
+      background: linear-gradient(135deg, rgba(43,108,255,.22), rgba(43,108,255,.10));
+      border-color: rgba(43,108,255,.38);
+      box-shadow: 0 14px 38px rgba(43,108,255,.14), 0 16px 44px rgba(0,0,0,.28);
+    }
+    .roleBtn.active .ic{
+      background: rgba(43,108,255,.22);
+      border-color: rgba(43,108,255,.32);
+      opacity:1;
+    }
+
     .field label{display:block;margin-bottom:8px}
     input, select{
       width:100%;
       padding:14px 14px;
       border-radius:16px;
       border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06);
+      background: rgba(0,0,0,.18);
       color:#fff;
       outline:none;
+      font-size:16px;
     }
     input::placeholder{color:rgba(255,255,255,.55)}
     .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -26,6 +63,13 @@
     .divider{height:1px;background:rgba(255,255,255,.10);margin:14px 0}
     .msgOk{color:#7CFFB2}
     .msgBad{color:#FF8E8E}
+
+    /* زر ثانوي احترافي بدل الأخضر لإنشاء حساب */
+    .btn.alt{
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.14);
+      color:#EAF0FF;
+    }
   </style>
 </head>
 
@@ -40,9 +84,9 @@
       <h1 style="margin:0;font-size:20px">تسجيل الدخول / إنشاء حساب</h1>
       <p class="hint" style="margin:8px 0 14px">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
 
-      <div class="roleTabs" style="margin-bottom:14px">
-        <button class="roleBtn" id="rolePassenger" type="button">راكب</button>
-        <button class="roleBtn" id="roleDriver" type="button">سائق</button>
+      <div class="roleTabs">
+        <button class="roleBtn" id="rolePassenger" type="button"><span class="ic">🚕</span><span>راكب</span></button>
+        <button class="roleBtn" id="roleDriver" type="button"><span class="ic">🧑‍✈️</span><span>سائق</span></button>
       </div>
 
       <div class="field" style="text-align:right">
@@ -55,9 +99,9 @@
         <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <!-- ✅ نفس الزرين موجودين (تسجيل = Accent / دخول = Primary) -->
       <div class="row2" style="margin-top:14px">
-        <button class="btn accent" id="signupBtn" type="button">إنشاء حساب</button>
+        <!-- ✅ تم تغيير الشكل فقط: إنشاء حساب لم يعد أخضر -->
+        <button class="btn alt" id="signupBtn" type="button">إنشاء حساب</button>
         <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
       </div>
 
@@ -190,12 +234,14 @@
     }
 
     async function afterAuth(user){
+      // ✅ نفس الإيميل يشتغل للدورين
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
         email: user.email || clean(emailEl.value) || null
       });
 
+      // ✅ حفظ البروفايل (وتحديث بيانات السائق لو مختار سائق)
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
@@ -212,7 +258,9 @@
 
       await saveUserProfile(user.uid, payload);
 
+      // ✅ أهم سطر: يمنع التحويل التلقائي لراكب
       setActiveRole(role);
+
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
@@ -235,6 +283,7 @@
 
     async function doLogin(){
       try{
+        // في تسجيل الدخول: لو داخل كسائق ومش مكمّل بياناته هنا => برضه نلزمه يكمّل قبل التحويل
         const v = validateRoleFields();
         if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
 
