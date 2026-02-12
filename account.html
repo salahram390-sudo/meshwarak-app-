@@ -3,150 +3,147 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
   <title>مشوارك - حسابي</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=10">
 </head>
 
 <body>
   <div class="topbar">
-    <div class="topbar-inner container">
+    <div class="topbar-inner">
       <div class="brand">
-        <div class="logo">م</div>
+        <div class="logo" style="width:42px;height:42px;border-radius:14px">م</div>
         <div>
           <h1>حسابي</h1>
-          <p id="who">جارٍ التحميل…</p>
+          <p id="sub" class="muted">...</p>
         </div>
       </div>
-      <div style="display:flex;gap:8px">
-        <a class="btn" href="./index.html">الرئيسية</a>
-        <button class="btn danger" id="logoutBtn" type="button">خروج</button>
-      </div>
+      <a class="btn" href="./index.html?v=10">الرئيسية</a>
     </div>
   </div>
 
   <div class="container" style="padding-top:14px">
-    <div class="card">
-      <div class="hint" id="info">جارٍ التحميل…</div>
+    <div class="card" style="max-width:720px;margin:0 auto">
+
+      <div class="hint" id="status" style="min-height:22px">جارٍ تحميل الحساب…</div>
+
+      <div class="sep"></div>
 
       <div class="field">
-        <label>الاسم</label>
-        <input id="name" placeholder="اسمك" />
+        <label>الإيميل</label>
+        <input id="email" disabled />
       </div>
 
       <div class="field">
-        <label>رقم الهاتف</label>
-        <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" />
+        <label>الدور الحالي</label>
+        <input id="role" disabled />
       </div>
+
+      <div class="sep"></div>
+
+      <div class="hint" style="margin-bottom:10px">تبديل الدور (بدون ما نخرب أي حاجة)</div>
+
+      <div class="pillRow">
+        <button type="button" class="pillBtn" id="goPassenger">راكب 🚕</button>
+        <button type="button" class="pillBtn" id="goDriver">سائق 🧑‍✈️</button>
+      </div>
+
+      <div class="sep"></div>
 
       <div class="grid2">
-        <div class="field">
-          <label>المحافظة</label>
-          <input id="gov" placeholder="مثال: القاهرة" />
-        </div>
-        <div class="field">
-          <label>المركز / الحي</label>
-          <input id="center" placeholder="مثال: مدينة نصر" />
-        </div>
+        <a class="btn success" id="openRolePage" href="./index.html?v=10">فتح صفحة الدور</a>
+        <button class="btn danger" id="logoutBtn" type="button">تسجيل خروج</button>
       </div>
 
-      <div id="driverOnly" style="display:none;margin-top:10px">
-        <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
+      <div class="sep"></div>
 
-        <div class="grid2">
-          <div class="field" style="margin-top:0">
-            <label>نوع المركبة</label>
-            <select id="vehicle">
-              <option value="car">ملاكي</option>
-              <option value="microbus">ميكروباص</option>
-              <option value="tuktuk">توكتوك</option>
-              <option value="tmanya">تمناية</option>
-              <option value="trosikel">تروسيكل</option>
-            </select>
-          </div>
-          <div class="field" style="margin-top:0">
-            <label>موديل المركبة</label>
-            <input id="model" placeholder="مثال: 2020" inputmode="numeric" />
-          </div>
-        </div>
+      <button class="btn primary" id="hardRefreshBtn" type="button">↩ تحديث قوي (حل المشاكل)</button>
+      <div class="hint" id="swHint" style="margin-top:10px"></div>
 
-        <div class="field">
-          <label>رقم اللوحة / كود (اختياري)</label>
-          <input id="plate" placeholder="مثال: ب س 1234" />
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="btn primary" id="saveBtn" type="button">💾 حفظ</button>
-      </div>
-
-      <div class="hint" id="msg" style="margin-top:10px"></div>
     </div>
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, getUserDoc, doLogout, db } from "./app.js";
-    import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      requireAuthAndRole,
+      doLogout,
+      setActiveRole,
+      getActiveRole
+    } from "./app.js?v=10";
 
-    const who = document.getElementById("who");
-    const info = document.getElementById("info");
-    const msg = document.getElementById("msg");
+    const status = document.getElementById("status");
+    const sub = document.getElementById("sub");
+    const email = document.getElementById("email");
+    const role = document.getElementById("role");
 
-    const nameEl = document.getElementById("name");
-    const phoneEl = document.getElementById("phone");
-    const govEl = document.getElementById("gov");
-    const centerEl = document.getElementById("center");
+    const goPassenger = document.getElementById("goPassenger");
+    const goDriver = document.getElementById("goDriver");
+    const openRolePage = document.getElementById("openRolePage");
 
-    const driverOnly = document.getElementById("driverOnly");
-    const vehicleEl = document.getElementById("vehicle");
-    const modelEl = document.getElementById("model");
-    const plateEl = document.getElementById("plate");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const hardRefreshBtn = document.getElementById("hardRefreshBtn");
+    const swHint = document.getElementById("swHint");
 
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
-
-    const { user, data } = await requireAuthAndRole(null);
-    who.textContent = user.phoneNumber || user.email || "-";
-
-    const role = data?.role || "passenger";
-    info.innerHTML = `✅ مسجل دخول كـ <b>${role === "driver" ? "سائق" : "راكب"}</b>`;
-    if(role === "driver") driverOnly.style.display = "block";
-
-    const u = await getUserDoc(user.uid);
-
-    nameEl.value = u?.name || "";
-    phoneEl.value = u?.phone || "";
-    govEl.value = u?.governorate || "";
-    centerEl.value = u?.center || "";
-
-    if(role === "driver"){
-      vehicleEl.value = u?.vehicle || "car";
-      modelEl.value = u?.model || "";
-      plateEl.value = u?.plate || "";
+    function setRoleUI(r){
+      goPassenger.classList.toggle("active", r === "passenger");
+      goDriver.classList.toggle("active", r === "driver");
+      role.value = (r === "driver") ? "سائق" : "راكب";
+      openRolePage.href = (r === "driver") ? "./driver.html?v=10" : "./passenger.html?v=10";
     }
 
-    document.getElementById("saveBtn").addEventListener("click", async ()=>{
-      msg.textContent = "جارٍ الحفظ…";
+    async function nukeSW(){
       try{
-        const payload = {
-          name: nameEl.value.trim() || null,
-          phone: phoneEl.value.trim() || null,
-          governorate: govEl.value.trim() || null,
-          center: centerEl.value.trim() || null,
-          updatedAt: serverTimestamp()
-        };
-
-        if(role === "driver"){
-          payload.vehicle = vehicleEl.value || null;
-          payload.model = modelEl.value.trim() || null;
-          payload.plate = plateEl.value.trim() || null;
+        if("serviceWorker" in navigator){
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for(const r of regs) await r.unregister();
         }
-
-        await setDoc(doc(db, "users", user.uid), payload, { merge:true });
-        msg.textContent = "✅ تم الحفظ.";
+        if("caches" in window){
+          const keys = await caches.keys();
+          for(const k of keys) await caches.delete(k);
+        }
+        swHint.textContent = "✅ تم مسح الكاش و Service Worker.";
       }catch(e){
-        console.error(e);
-        msg.textContent = "❌ فشل الحفظ.";
+        swHint.textContent = "⚠️ تعذر المسح (مش مشكلة كبيرة).";
       }
+    }
+
+    hardRefreshBtn.addEventListener("click", async ()=>{
+      swHint.textContent = "جارٍ التنظيف…";
+      await nukeSW();
+      location.href = "./account.html?v=" + Date.now();
     });
+
+    logoutBtn.addEventListener("click", async ()=>{
+      status.textContent = "جارٍ تسجيل الخروج…";
+      await doLogout();
+    });
+
+    goPassenger.addEventListener("click", ()=>{
+      const r = setActiveRole("passenger");
+      setRoleUI(r);
+      status.textContent = "✅ تم التبديل إلى راكب.";
+    });
+
+    goDriver.addEventListener("click", ()=>{
+      const r = setActiveRole("driver");
+      setRoleUI(r);
+      status.textContent = "✅ تم التبديل إلى سائق.";
+    });
+
+    (async ()=>{
+      try{
+        const { user, data } = await requireAuthAndRole(null);
+        email.value = user?.email || "";
+        sub.textContent = user?.email || "";
+        const r = (data?.role) || getActiveRole();
+        setRoleUI(r);
+        status.textContent = "✅ الحساب جاهز.";
+      }catch(e){
+        // requireAuthAndRole هيوجهك للـ login لو مش مسجل
+        console.error(e);
+      }
+    })();
   </script>
 </body>
 </html>
+```0
