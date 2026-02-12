@@ -123,7 +123,6 @@
     .miniChip.ok{ background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.25); }
     .miniChip.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.25); }
 
-    /* input row (لو styles.css مش محمّل لأي سبب) */
     .inputRow{ display:flex; gap:10px; align-items:stretch; }
     .inputRow input{ flex:1 1 auto; min-width:0; }
     .iconBtn{
@@ -268,7 +267,7 @@
       <div id="driverCard" class="driverCard" style="margin-top:12px; display:none">
         <div class="driverRow">
           <div class="driverName" id="dName">🚗 السائق</div>
-          <span class="miniChip ok" id="dState">متصل</span>
+          <span class="miniChip ok" id="dState">—</span>
         </div>
 
         <div class="driverMeta" id="dMeta">—</div>
@@ -294,22 +293,32 @@
       doc, onSnapshot, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ===== helpers
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
     const safeNum = (x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
-    function dist2(a,b){
-      const dx = a.lat - b.lat, dy = a.lng - b.lng;
-      return dx*dx + dy*dy;
-    }
+    function dist2(a,b){ const dx=a.lat-b.lat, dy=a.lng-b.lng; return dx*dx+dy*dy; }
     function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
-    function debounce(fn, ms){
-      let t=null;
-      return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+    function debounce(fn, ms){ let t=null; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; }
+    function escapeHTML(s){ return String(s ?? "").replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
+
+    function vehText(v){
+      v = clean(v);
+      return (v==="tuktuk")?"توكتوك":
+        (v==="motor_delivery")?"موتسيكل دليفري":
+        (v==="car")?"ملاكي":
+        (v==="microbus")?"ميكروباص":
+        (v==="tamanya")?"تمناية":
+        (v==="caboot")?"عربية كابوت": (v||"-");
     }
-    function escapeHTML(s){
-      return String(s ?? "").replace(/[&<>"']/g, (c)=>({
-        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-      }[c]));
+    function statusText(st){
+      st = clean(st);
+      if(st==="open") return "مفتوح";
+      if(st==="offered") return "تم اقتراح سعر";
+      if(st==="accepted") return "تم القبول";
+      if(st==="arrived") return "السائق وصل";
+      if(st==="started") return "الرحلة بدأت";
+      if(st==="completed"||st==="done") return "انتهت";
+      if(st==="canceled") return "ملغي";
+      return st || "—";
     }
 
     // ===== Auth
@@ -318,7 +327,7 @@
     document.getElementById("who").textContent = user.email || user.phoneNumber || "-";
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
-    // ✅ load profile saved from login.html (phone/address/name)
+    // load profile (phone/address/name)
     let passengerProfile = null;
     try{ passengerProfile = await getUserDoc(user.uid); }catch{ passengerProfile=null; }
 
@@ -327,7 +336,7 @@
     const toChip = document.getElementById("toChip");
     const trackHint = document.getElementById("trackHint");
 
-    // ✅ driver card elements
+    // driver card
     const driverCard = document.getElementById("driverCard");
     const dName = document.getElementById("dName");
     const dState = document.getElementById("dState");
@@ -335,13 +344,12 @@
     const callDriverBtn = document.getElementById("callDriverBtn");
     const navDriverBtn = document.getElementById("navDriverBtn");
 
-    // ===== Leaflet Map
+    // ===== Leaflet
     let map, markerFrom=null, markerTo=null, meMarker=null, driverMarker=null, routeLine=null;
-    let pickMode = null; // "from" | "to"
+    let pickMode = null;
     let fromLatLng=null, toLatLng=null;
     let meLatLng = null;
-
-    let lastDriverLL = null; // ✅ لزر الملاحة للسائق
+    let lastDriverLL = null;
 
     function setChip(el, ok, text){
       el.textContent = text;
@@ -364,7 +372,6 @@
       if(markerTo) layers.push(markerTo);
       if(routeLine) layers.push(routeLine);
       if(!layers.length) return;
-
       try{
         const g = L.featureGroup(layers);
         map.fitBounds(g.getBounds(), { padding:[40,40] });
@@ -382,14 +389,13 @@
       }
       if(pts.length === 2){
         try{
-          const b = L.latLngBounds(pts);
-          map.fitBounds(b, { padding:[40,40] });
+          map.fitBounds(L.latLngBounds(pts), { padding:[40,40] });
         }catch{}
       }
     }
 
     function initMap(){
-      const fallbackCenter = [30.0444, 31.2357]; // القاهرة
+      const fallbackCenter = [30.0444, 31.2357];
       map = L.map("map", { zoomControl: true }).setView(fallbackCenter, 13);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -432,7 +438,6 @@
       }
     }, 30);
 
-    // ===== زر موقعي
     function locateMe(showMsg=true){
       if(!navigator.geolocation){
         if(showMsg) msg.textContent="❌ جهازك لا يدعم GPS.";
@@ -468,7 +473,7 @@
 
     document.getElementById("myLocBtn").addEventListener("click", ()=> locateMe(true));
 
-    // ===== Regions (كاملة)
+    // ===== Regions
     const regions = {
       "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","المرج","عين شمس","العباسية","وسط البلد"],
       "الجيزة": ["الهرم","الدقي","العجوزة","6 أكتوبر","الشيخ زايد","فيصل","بولاق الدكرور","الوراق","العياط","البدرشين"],
@@ -540,7 +545,7 @@
     setVehicle("car");
 
     // ======================================================
-    // ✅ Geocoding (Closest + Egypt + Bias to my location + Prefer selected governorate)
+    // ✅ Geocoding
     // ======================================================
     let lastGeoAt = 0;
 
@@ -654,7 +659,7 @@
     toSearchBtn.addEventListener("click", ()=> applyGeocode("to", toText.value));
 
     // ======================================================
-    // ✅ Route (OSRM) بين القيام والوصول
+    // ✅ Route (OSRM)
     // ======================================================
     let lastRouteAt = 0;
 
@@ -682,7 +687,7 @@
       try{
         const pts = await fetchRouteOSRM(
           {lat: fromLatLng.lat, lng: fromLatLng.lng},
-          {lat: toLatLng.lat, lng: toLatLng.lng}
+          {lat: toLatLng.lat,   lng: toLatLng.lng}
         );
         if(!pts) return;
 
@@ -696,7 +701,7 @@
       }
     }
 
-    // ===== Pick from map buttons
+    // ===== Pick from map
     const createRideBtn = document.getElementById("createRideBtn");
 
     document.getElementById("pickFromMapBtn").onclick = ()=>{
@@ -710,7 +715,7 @@
       setSheetSnap("mid");
     };
 
-    // ===== Send ride (✅ saves passenger phone/address for driver)
+    // ===== Send ride
     createRideBtn.onclick = async ()=>{
       msg.textContent = "";
       const governorate = govSelect.value;
@@ -789,7 +794,7 @@
     };
 
     // ======================================================
-    // ✅ Draggable Bottom Sheet (Uber-like Snap)
+    // ✅ Draggable Bottom Sheet
     // ======================================================
     const sheet = document.getElementById("sheet");
     const sheetHeader = document.getElementById("sheetHeader");
@@ -854,7 +859,7 @@
     window.addEventListener("resize", ()=> setSheetSnap(currentSnap));
 
     // ======================================================
-    // ✅ LIVE TRACKING (Passenger <-> Driver)
+    // ✅ LIVE TRACKING
     // ======================================================
     const trackBtn = document.getElementById("trackBtn");
     const focusBtn = document.getElementById("focusBtn");
@@ -945,7 +950,6 @@
         const lat = safeNum(d.lat);
         const lng = safeNum(d.lng);
         if(lat==null || lng==null) return;
-
         setDriverOnMap(lat, lng, { name: null });
       });
     }
@@ -962,7 +966,7 @@
         try{ driverMarker.setPopupContent(popupText); }catch{}
       }
 
-      navDriverBtn.style.display = (Number.isFinite(lat) && Number.isFinite(lng)) ? "inline-flex" : "none";
+      navDriverBtn.style.display = "inline-flex";
     }
 
     function openGoogleMapsNav(lat, lng){
@@ -976,7 +980,6 @@
     });
 
     function showDriverCard(driver, status){
-      // driver: {name, phone, vehicle, model, plate, email}
       const name = clean(driver?.name) || "السائق";
       const phone = clean(driver?.phone) || "";
       const vehicle = clean(driver?.vehicle) || "";
@@ -984,13 +987,16 @@
       const plate = clean(driver?.plate) || "";
       const email = clean(driver?.email) || "";
 
+      const stText = statusText(status);
       dName.textContent = `🚗 ${name}`;
-      dState.textContent = status || "—";
+      dState.textContent = stText;
+
       dState.classList.remove("ok","bad");
-      dState.classList.add((status && ["accepted","arrived","started","offered"].includes(status)) ? "ok" : "bad");
+      const okStates = ["offered","accepted","arrived","started"];
+      dState.classList.add(okStates.includes(clean(status)) ? "ok" : "bad");
 
       const parts = [];
-      if(vehicle || model) parts.push(`<b>المركبة:</b> ${escapeHTML(vehicle || "-")}${model ? ` • ${escapeHTML(model)}` : ""}`);
+      if(vehicle || model) parts.push(`<b>المركبة:</b> ${escapeHTML(vehText(vehicle))}${model ? ` • ${escapeHTML(model)}` : ""}`);
       if(plate) parts.push(`<b>اللوحة:</b> ${escapeHTML(plate)}`);
       if(phone) parts.push(`<b>الهاتف:</b> ${escapeHTML(phone)}`);
       if(email) parts.push(`<b>الإيميل:</b> ${escapeHTML(email)}`);
@@ -1012,6 +1018,7 @@
       driverCard.style.display = "none";
       lastDriverLL = null;
       navDriverBtn.style.display = "none";
+      if(driverMarker){ try{ map.removeLayer(driverMarker); }catch{} driverMarker=null; }
     }
 
     function startWatchRide(id){
@@ -1028,16 +1035,13 @@
         const r = snap.data();
         const st = r.status || "-";
 
-        // ✅ بيانات السائق من ride doc (يتم كتابتها من driver.html)
         const duid = r.driverUid || null;
 
-        // لو السائق اتحدد
         if(duid && duid !== currentDriverUid){
           currentDriverUid = duid;
-          watchDriverStatusFallback(duid); // احتياط
+          watchDriverStatusFallback(duid);
         }
 
-        // الأساسي: driverLive داخل ride (لو موجود)
         const dLat = safeNum(r.driverLive?.lat);
         const dLng = safeNum(r.driverLive?.lng);
         const driverName = clean(r.driverName || "");
@@ -1046,29 +1050,26 @@
           setDriverOnMap(dLat, dLng, { name: driverName || null });
         }
 
-        // ✅ إظهار بيانات السائق للراكب
         if(duid){
           showDriverCard({
             name: r.driverName || "سائق",
             phone: r.driverPhone || "",
             vehicle: r.driverVehicle || "",
             model: r.driverModel || "",
-            plate: r.driverPlate || "",     // (اختياري لو هتضيفه في driver.html)
+            plate: r.driverPlate || "",   // ✅ هتظهر تلقائي لما نضيفها في driver.html
             email: r.driverEmail || ""
           }, st);
         }else{
           hideDriverCard();
         }
 
-        // تشغيل التتبع تلقائيًا بعد تعيين السائق / بداية الرحلة
         const shouldAutoTrack = !!duid && ["accepted","arrived","started"].includes(st);
         if(shouldAutoTrack && !trackingOn){
           await startTracking();
         }
 
-        trackHint.textContent = `حالة الطلب: ${st}${duid ? " • تم تعيين سائق ✅" : ""}`;
+        trackHint.textContent = `حالة الطلب: ${statusText(st)}${duid ? " • تم تعيين سائق ✅" : ""}`;
 
-        // نقاط القيام/الوصول من الدوك
         const pLat = safeNum(r.from?.lat), pLng = safeNum(r.from?.lng);
         const tLat = safeNum(r.to?.lat),   tLng = safeNum(r.to?.lng);
 
@@ -1097,7 +1098,7 @@
       });
     }
 
-    // شغل متابعة لو فيه طلب محفوظ
+    // init watch if exists
     if(currentRideId){
       setTimeout(()=> startWatchRide(currentRideId), 700);
     }
