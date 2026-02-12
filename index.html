@@ -2,192 +2,55 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مشوارك</title>
-
-  <link rel="icon" href="./favicon.png">
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#050B16">
-
-  <!-- ✅ منع فلاش/صفحة بيضا لو CSS اتأخر -->
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>مشوارك - الرئيسية</title>
+  <!-- كسر كاش قوي -->
+  <link rel="stylesheet" href="./styles.css?v=20260212a">
   <style>
-    html,body{margin:0;background:#050B16;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    a,button{font-family:inherit}
+    /* يمنع أي “صفحة بيضا” حتى لو رجع من كاش قديم */
+    html,body{ background: var(--bg, #0b1020) !important; }
+    .card::before, .card::after, .glow::before, .glow::after { pointer-events:none !important; }
   </style>
-
-  <link rel="stylesheet" href="./styles.css?v=fix-1">
 </head>
 
 <body>
-  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
-    <div class="card" style="width:min(520px, 100%); text-align:center">
-
-      <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
+  <div class="container" style="padding-top:18px">
+    <div class="card glow" style="max-width:520px;margin:0 auto;text-align:center">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+        <div class="logoBig">م</div>
+        <h1 style="margin:0">مشوارك 🚕</h1>
+        <div class="hint">اختر نوع الاستخدام</div>
       </div>
 
-      <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
-      <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
-
-      <div class="actions" id="guestBtns" style="justify-content:center">
-        <a class="btn success" id="guestPassenger" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
-        <a class="btn primary" id="guestDriver" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
+      <div class="actions" style="margin-top:16px;flex-direction:column;gap:10px">
+        <a class="btn primary" href="./login.html" id="goPassenger">راكب 🚕</a>
+        <a class="btn" href="./login.html" id="goDriver">سائق 🧑‍✈️</a>
       </div>
 
-      <div id="meBox" class="card" style="margin-top:14px; display:none; text-align:right">
-        <div class="hint" id="meText" style="margin-top:0"></div>
+      <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
 
-        <div class="actions" style="margin-top:12px;flex-wrap:wrap">
-          <button class="btn success" id="openPassengerBtn" type="button" style="min-width:180px">فتح الراكب</button>
-          <button class="btn primary" id="openDriverBtn" type="button" style="min-width:180px">فتح السائق</button>
-          <button class="btn danger" id="logoutBtn" type="button" style="min-width:180px">تسجيل خروج</button>
-        </div>
-      </div>
-
-      <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
-        <button class="btn" id="hardRefreshBtn" type="button" style="min-width:220px">🔄 تحديث قوي (حل المشاكل)</button>
-      </div>
-
-      <p class="hint" style="margin:14px 0 0">
-        لو الصفحة ما اتحدثتش فورًا، جرّب تعمل Refresh.
-      </p>
-
-      <p class="hint" id="swMsg" style="margin:10px 0 0"></p>
-      <p class="hint" id="errMsg" style="margin:8px 0 0;color:#ffb4b4"></p>
+      <button class="btn" id="hardRefresh" type="button">↩ تحديث قوي (حل المشاكل)</button>
+      <div class="hint" id="pwaInfo" style="margin-top:10px"></div>
     </div>
   </div>
 
-  <script>
-    const errMsg = document.getElementById("errMsg");
-    window.addEventListener("error", (e)=>{
-      try{ errMsg.textContent = "⚠️ خطأ: " + (e.message || "غير معروف"); }catch{}
-    });
-    window.addEventListener("unhandledrejection", (e)=>{
-      try{ errMsg.textContent = "⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف"); }catch{}
-    });
-
-    // ✅ لو رجعت للصفحة من Back (bfCache) امنع الخلفية البيضاء
-    window.addEventListener("pageshow", (ev)=>{
-      if(ev.persisted){
-        document.documentElement.style.background = "#050B16";
-        document.body.style.background = "#050B16";
-      }
-    });
-  </script>
-
   <script type="module">
-    import { auth, db, setActiveRole, ensureUserDoc, getActiveRole } from "./app.js?v=fix-1";
-    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    const goPassenger = document.getElementById("goPassenger");
+    const goDriver = document.getElementById("goDriver");
+    const hardRefresh = document.getElementById("hardRefresh");
+    const pwaInfo = document.getElementById("pwaInfo");
 
-    const guestBtns = document.getElementById("guestBtns");
-
-    const meBox = document.getElementById("meBox");
-    const meText = document.getElementById("meText");
-    const logoutBtn = document.getElementById("logoutBtn");
-    const openPassengerBtn = document.getElementById("openPassengerBtn");
-    const openDriverBtn = document.getElementById("openDriverBtn");
-
-    // تثبيت الدور قبل الدخول
-    const guestPassenger = document.getElementById("guestPassenger");
-    const guestDriver = document.getElementById("guestDriver");
-    guestPassenger?.addEventListener("click", ()=>{ try{ setActiveRole("passenger"); }catch{} });
-    guestDriver?.addEventListener("click", ()=>{ try{ setActiveRole("driver"); }catch{} });
-
-    function fallbackNameFromEmail(email){
-      const x = (email || "").split("@")[0] || "مستخدم";
-      return x.replace(/[._-]+/g, " ").trim() || "مستخدم";
-    }
-
-    async function getUserDocX(uid){
-      const ref = doc(db, "users", uid);
-      const snap = await getDoc(ref);
-      return snap.exists() ? snap.data() : null;
-    }
-
-    logoutBtn?.addEventListener("click", async ()=>{
-      try{ await signOut(auth); }catch{}
-      location.href = "./index.html";
+    goPassenger.addEventListener("click", ()=>{
+      localStorage.setItem("role","passenger");
+    });
+    goDriver.addEventListener("click", ()=>{
+      localStorage.setItem("role","driver");
     });
 
-    function vehText(v){
-      return (v==="tuktuk")?"توكتوك":
-        (v==="motor_delivery")?"موتسيكل دليفري":
-        (v==="car")?"ملاكي":
-        (v==="microbus")?"ميكروباص":
-        (v==="tamanya")?"تمناية":
-        (v==="caboot")?"عربية كابوت": (v || "-");
-    }
-
-    onAuthStateChanged(auth, async (user)=>{
-      if(!user){
-        meBox.style.display = "none";
-        guestBtns.style.display = "flex";
-        return;
-      }
-
-      guestBtns.style.display = "none";
-
-      await ensureUserDoc(user.uid, {
-        roles: { passenger:true, driver:true },
-        activeRole: getActiveRole(),
-        email: user.email || null,
-      }).catch(()=>{});
-
-      const data = await getUserDocX(user.uid).catch(()=>null);
-      const name = (data?.name || "").trim() || fallbackNameFromEmail(user.email);
-
-      const gov = data?.governorate || "-";
-      const cen = data?.center || "-";
-
-      const roles = data?.roles || { passenger:true, driver:true };
-      const hasPassenger = !!roles.passenger;
-      const hasDriver = !!roles.driver;
-
-      const driverReady = !!(data?.vehicle && String(data?.model||"").trim().length >= 2);
-
-      meBox.style.display = "block";
-      meText.innerHTML =
-        `👤 <b>${name}</b><br>` +
-        `📧 ${user.email}<br>` +
-        `📍 ${gov} / ${cen}<br>` +
-        `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
-        `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
-
-      openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
-      openPassengerBtn.onclick = ()=>{
-        setActiveRole("passenger");
-        location.href = hasPassenger ? "./passenger.html" : "./login.html?role=passenger";
-      };
-
-      if(!hasDriver){
-        openDriverBtn.textContent = "إعداد السائق";
-        openDriverBtn.onclick = ()=>{
-          setActiveRole("driver");
-          location.href = "./login.html?role=driver";
-        };
-      }else if(!driverReady){
-        openDriverBtn.textContent = "أكمل بيانات السائق";
-        openDriverBtn.onclick = ()=>{
-          setActiveRole("driver");
-          location.href = "./account.html?role=driver";
-        };
-      }else{
-        openDriverBtn.textContent = "فتح السائق";
-        openDriverBtn.onclick = ()=>{
-          setActiveRole("driver");
-          location.href = "./driver.html";
-        };
-      }
-    });
-  </script>
-
-  <script>
-    const swMsg = document.getElementById("swMsg");
-    const hardRefreshBtn = document.getElementById("hardRefreshBtn");
-
-    async function hardRefresh(){
+    hardRefresh.addEventListener("click", async ()=>{
       try{
+        // يمسح كاش الـ SW عشان ما يرجعش صفحة بيضا/ستايل قديم
         if("serviceWorker" in navigator){
           const regs = await navigator.serviceWorker.getRegistrations();
           await Promise.all(regs.map(r => r.unregister()));
@@ -196,19 +59,15 @@
           const keys = await caches.keys();
           await Promise.all(keys.map(k => caches.delete(k)));
         }
-      }catch{}
+      }catch(e){}
+
+      // Reload قوي
       location.reload(true);
-    }
+    });
 
-    hardRefreshBtn.addEventListener("click", hardRefresh);
-
-    // ✅ Register SW مع version جديد (بس لو عندك sw.js شغال)
-    if ("serviceWorker" in navigator) {
-      const v = "fix-1-" + Date.now();
-      navigator.serviceWorker.register("./sw.js?v=" + v)
-        .then(()=>{ swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA (SW شغال)."; })
-        .catch(()=>{ swMsg.textContent = "⚠️ تعذر تشغيل Service Worker (مش مشكلة كبيرة)."; });
-    }
+    // معلومة PWA بسيطة
+    const ok = ("serviceWorker" in navigator);
+    pwaInfo.textContent = ok ? "✅ التطبيق جاهز كـ PWA (SW متاح)." : "⚠️ جهازك/متصفحك لا يدعم Service Worker.";
   </script>
 </body>
 </html>
