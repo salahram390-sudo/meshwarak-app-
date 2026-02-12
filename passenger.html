@@ -332,7 +332,7 @@
     try{ passengerProfile = await getUserDoc(user.uid); }catch{ passengerProfile=null; }
 
     const msg = document.getElementById("msg");
-    const fromChip = document.getElementById("fromChip");
+    const fromChip = document.getElementById("fromChip"); and 
     const toChip = document.getElementById("toChip");
     const trackHint = document.getElementById("trackHint");
 
@@ -383,7 +383,7 @@
       const pts = [];
       if(fromLatLng) pts.push([fromLatLng.lat, fromLatLng.lng]);
       if(toLatLng) pts.push([toLatLng.lat, toLatLng.lng]);
-      if(pts.length === 1){
+      if(pts.length === 1){ح
         map.setView(pts[0], 15, { animate:false });
         return;
       }
@@ -565,7 +565,8 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
   let params =
     `format=json` +
     `&q=${encodeURIComponent(queryText)}` +
-    `&countrycodes=eg` +
+    `&countrycodes=eg` +and 
+    
     `&limit=10` +
     `&addressdetails=1` +
     `&accept-language=ar`;
@@ -723,7 +724,7 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     const createRideBtn = document.getElementById("createRideBtn");
 
     document.getElementById("pickFromMapBtn").onclick = ()=>{
-      pickMode = "from";
+      pickMo
       msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
       setSheetSnap("mid");
     };
@@ -1004,7 +1005,8 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
       const model = clean(driver?.model) || "";
       const plate = clean(driver?.plate) || "";
       const email = clean(driver?.email) || "";
-
+      const priceEGP  = Number(driver?.priceEGP);
+const priceTxt  = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
       const stText = statusText(status);
       dName.textContent = `🚗 ${name}`;
       dState.textContent = stText;
@@ -1014,6 +1016,9 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
       dState.classList.add(okStates.includes(clean(status)) ? "ok" : "bad");
 
       const parts = [];
+if(priceText){
+  parts.push(`<b>💰 السعر:</b> ${escapeHTML(priceText)}`);
+}
       if(vehicle || model) parts.push(`<b>المركبة:</b> ${escapeHTML(vehText(vehicle))}${model ? ` • ${escapeHTML(model)}` : ""}`);
       if(plate) parts.push(`<b>اللوحة:</b> ${escapeHTML(plate)}`);
       if(phone) parts.push(`<b>الهاتف:</b> ${escapeHTML(phone)}`);
