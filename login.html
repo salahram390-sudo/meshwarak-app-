@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#0b1220" />
   <title>مشوارك - تسجيل الدخول</title>
-  <link rel="stylesheet" href="./styles.css?v=9">
+  <link rel="stylesheet" href="./styles.css?v=10">
 </head>
 
 <body>
@@ -37,15 +37,17 @@
       <div class="sep"></div>
 
       <div class="grid2">
-        <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
-        <button class="btn" id="signupBtn" type="button">إنشاء حساب</button>
+        <!-- تسجيل دخول = أزرق -->
+        <button class="btn success" id="loginBtn" type="button">تسجيل دخول</button>
+        <!-- إنشاء حساب = بنفسجي -->
+        <button class="btn primary" id="signupBtn" type="button">إنشاء حساب</button>
       </div>
 
       <div id="driverFields" style="display:none;margin-top:10px">
         <div class="sep"></div>
 
         <div class="hint" style="margin-bottom:10px">
-          بيانات السائق تظهر هنا (هتتحفظ في ملف حسابي بعد الدخول)
+          بيانات السائق (تظهر فقط عند اختيار سائق)
         </div>
 
         <div class="grid2">
@@ -62,19 +64,23 @@
           </div>
           <div class="field" style="margin-top:0">
             <label>موديل / سنة الصنع</label>
-            <input id="model" placeholder="مثال: 2020" />
+            <input id="model" placeholder="مثال: BYD / 2020" />
           </div>
         </div>
 
         <div class="field">
-          <label>رقم اللوحة / كود</label>
-          <input id="plate" placeholder="مثال: ب س 1234" />
+          <label>رقم اللوحة / كود (اختياري)</label>
+          <input id="plate" placeholder="مثال: س ج 1234" />
+        </div>
+
+        <div class="hint" style="margin-top:8px">
+          * بيانات المركبة تظهر للراكب عند قبول الرحلة.
         </div>
       </div>
 
       <div class="sep"></div>
 
-      <a class="btn" href="./index.html">↩ رجوع للرئيسية</a>
+      <a class="btn" href="./index.html?v=10">↩ رجوع للرئيسية</a>
 
       <div class="hint" id="msg" style="margin-top:10px;min-height:22px"></div>
     </div>
@@ -85,7 +91,7 @@
       setActiveRole, getActiveRole,
       ensureUserDoc, saveUserProfile,
       emailSignIn, emailSignUp
-    } from "./app.js?v=9";
+    } from "./app.js?v=10";
 
     const msg = document.getElementById("msg");
 
@@ -109,9 +115,7 @@
       rolePassengerBtn.classList.toggle("active", r === "passenger");
       roleDriverBtn.classList.toggle("active", r === "driver");
       driverFields.style.display = (r === "driver") ? "block" : "none";
-      roleHint.textContent = (r === "driver")
-        ? "✅ وضع السائق مفعل"
-        : "✅ وضع الراكب مفعل";
+      roleHint.textContent = (r === "driver") ? "✅ وضع السائق مفعل" : "✅ وضع الراكب مفعل";
     }
 
     // init
@@ -141,10 +145,8 @@
     async function afterAuth(user){
       const role = getActiveRole();
 
-      // إنشاء/تحديث user doc + حفظ الدور
       await ensureUserDoc(user.uid, { activeRole: role });
 
-      // لو سائق: خزّن بيانات المركبة (اختياري)
       if(role === "driver"){
         await saveUserProfile(user.uid, {
           vehicle: vehicleEl.value || null,
@@ -153,8 +155,7 @@
         }).catch(()=>{});
       }
 
-      // توجيه حسب الدور
-      location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
+      location.href = (role === "driver") ? "./driver.html?v=10" : "./passenger.html?v=10";
     }
 
     async function lockUI(locked){
