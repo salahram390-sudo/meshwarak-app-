@@ -2,22 +2,88 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#0b1220" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#050B16" />
   <title>مشوارك</title>
+
   <link rel="stylesheet" href="./styles.css?v=10">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./favicon.png">
+
+  <style>
+    /* ✅ ضمان الخلفية اللمّاعة حتى لو CSS اتأخر/اتكاش */
+    html,body{min-height:100%;}
+
+    .pageWrap{
+      min-height: 100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+      padding-top: calc(18px + env(safe-area-inset-top));
+      padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    }
+
+    .homeCard{
+      width: min(520px, 100%);
+    }
+
+    .auth-logo{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .logoBig{
+      width: 72px;
+      height: 72px;
+      border-radius: 24px;
+      display:grid;
+      place-items:center;
+      font-size: 30px;
+      font-weight: 900;
+      background: linear-gradient(135deg, rgba(46,107,255,0.92), rgba(25,195,125,0.60));
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow:
+        0 22px 70px rgba(0,0,0,0.42),
+        inset 0 1px 0 rgba(255,255,255,0.22);
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    @media (max-width:420px){
+      .grid2{ grid-template-columns: 1fr; }
+    }
+
+    .sep{
+      height:1px;
+      background: rgba(255,255,255,0.06);
+      margin: 14px 0;
+    }
+
+    .hint.center{
+      text-align:center;
+    }
+  </style>
 </head>
 
 <body>
-  <div class="container auth">
-    <div class="card auth-card">
+  <div class="pageWrap">
+    <div class="card homeCard">
       <div class="auth-logo">
         <div class="logoBig">م</div>
-        <h1>مشوارك 🚕</h1>
-        <p class="hint">اختر نوع الاستخدام</p>
+        <h1 style="margin:0;font-size:20px;font-weight:900">مشوارك 🚕</h1>
+        <p class="hint center" style="margin:0">اختر نوع الاستخدام</p>
       </div>
 
-      <div class="grid2" style="margin-top:14px">
+      <div class="grid2">
         <a class="btn success" href="./login.html?v=10">تسجيل / إنشاء حساب</a>
         <a class="btn" href="./account.html?v=10">حسابي</a>
       </div>
@@ -25,20 +91,32 @@
       <div class="sep"></div>
 
       <div class="grid2">
-        <a class="btn" href="./passenger.html?v=10">الدخول كـ راكب</a>
-        <a class="btn" href="./driver.html?v=10">الدخول كـ سائق</a>
+        <a class="btn" id="goPassenger" href="./passenger.html?v=10">الدخول كـ راكب</a>
+        <a class="btn" id="goDriver" href="./driver.html?v=10">الدخول كـ سائق</a>
       </div>
 
       <div class="sep"></div>
 
       <button class="btn primary" id="hardRefreshBtn" type="button">↩ تحديث قوي (حل المشاكل)</button>
-      <div class="hint" id="swHint" style="margin-top:10px"></div>
+      <div class="hint center" id="swHint" style="margin-top:10px"></div>
+      <div class="hint center" style="margin-top:8px;opacity:.8">
+        ✅ التطبيق جاهز للعمل كـ PWA (SW شغال).
+      </div>
     </div>
   </div>
 
   <script type="module">
     const swHint = document.getElementById("swHint");
     const hardRefreshBtn = document.getElementById("hardRefreshBtn");
+
+    // ✅ خزن الدور المختار (بيفيد صفحات تانية)
+    const ROLE_KEY = "activeRole";
+    document.getElementById("goPassenger").addEventListener("click", ()=>{
+      localStorage.setItem(ROLE_KEY, "passenger");
+    });
+    document.getElementById("goDriver").addEventListener("click", ()=>{
+      localStorage.setItem(ROLE_KEY, "driver");
+    });
 
     async function nukeSW(){
       try{
@@ -52,6 +130,7 @@
         }
         swHint.textContent = "✅ تم مسح الكاش و Service Worker.";
       }catch(e){
+        console.warn(e);
         swHint.textContent = "⚠️ تعذر المسح (مش مشكلة كبيرة).";
       }
     }
@@ -59,7 +138,8 @@
     hardRefreshBtn.addEventListener("click", async ()=>{
       swHint.textContent = "جارٍ التنظيف…";
       await nukeSW();
-      location.href = "./index.html?v=" + Date.now();
+      // ✅ Reload نظيف + كسر الكاش
+      location.replace("./index.html?v=" + Date.now());
     });
 
     swHint.textContent = "لو الشكل ما اتحدثش فوراً، اضغط (تحديث قوي).";
