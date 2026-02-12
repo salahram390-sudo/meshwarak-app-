@@ -1,13 +1,12 @@
-// app.js — FINAL v17 (Stable roles + safe guards + helpers)
+// app.js — FINAL v6 (Stable + Role + Auth Guards + Profile Save + Toast)
+// مشوارك — GitHub Pages safe
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+
 import {
   getAuth,
   onAuthStateChanged,
-  signOut,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  setPersistence,
-  browserLocalPersistence,
+  signOut
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -15,10 +14,12 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
-  serverTimestamp,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+// =====================
+// Firebase Config
+// =====================
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -29,222 +30,158 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Keep session on same device
-setPersistence(auth, browserLocalPersistence).catch(() => {});
-
-// ===== Query string
-export function qs(key) {
-  const u = new URL(location.href);
-  return u.searchParams.get(key);
+// =====================
+// Helpers
+// =====================
+export function go(url) {
+  location.href = url;
 }
 
-// ===== Active role per device
-const LS_ACTIVE_ROLE = "mw_active_role";
-export function setActiveRole(role) {
-  if (role !== "passenger" && role !== "driver") return;
-  try { localStorage.setItem(LS_ACTIVE_ROLE, role); } catch {}
-}
-export function getActiveRole() {
+export function qs(k) {
   try {
-    const r = localStorage.getItem(LS_ACTIVE_ROLE);
-    return (r === "passenger" || r === "driver") ? r : null;
-  } catch { return null; }
+    return new URLSearchParams(location.search).get(k);
+  } catch {
+    return null;
+  }
 }
 
-// ===== Normalizers
-export function normalizeEmail(input) {
-  let x = String(input || "").trim().toLowerCase();
-  if (!x) return null;
-  // لو المستخدم كتب إيميل حقيقي سيبه زي ما هو
-  if (x.includes("@")) return x;
-  // fallback: pseudo-email (اختياري)
-  x = x.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
-  if (!x) x = "user";
-  return `${x}@meshwarak.local`;
+export function safeText(x) {
+  return (x ?? "").toString();
 }
 
-export function normalizePassword(input) {
-  const x = String(input || "").trim();
-  return x.length >= 6 ? x : null;
+// =====================
+// Role (local + user doc)
+// =====================
+const ROLE_KEY = "meshwarak_role";
+
+export function setRoleLocal(role) {
+  const r = role === "driver" ? "driver" : "passenger";
+  localStorage.setItem(ROLE_KEY, r);
+  return r;
 }
 
-export function normalizePhone(input) {
-  let x = String(input || "").trim();
-  if (!x) return null;
+export function getRoleLocal() {
+  return localStorage.getItem(ROLE_KEY) || "passenger";
+}
 
-  const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9" };
-  x = x.replace(/[٠-٩]/g, (d) => map[d] ?? d);
+// Backward compatibility for old code
+export function setActiveRole(role) {
+  return setRoleLocal(role);
+}
 
-  x = x.replace(/[^\d+]/g, "");
-  if (x.includes("+")) x = "+" + x.replace(/\+/g, "");
-  if (x.startsWith("00")) x = "+" + x.slice(2);
+// =====================
+// Toast (simple)
+// =====================
+let _toastT = null;
 
-  if (/^01\d{9}$/.test(x)) x = "+20" + x;
-  if (/^201\d{9}$/.test(x)) x = "+20" + x.slice(2);
+export function toast(html, ms = 2600) {
+  const el = document.getElementById("toast");
+  if (!el) return;
 
-  if (x.startsWith("+")) {
-    const digits = x.slice(1);
-    if (!/^\d{8,15}$/.test(digits)) return null;
-    return "+" + digits;
+  el.innerHTML = html;
+  el.classList.add("show");
+
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove("show"), ms);
+}
+
+// =====================
+// Auth guards
+// =====================
+export function waitAuthOnce() {
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      try { unsub(); } catch {}
+      resolve(user || null);
+    });
+  });
+}
+
+// لو المستخدم بالفعل داخل: ودّيه للصفحة المناسبة
+export async function requireNoAuth() {
+  const user = await waitAuthOnce();
+  if (user) {
+    const role = getRoleLocal();
+    if (role === "driver") go("./driver.html");
+    else go("./passenger.html");
+    throw new Error("already authed");
+  }
+  return true;
+}
+
+// requireAuthAndRole(roleOrNull)
+// - لو roleOrNull = "driver" أو "passenger" -> لازم نفس الدور
+// - لو null -> بس لازم يكون داخل
+export async function requireAuthAndRole(roleOrNull = null) {
+  const user = await waitAuthOnce();
+  if (!user) {
+    go("./index.html");
+    throw new Error("not authed");
   }
 
-  if (!/^\d{8,15}$/.test(x)) return null;
-  return x;
+  // اقرأ user doc
+  const data = await getUserDoc(user.uid).catch(() => null);
+
+  // role الحالي (local أولاً)
+  const localRole = getRoleLocal();
+  const role = localRole || data?.activeRole || "passenger";
+
+  // لو مطلوب دور معين
+  if (roleOrNull && role !== roleOrNull) {
+    // لو الصفحة سائق وهو راكب: ودّيه
+    if (roleOrNull === "driver") go("./driver.html");
+    else go("./passenger.html");
+    throw new Error("wrong role");
+  }
+
+  return { user, data: { ...(data || {}), role } };
 }
 
-// ========= Firestore helpers
+// =====================
+// User Doc
+// =====================
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
 
-export async function ensureUserDoc(uid, patch = {}) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      roles: patch.roles || { passenger: true, driver: true },
-      activeRole: patch.activeRole || "passenger",
-
-      name: patch.name || null,
-      phone: patch.phone || null,
-      email: patch.email || null,
-
-      governorate: patch.governorate || null,
-      center: patch.center || null,
-
-      currentRideId: null,
-
-      vehicle: patch.vehicle || null,
-      model: patch.model || null,
-      plate: patch.plate || null,
-
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    return true;
-  }
-
-  // ✅ لو قديم: ضَمّن roles/activeRole
-  const d = snap.data() || {};
-  const roles = d.roles || {};
-  const fixedRoles = {
-    passenger: roles.passenger !== false,
-    driver: roles.driver !== false,
-  };
-
-  const needFix =
-    !d.roles ||
-    typeof d.activeRole !== "string" ||
-    (d.activeRole !== "passenger" && d.activeRole !== "driver");
-
-  if (needFix) {
-    await setDoc(ref, {
-      roles: fixedRoles,
-      activeRole: (d.activeRole === "driver") ? "driver" : "passenger",
-      updatedAt: serverTimestamp(),
-    }, { merge: true }).catch(()=>{});
-  }
-
-  return false;
-}
-
-export async function saveUserProfile(uid, payload) {
-  const ref = doc(db, "users", uid);
-  const cleaned = { ...payload, updatedAt: serverTimestamp() };
-  await setDoc(ref, cleaned, { merge: true });
-}
-
-// ✅ تفعيل دور (راكب/سائق) لنفس الحساب
-export async function enableRole(uid, role) {
-  if (role !== "passenger" && role !== "driver") return;
-  const ref = doc(db, "users", uid);
-
-  await ensureUserDoc(uid, {
+// يضمن وجود user doc
+export async function ensureUserDoc(uid, payload = {}) {
+  const base = {
     roles: { passenger: true, driver: true },
     activeRole: "passenger",
-  }).catch(()=>{});
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
 
-  try {
-    await updateDoc(ref, {
-      activeRole: role,
-      [`roles.${role}`]: true,
-      updatedAt: serverTimestamp(),
-    });
-  } catch {
-    await setDoc(ref, {
-      activeRole: role,
-      roles: { passenger: true, driver: true, [role]: true },
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-  }
-
-  setActiveRole(role);
+  await setDoc(doc(db, "users", uid), { ...base, ...payload }, { merge: true });
 }
 
-// ========= Auth
-export async function emailSignUp(emailRaw, passRaw) {
-  const email = normalizeEmail(emailRaw);
-  const password = normalizePassword(passRaw);
-  if (!email) throw new Error("bad-email");
-  if (!password) throw new Error("bad-pass");
-  return await createUserWithEmailAndPassword(auth, email, password);
-}
+export async function saveUserProfile(uid, payload = {}) {
+  const patch = {
+    ...payload,
+    updatedAt: serverTimestamp(),
+  };
 
-export async function emailSignIn(emailRaw, passRaw) {
-  const email = normalizeEmail(emailRaw);
-  const password = normalizePassword(passRaw);
-  if (!email) throw new Error("bad-email");
-  if (!password) throw new Error("bad-pass");
-  return await signInWithEmailAndPassword(auth, email, password);
-}
-
-// ========= Guard
-export async function requireAuthAndRole(requiredRole = null) {
-  const user = await new Promise((resolve, reject) => {
-    const unsub = onAuthStateChanged(
-      auth,
-      (u) => { try { unsub(); } catch {} resolve(u); },
-      (e) => { try { unsub(); } catch {} reject(e); }
-    );
+  // لا تكتب undefined أبداً
+  Object.keys(patch).forEach((k) => {
+    if (patch[k] === undefined) delete patch[k];
   });
 
-  if (!user) {
-    location.href = "./login.html";
-    throw new Error("not signed in");
-  }
-
-  let data = await getUserDoc(user.uid).catch(()=>null);
-  if (!data) {
-    await ensureUserDoc(user.uid, {
-      roles: { passenger: true, driver: true },
-      activeRole: "passenger",
-      email: user.email || null,
-    }).catch(()=>{});
-    data = await getUserDoc(user.uid).catch(()=>null);
-  }
-
-  const localRole = getActiveRole();
-  const activeRole = (localRole === "driver" || localRole === "passenger")
-    ? localRole
-    : (data?.activeRole === "driver" ? "driver" : "passenger");
-
-  if (requiredRole && activeRole !== requiredRole) {
-    // redirect آمن
-    location.href = "./index.html";
-    throw new Error("wrong role");
-  }
-
-  return { user, data, activeRole };
+  await setDoc(doc(db, "users", uid), patch, { merge: true });
 }
 
+// =====================
+// Logout
+// =====================
 export async function doLogout() {
-  await signOut(auth).catch(()=>{});
-  try { localStorage.removeItem(LS_ACTIVE_ROLE); } catch {}
-  location.href = "./login.html";
+  try {
+    await signOut(auth);
+  } catch {}
+  go("./index.html");
 }
