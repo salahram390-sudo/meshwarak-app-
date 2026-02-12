@@ -6,286 +6,200 @@
   <title>مشوارك - تسجيل الدخول</title>
 
   <link rel="icon" href="./favicon.png">
+  <link rel="stylesheet" href="./styles.css?v=15">
   <meta name="theme-color" content="#050B16" />
 
   <style>
-    :root{
-      --bg:#050A14;
-      --card: rgba(12,18,32,.62);
-      --stroke: rgba(255,255,255,.10);
-      --txt:#EAF0FF;
-      --muted: rgba(234,240,255,.72);
-      --primary:#2B6CFF;
-      --violet:#7C3AED;
-      --success:#22C55E;
-      --danger:#FF5C7A;
-      --shadow: 0 22px 70px rgba(0,0,0,.55);
-      --r:26px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0}
-    body{
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-      color:var(--txt);
-      background:
-        radial-gradient(900px 600px at 80% 20%, rgba(43,108,255,.18), transparent 55%),
-        radial-gradient(700px 520px at 20% 0%, rgba(124,58,237,.16), transparent 55%),
-        radial-gradient(1000px 700px at 30% 90%, rgba(34,197,94,.10), transparent 60%),
-        var(--bg);
-      overflow-x:hidden;
-    }
-    body:before{
-      content:"";
-      position:fixed; inset:0;
-      background-image:
-        radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,.18) 50%, transparent 52%),
-        radial-gradient(1px 1px at 35% 70%, rgba(255,255,255,.14) 50%, transparent 52%),
-        radial-gradient(1px 1px at 60% 35%, rgba(255,255,255,.12) 50%, transparent 52%),
-        radial-gradient(1px 1px at 80% 75%, rgba(255,255,255,.10) 50%, transparent 52%),
-        radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,.10) 50%, transparent 52%),
-        radial-gradient(1px 1px at 55% 85%, rgba(255,255,255,.08) 50%, transparent 52%);
-      opacity:.9;
-      pointer-events:none;
-    }
-
-    .wrap{
-      min-height:100vh;
+    /* ===== Page polish (login) ===== */
+    .authWrap{
+      min-height:calc(100vh - 32px);
       display:grid;
       place-items:center;
-      padding:18px 14px 28px;
+      padding:16px 0;
     }
-
-    .card{
-      width:min(580px, 100%);
-      background: linear-gradient(180deg, rgba(12,18,32,.72), rgba(10,18,34,.52));
-      border:1px solid var(--stroke);
-      border-radius: var(--r);
-      padding:18px 16px 16px;
-      box-shadow: var(--shadow);
+    .authCard{
+      width:min(560px,100%);
+      text-align:center;
       position:relative;
       overflow:hidden;
-      text-align:center;
+      border-radius:22px;
     }
-    .card:before{
+    .authCard::before{
       content:"";
       position:absolute; inset:-2px;
       background:
-        radial-gradient(600px 220px at 70% 0%, rgba(43,108,255,.16), transparent 60%),
-        radial-gradient(520px 220px at 20% 20%, rgba(124,58,237,.14), transparent 62%);
+        radial-gradient(700px 380px at 75% 10%, rgba(43,108,255,.16), transparent 55%),
+        radial-gradient(600px 340px at 20% 0%, rgba(168,85,247,.12), transparent 55%);
       pointer-events:none;
+      filter: blur(0px);
+      opacity:.9;
     }
-    .card > *{position:relative}
+    .authInner{ position:relative; z-index:1; }
 
-    .logoWrap{display:flex;justify-content:center;margin-bottom:10px}
-    .logo{
-      width:64px;height:64px;border-radius:20px;
-      background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(34,197,94,.55));
-      border:1px solid rgba(255,255,255,.14);
-      box-shadow: 0 18px 50px rgba(0,0,0,.42);
-      display:grid;place-items:center;
-      font-weight:900;
-      font-size:26px;
-    }
+    /* Title */
+    .authTitle{ margin:0; font-size:22px; letter-spacing:.2px; }
+    .authSub{ margin:10px 0 14px; }
 
-    h1{margin:6px 0 6px;font-size:22px;letter-spacing:.2px}
-    .hint{color:var(--muted);font-size:13px;line-height:1.7}
-
-    /* ===== Segmented role control (احترافي) ===== */
+    /* Segmented role switch */
     .seg{
-      width:min(460px,100%);
-      margin:14px auto 0;
-      display:grid;
-      grid-template-columns:1fr 1fr;
+      display:flex;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
       border-radius:18px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06);
       overflow:hidden;
-      box-shadow: 0 16px 44px rgba(0,0,0,.30);
+      padding:4px;
+      gap:4px;
+      max-width:420px;
+      margin:0 auto 14px;
     }
     .seg button{
+      flex:1;
       border:0;
-      background:transparent;
-      color:rgba(234,240,255,.80);
-      padding:12px 10px;
+      background: transparent;
+      color: rgba(234,240,255,.86);
+      padding:12px 12px;
+      border-radius:14px;
       font-weight:900;
       cursor:pointer;
-      -webkit-tap-highlight-color: transparent;
       display:flex;
       align-items:center;
       justify-content:center;
       gap:10px;
+      -webkit-tap-highlight-color: transparent;
+      transition: .15s ease;
     }
+    .seg button .ic{ font-size:18px; opacity:.95; }
     .seg button.active{
-      color:#fff;
-      background: linear-gradient(135deg, rgba(43,108,255,.30), rgba(124,58,237,.26));
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+      background: rgba(43,108,255,.16);
+      border:1px solid rgba(43,108,255,.28);
+      box-shadow: 0 12px 34px rgba(0,0,0,.30);
+      color: #EAF0FF;
     }
-    .seg .ic{font-size:18px; line-height:1}
+    .seg button:not(.active){ opacity:.75; }
 
-    .form{
-      width:min(460px,100%);
-      margin:14px auto 0;
-      text-align:right;
-    }
-    .field{margin-top:12px}
-    label{display:block;margin-bottom:8px;color:rgba(234,240,255,.78);font-size:12px}
+    /* Inputs spacing */
+    .field{ text-align:right; }
+    .field label{ display:block; margin-bottom:8px; }
     input, select{
       width:100%;
       padding:14px 14px;
-      border-radius:18px;
+      border-radius:16px;
       border:1px solid rgba(255,255,255,.12);
-      background: rgba(0,0,0,.18);
+      background: rgba(255,255,255,.06);
       color:#fff;
       outline:none;
       font-size:16px;
     }
-    input::placeholder{color:rgba(255,255,255,.55)}
+    input::placeholder{ color:rgba(255,255,255,.55); }
 
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:520px){ .row2{grid-template-columns:1fr} }
+    .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width:520px){ .row2{ grid-template-columns:1fr; } }
 
-    .divider{
-      width:min(460px,100%);
-      margin:14px auto 0;
-      height:1px;
-      background: rgba(255,255,255,.10);
+    .divider{ height:1px; background:rgba(255,255,255,.10); margin:14px 0; }
+
+    .msgOk{ color:#7CFFB2; }
+    .msgBad{ color:#FF8E8E; }
+
+    /* Buttons: make Login primary (blue) and Signup secondary (purple) */
+    .btnWide{ width:100%; padding:14px 14px; border-radius:18px; font-size:16px; }
+    .btnAlt{
+      background: linear-gradient(135deg, rgba(139,92,246,.92), rgba(88,28,135,.55));
+      border: 1px solid rgba(168,85,247,.35);
+      color:#F6F0FF;
     }
+    .btnAlt:active{ filter: brightness(1.06); }
 
-    .btnRow{
-      width:min(460px,100%);
-      margin:14px auto 0;
-      display:grid;
-      gap:10px;
-    }
-
-    .btn{
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06);
-      color: var(--txt);
-      border-radius: 18px;
-      padding:14px 14px;
-      font-weight:900;
-      cursor:pointer;
-      user-select:none;
-      -webkit-tap-highlight-color: transparent;
-      transition: transform .08s ease, filter .12s ease, opacity .12s ease;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-    }
-    .btn:active{transform: translateY(1px); filter: brightness(1.06)}
-    .btn:disabled{opacity:.55;cursor:not-allowed; transform:none; filter:none;}
-
-    /* ✅ احترافي: تسجيل الدخول Primary — إنشاء حساب Secondary */
-    .btn.primary{
-      background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(43,108,255,.70));
-      border-color: rgba(43,108,255,.38);
-      box-shadow: 0 14px 34px rgba(43,108,255,.18);
-    }
-    .btn.secondary{
-      background: linear-gradient(135deg, rgba(124,58,237,.18), rgba(124,58,237,.12));
-      border-color: rgba(124,58,237,.32);
-      box-shadow: 0 14px 34px rgba(124,58,237,.10);
-    }
-    .btn.ghost{
-      background: rgba(255,255,255,.04);
-      border-color: rgba(255,255,255,.12);
-      color: rgba(234,240,255,.92);
-    }
-
-    .msgOk{color:#7CFFB2}
-    .msgBad{color:#FF8E8E}
-
-    /* Driver box */
+    /* Driver extra box */
     #driverBox{
-      width:min(460px,100%);
-      margin:0 auto;
       text-align:right;
+      margin-top:14px;
       display:none;
     }
-    .note{
-      width:min(460px,100%);
-      margin:10px auto 0;
-      text-align:right;
-      color:rgba(234,240,255,.70);
-      font-size:12px;
-      line-height:1.6;
-    }
+    #driverBox .hint{ margin:10px 0 0; }
 
-    .footerActions{
-      width:min(460px,100%);
-      margin:12px auto 0;
-      display:grid;
+    /* Small top badge line */
+    .badgeLine{
+      display:flex;
+      justify-content:center;
       gap:10px;
+      flex-wrap:wrap;
+      margin:10px 0 10px;
     }
-    a.linkBtn{
-      text-decoration:none;
+    .miniBadge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color: rgba(234,240,255,.78);
     }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="card">
+  <div class="container authWrap">
+    <div class="card authCard">
+      <div class="authInner">
 
-      <div class="logoWrap">
-        <div class="logo">م</div>
-      </div>
+        <div style="display:flex;justify-content:center;margin-bottom:12px">
+          <div class="logo" style="width:60px;height:60px;border-radius:20px;font-size:24px">م</div>
+        </div>
 
-      <h1>تسجيل الدخول / إنشاء حساب</h1>
-      <p class="hint">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
+        <h1 class="authTitle">تسجيل الدخول / إنشاء حساب</h1>
+        <p class="hint authSub">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
 
-      <!-- ✅ اختيار الدور: Segmented -->
-      <div class="seg" role="tablist" aria-label="اختيار الدور">
-        <button id="rolePassenger" type="button" class="active" role="tab" aria-selected="true">
-          <span class="ic">🚕</span> راكب
-        </button>
-        <button id="roleDriver" type="button" role="tab" aria-selected="false">
-          <span class="ic">🧑‍✈️</span> سائق
-        </button>
-      </div>
+        <div class="badgeLine">
+          <span class="miniBadge">✅ نفس الإيميل يشتغل في الاثنين</span>
+        </div>
 
-      <div class="form">
+        <!-- ✅ Segmented role -->
+        <div class="seg" aria-label="اختيار الدور">
+          <button id="rolePassenger" type="button">
+            <span class="ic">🚕</span>
+            <span>راكب</span>
+          </button>
+          <button id="roleDriver" type="button">
+            <span class="ic">🧑‍✈️</span>
+            <span>سائق</span>
+          </button>
+        </div>
+
         <div class="field">
           <label>الإيميل</label>
           <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
         </div>
 
-        <div class="field">
+        <div class="field" style="margin-top:12px">
           <label>كلمة المرور <span class="hint">(6 أحرف على الأقل)</span></label>
           <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
         </div>
-      </div>
 
-      <!-- ✅ الأزرار (موجودة كلها) -->
-      <div class="btnRow">
-        <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
-        <button class="btn secondary" id="signupBtn" type="button">إنشاء حساب</button>
-      </div>
+        <!-- ✅ Buttons: Login primary, Signup purple secondary -->
+        <div class="actions" style="margin-top:14px">
+          <button class="btn primary btnWide" id="loginBtn" type="button">تسجيل دخول</button>
+          <button class="btn btnAlt btnWide" id="signupBtn" type="button">إنشاء حساب</button>
+        </div>
 
-      <div class="divider"></div>
+        <div class="divider"></div>
 
-      <div class="form" style="margin-top:0">
-        <div class="field" style="margin-top:14px">
+        <div class="field">
           <label>الاسم <span class="hint">(اختياري)</span></label>
           <input id="name" type="text" placeholder="اسمك" autocomplete="name" />
         </div>
 
-        <div class="field">
+        <div class="field" style="margin-top:12px">
           <label>رقم الهاتف <span class="hint">(مهم لتجنب الطلبات الوهمية)</span></label>
           <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" />
         </div>
-      </div>
 
-      <!-- Driver extra fields -->
-      <div id="driverBox">
-        <div class="divider"></div>
+        <!-- Driver extra fields -->
+        <div id="driverBox">
+          <div class="divider"></div>
 
-        <div class="form" style="margin-top:0">
-          <div class="field" style="margin-top:14px">
+          <div class="field">
             <label>نوع المركبة (للسائق)</label>
             <select id="vehicle">
               <option value="">اختر نوع المركبة…</option>
@@ -299,26 +213,28 @@
           </div>
 
           <div class="row2" style="margin-top:12px">
-            <div class="field" style="margin-top:0">
+            <div class="field">
               <label>موديل/كود المركبة</label>
               <input id="model" type="text" placeholder="مثال: 2020 / BYD / إلخ" />
             </div>
-            <div class="field" style="margin-top:0">
+            <div class="field">
               <label>رقم اللوحة <span class="hint">(اختياري)</span></label>
               <input id="plate" type="text" placeholder="مثال: س ج 1234" />
             </div>
           </div>
+
+          <p class="hint" style="margin:10px 0 0">
+            * بيانات المركبة تظهر للراكب عند قبول الرحلة.
+          </p>
         </div>
 
-        <div class="note">* بيانات المركبة تظهر للراكب عند قبول الرحلة.</div>
+        <p id="msg" class="hint" style="margin:14px 0 0"></p>
+
+        <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
+          <a class="btn" href="./index.html" style="min-width:220px;text-align:center">↩️ رجوع للرئيسية</a>
+        </div>
+
       </div>
-
-      <p id="msg" class="hint" style="margin:14px 0 0"></p>
-
-      <div class="footerActions">
-        <a class="btn ghost linkBtn" href="./index.html">↩️ رجوع للرئيسية</a>
-      </div>
-
     </div>
   </div>
 
@@ -360,13 +276,8 @@
     function setRole(r){
       role = (r === "driver") ? "driver" : "passenger";
       try{ localStorage.setItem(LS_ROLE, role); }catch{}
-
       rolePassengerBtn.classList.toggle("active", role==="passenger");
       roleDriverBtn.classList.toggle("active", role==="driver");
-
-      rolePassengerBtn.setAttribute("aria-selected", role==="passenger" ? "true" : "false");
-      roleDriverBtn.setAttribute("aria-selected", role==="driver" ? "true" : "false");
-
       driverBox.style.display = (role==="driver") ? "block" : "none";
     }
 
@@ -410,7 +321,6 @@
         email: user.email || clean(emailEl.value) || null
       });
 
-      // ✅ حفظ البروفايل (وتحديث بيانات السائق لو مختار سائق)
       const payload = {
         roles: { passenger:true, driver:true },
         activeRole: role,
@@ -427,7 +337,7 @@
 
       await saveUserProfile(user.uid, payload);
 
-      // ✅ يمنع التحويل التلقائي لراكب
+      // ✅ يمنع التحويل التلقائي
       setActiveRole(role);
 
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
