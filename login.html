@@ -10,88 +10,219 @@
   <meta name="theme-color" content="#050B16" />
 
   <style>
-    .roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    /* ===== Login polish (UI only) ===== */
+    :root{
+      --login-card-w: 540px;
+      --login-radius: 22px;
+      --login-stroke: rgba(255,255,255,.12);
+      --login-stroke2: rgba(43,108,255,.35);
+      --login-soft: rgba(255,255,255,.06);
+      --login-soft2: rgba(0,0,0,.18);
+      --login-txt: rgba(234,240,255,.92);
+      --login-muted: rgba(234,240,255,.72);
+    }
+
+    .container{
+      max-width: 100%;
+    }
+
+    .loginShell{
+      min-height: calc(100vh - 24px);
+      display: grid;
+      place-items: center;
+      padding: 14px 12px;
+    }
+
+    .loginCard{
+      width: min(var(--login-card-w), 100%);
+      text-align: center;
+      border-radius: var(--login-radius);
+      padding: 18px 16px 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: linear-gradient(180deg, rgba(12,18,32,.96), rgba(10,18,34,.86));
+      box-shadow: 0 22px 70px rgba(0,0,0,.42);
+      overflow: hidden;
+    }
+
+    .loginTitle{
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: .2px;
+    }
+
+    .loginSub{
+      margin: 8px 0 14px;
+      color: var(--login-muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* Role tabs */
+    .roleTabs{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+
     .roleBtn{
-      min-width:160px;text-align:center;
-      border:1px solid rgba(255,255,255,.12);
+      border: 1px solid var(--login-stroke);
       background: rgba(255,255,255,.05);
-      border-radius:16px;
-      padding:12px 14px;
-      cursor:pointer;
-      user-select:none;
-      font-weight:900;
+      border-radius: 18px;
+      padding: 12px 14px;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 900;
       -webkit-tap-highlight-color: transparent;
+      color: rgba(234,240,255,.82);
+      transition: transform .08s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .roleBtn:active{ transform: translateY(1px); filter: brightness(1.05); }
+    .roleBtn::after{
+      content:"";
+      position:absolute; inset:-2px;
+      background: radial-gradient(420px 160px at 70% 20%, rgba(43,108,255,.18), transparent 60%),
+                  radial-gradient(420px 160px at 25% 120%, rgba(34,197,94,.12), transparent 60%);
+      opacity: .55;
+      pointer-events:none;
     }
     .roleBtn.active{
-      background: rgba(43,108,255,.14);
-      border-color: rgba(43,108,255,.35);
+      background: rgba(43,108,255,.12);
+      border-color: var(--login-stroke2);
+      color: rgba(234,240,255,.98);
+      box-shadow: 0 10px 30px rgba(43,108,255,.14);
     }
-    .field label{display:block;margin-bottom:8px}
+    .roleBtn.active::before{
+      content:"";
+      position:absolute; inset:0;
+      border-radius: 18px;
+      box-shadow: inset 0 0 0 1px rgba(43,108,255,.22);
+      pointer-events:none;
+    }
+
+    /* Fields */
+    .field{
+      text-align: right;
+      margin-top: 12px;
+    }
+    .field:first-of-type{ margin-top: 10px; }
+    .field label{
+      display: block;
+      margin-bottom: 8px;
+      color: rgba(234,240,255,.82);
+      font-size: 12px;
+      letter-spacing: .2px;
+    }
+
     input, select{
-      width:100%;
-      padding:14px 14px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06);
-      color:#fff;
-      outline:none;
+      width: 100%;
+      padding: 14px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      color: rgba(234,240,255,.98);
+      outline: none;
+      font-size: 16px;
+      transition: border-color .12s ease, box-shadow .12s ease, filter .12s ease;
     }
-    input::placeholder{color:rgba(255,255,255,.55)}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:520px){ .row2{grid-template-columns:1fr} }
-    .divider{height:1px;background:rgba(255,255,255,.10);margin:14px 0}
-    .msgOk{color:#7CFFB2}
-    .msgBad{color:#FF8E8E}
+    input::placeholder{ color: rgba(234,240,255,.52); }
+    input:focus, select:focus{
+      border-color: rgba(43,108,255,.45);
+      box-shadow: 0 0 0 4px rgba(43,108,255,.12);
+      filter: brightness(1.02);
+    }
+
+    .row2{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    @media (max-width:520px){ .row2{ grid-template-columns: 1fr; } }
+
+    .divider{
+      height: 1px;
+      background: rgba(255,255,255,.10);
+      margin: 14px 0;
+    }
+
+    /* Message */
+    .msgOk{ color:#7CFFB2; }
+    .msgBad{ color:#FF8E8E; }
+
+    /* Buttons sizing polish */
+    .row2 .btn{
+      border-radius: 18px;
+      padding: 14px 14px;
+      font-size: 16px;
+    }
+
+    /* Driver box */
+    #driverBox{
+      text-align: right;
+      margin-top: 12px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 12px 12px 10px;
+    }
+    #driverBox .divider{ margin: 10px 0 12px; }
+
+    /* Bottom back link */
+    .backBtn{
+      min-width: 220px;
+      text-align: center;
+      border-radius: 18px;
+      padding: 12px 14px;
+    }
   </style>
 </head>
 
 <body>
-  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
-    <div class="card" style="width:min(560px,100%);text-align:center">
+  <div class="loginShell">
+    <div class="loginCard">
 
       <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
+        <div class="logo" style="width:58px;height:58px;border-radius:20px;font-size:22px">م</div>
       </div>
 
-      <h1 style="margin:0;font-size:20px">تسجيل الدخول / إنشاء حساب</h1>
-      <p class="hint" style="margin:8px 0 14px">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
+      <h1 class="loginTitle">تسجيل الدخول / إنشاء حساب</h1>
+      <p class="loginSub">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
 
-      <div class="roleTabs" style="margin-bottom:14px">
-        <button class="roleBtn" id="rolePassenger" type="button">راكب</button>
-        <button class="roleBtn" id="roleDriver" type="button">سائق</button>
+      <div class="roleTabs">
+        <button class="roleBtn" id="rolePassenger" type="button" aria-pressed="false">راكب</button>
+        <button class="roleBtn" id="roleDriver" type="button" aria-pressed="false">سائق</button>
       </div>
 
-      <div class="field" style="text-align:right">
+      <div class="field">
         <label>الإيميل</label>
         <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
       </div>
 
-      <div class="field" style="text-align:right;margin-top:12px">
+      <div class="field">
         <label>كلمة المرور <span class="hint">(6 أحرف على الأقل)</span></label>
         <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <div class="row2" style="margin-top:14px">
+      <div class="row2">
         <button class="btn success" id="signupBtn" type="button">إنشاء حساب</button>
         <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
       </div>
 
       <div class="divider"></div>
 
-      <div class="field" style="text-align:right">
+      <div class="field">
         <label>الاسم <span class="hint">(اختياري)</span></label>
         <input id="name" type="text" placeholder="اسمك" autocomplete="name" />
       </div>
 
-      <div class="field" style="text-align:right;margin-top:12px">
-        <label>رقم الهاتف <span class="hint">(مطلوب للتواصل ومنع الطلبات الوهمية)</span></label>
-        <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" inputmode="tel" />
+      <div class="field">
+        <label>رقم الهاتف <span class="hint">(مهم لتجنب الطلبات الوهمية)</span></label>
+        <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" />
       </div>
 
-      <div id="driverBox" style="display:none;text-align:right;margin-top:14px">
+      <!-- Driver extra fields -->
+      <div id="driverBox" style="display:none">
         <div class="divider"></div>
 
-        <div class="field">
+        <div class="field" style="margin-top:0">
           <label>نوع المركبة (للسائق)</label>
           <select id="vehicle">
             <option value="">اختر نوع المركبة…</option>
@@ -105,11 +236,11 @@
         </div>
 
         <div class="row2" style="margin-top:12px">
-          <div class="field">
+          <div class="field" style="margin-top:0">
             <label>موديل/كود المركبة</label>
             <input id="model" type="text" placeholder="مثال: 2020 / BYD / إلخ" />
           </div>
-          <div class="field">
+          <div class="field" style="margin-top:0">
             <label>رقم اللوحة <span class="hint">(اختياري)</span></label>
             <input id="plate" type="text" placeholder="مثال: س ج 1234" />
           </div>
@@ -123,7 +254,7 @@
       <p id="msg" class="hint" style="margin:14px 0 0"></p>
 
       <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
-        <a class="btn" href="./index.html" style="min-width:220px;text-align:center">↩️ رجوع للرئيسية</a>
+        <a class="btn backBtn" href="./index.html">↩️ رجوع للرئيسية</a>
       </div>
     </div>
   </div>
@@ -132,10 +263,7 @@
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole,
-      normalizePhone,
-      normalizeEmail,
-      normalizePassword
+      setActiveRole
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
@@ -158,6 +286,7 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
+    // ===== role (query + last choice)
     const url = new URL(location.href);
     const LS_ROLE = "mw_last_role";
     let role =
@@ -170,6 +299,8 @@
       try{ localStorage.setItem(LS_ROLE, role); }catch{}
       rolePassengerBtn.classList.toggle("active", role==="passenger");
       roleDriverBtn.classList.toggle("active", role==="driver");
+      rolePassengerBtn.setAttribute("aria-pressed", String(role==="passenger"));
+      roleDriverBtn.setAttribute("aria-pressed", String(role==="driver"));
       driverBox.style.display = (role==="driver") ? "block" : "none";
     }
 
@@ -195,20 +326,9 @@
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
-    function validateCommon(){
-      const email = normalizeEmail(emailEl.value);
-      const pass  = normalizePassword(passEl.value);
-      const phone = normalizePhone(phoneEl.value);
-
-      if(!email) return { ok:false, msg:"❌ اكتب إيميل صحيح." };
-      if(!pass)  return { ok:false, msg:"❌ كلمة المرور لازم 6 أحرف على الأقل." };
-      if(!phone) return { ok:false, msg:"❌ رقم الهاتف مطلوب (مثال: 01xxxxxxxxx)." };
-
-      return { ok:true, email, pass, phone };
-    }
-
-    function validateDriver(){
+    function validateRoleFields(){
       if(role !== "driver") return { ok:true };
+
       const v = clean(vehicleEl.value);
       const m = clean(modelEl.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
@@ -216,24 +336,24 @@
       return { ok:true };
     }
 
-    async function afterAuth(user, phoneNorm){
-      const desiredRole = role;
-
+    async function afterAuth(user){
+      // ✅ نفس الإيميل يشتغل للدورين
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
-        activeRole: desiredRole,
-        email: user.email || normalizeEmail(emailEl.value) || null
+        activeRole: role,
+        email: user.email || clean(emailEl.value) || null
       });
 
+      // ✅ حفظ البروفايل (وتحديث بيانات السائق لو مختار سائق)
       const payload = {
         roles: { passenger:true, driver:true },
-        activeRole: desiredRole,
+        activeRole: role,
         name: clean(nameEl.value) || null,
-        phone: phoneNorm,
-        email: user.email || normalizeEmail(emailEl.value) || null
+        phone: clean(phoneEl.value) || null,
+        email: user.email || clean(emailEl.value) || null
       };
 
-      if(desiredRole === "driver"){
+      if(role === "driver"){
         payload.vehicle = clean(vehicleEl.value) || null;
         payload.model = clean(modelEl.value) || null;
         payload.plate = clean(plateEl.value) || null;
@@ -241,25 +361,22 @@
 
       await saveUserProfile(user.uid, payload);
 
-      setActiveRole(desiredRole);
+      // ✅ يمنع التحويل التلقائي لراكب
+      setActiveRole(role);
 
-      location.href = (desiredRole === "driver") ? "./driver.html" : "./passenger.html";
+      location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function doSignup(){
       try{
-        const c = validateCommon();
-        if(!c.ok){ setMsg(c.msg); return; }
-
-        const d = validateDriver();
-        if(!d.ok){ setMsg(d.msg); return; }
+        const v = validateRoleFields();
+        if(!v.ok){ setMsg(v.msg); return; }
 
         setMsg("جارٍ إنشاء الحساب…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
-        const cred = await emailSignUp(c.email, c.pass);
-        await afterAuth(cred.user, c.phone);
-
+        const cred = await emailSignUp(emailEl.value, passEl.value);
+        await afterAuth(cred.user);
       }catch(e){
         setMsg(niceAuthError(e));
       }finally{
@@ -269,18 +386,14 @@
 
     async function doLogin(){
       try{
-        const c = validateCommon();
-        if(!c.ok){ setMsg(c.msg); return; }
-
-        const d = validateDriver();
-        if(!d.ok){ setMsg(d.msg); return; }
+        const v = validateRoleFields();
+        if(role==="driver" && !v.ok){ setMsg(v.msg); return; }
 
         setMsg("جارٍ تسجيل الدخول…", true);
         signupBtn.disabled = true; loginBtn.disabled = true;
 
-        const cred = await emailSignIn(c.email, c.pass);
-        await afterAuth(cred.user, c.phone);
-
+        const cred = await emailSignIn(emailEl.value, passEl.value);
+        await afterAuth(cred.user);
       }catch(e){
         setMsg(niceAuthError(e));
       }finally{
