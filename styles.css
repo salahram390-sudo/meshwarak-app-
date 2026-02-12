@@ -1,5 +1,4 @@
-/* FILE: styles.css */
-
+/* FILE: styles.css (UI polish v2 - no logic changes) */
 :root{
   --bg:#070A10;
   --card:#0C1220;
@@ -8,9 +7,11 @@
   --muted:rgba(234,240,255,.72);
 
   --primary:#2B6CFF;
-  --accent:#7C4DFF;        /* ✅ NEW */
   --success:#22C55E;
   --danger:#FF5C7A;
+
+  /* ✅ NEW accent (for Signup / secondary emphasis) */
+  --accent:#7C5CFF;
 
   --shadow: 0 16px 44px rgba(0,0,0,.40);
   --r:18px;
@@ -24,8 +25,8 @@ body{
   text-rendering: optimizeLegibility;
   background:
     radial-gradient(1200px 600px at 90% 10%, rgba(43,108,255,.12), transparent 55%),
-    radial-gradient(900px 500px at 10% 0%, rgba(124,77,255,.10), transparent 52%),
-    radial-gradient(900px 500px at 10% 0%, rgba(34,197,94,.07), transparent 50%),
+    radial-gradient(900px 500px at 10% 0%, rgba(124,92,255,.10), transparent 50%),
+    radial-gradient(900px 500px at 10% 0%, rgba(34,197,94,.06), transparent 55%),
     var(--bg);
   color:var(--txt);
 }
@@ -45,7 +46,7 @@ a{color:inherit;text-decoration:none}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{
   width:38px;height:38px;border-radius:12px;
-  background: linear-gradient(135deg, rgba(43,108,255,.92), rgba(124,77,255,.72));
+  background: linear-gradient(135deg, rgba(43,108,255,.92), rgba(124,92,255,.72));
   box-shadow: 0 10px 28px rgba(0,0,0,.35);
   display:grid;place-items:center;font-weight:900;
 }
@@ -59,37 +60,57 @@ a{color:inherit;text-decoration:none}
   font-weight:900;
   background: rgba(255,255,255,.06);
   color:var(--txt);
-  border:1px solid var(--stroke);
+  border:1px solid rgba(255,255,255,.10);
   user-select:none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform .08s ease, filter .12s ease, opacity .12s ease, border-color .12s ease, background .12s ease;
+  transition: transform .08s ease, filter .12s ease, opacity .12s ease, background .12s ease, border-color .12s ease;
+  position:relative;
 }
 .btn:active{ transform: translateY(1px); filter: brightness(1.05); }
 .btn:disabled{opacity:.55;cursor:not-allowed; transform:none; filter:none;}
 
+/* Primary = Login (Blue) */
 .btn.primary{
-  background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(43,108,255,.72));
-  border:1px solid rgba(43,108,255,.35)
+  background: linear-gradient(135deg, rgba(43,108,255,.98), rgba(43,108,255,.72));
+  border:1px solid rgba(43,108,255,.35);
+  box-shadow: 0 12px 30px rgba(43,108,255,.18);
 }
-.btn.accent{ /* ✅ NEW */
-  background: linear-gradient(135deg, rgba(124,77,255,.95), rgba(124,77,255,.70));
-  border:1px solid rgba(124,77,255,.35);
-}
-.btn.success{background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.62));border:1px solid rgba(34,197,94,.35);color:#04110a}
-.btn.danger{background: rgba(255,92,122,.12);border:1px solid rgba(255,92,122,.28);color:#ffd6dd}
 
+/* Success (keep for passenger/driver open buttons etc.) */
+.btn.success{
+  background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.62));
+  border:1px solid rgba(34,197,94,.35);
+  color:#04110a;
+  box-shadow: 0 12px 30px rgba(34,197,94,.14);
+}
+
+/* Danger */
+.btn.danger{
+  background: rgba(255,92,122,.12);
+  border:1px solid rgba(255,92,122,.28);
+  color:#ffd6dd;
+}
+
+/* Secondary */
 .btn.secondary{
-  background: rgba(255,255,255,.06);
-  border:1px solid var(--stroke);
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
 }
-.btn.outline{ /* ✅ NEW */
-  background: transparent;
-  border:1px solid rgba(255,255,255,.16);
+
+/* ✅ Accent = Signup / Secondary call-to-action */
+.btn.accent{
+  background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(124,92,255,.64));
+  border:1px solid rgba(124,92,255,.35);
+  box-shadow: 0 12px 30px rgba(124,92,255,.16);
 }
-.btn.ghost{ /* ✅ NEW */
-  background: transparent;
-  border:1px solid transparent;
-  color: var(--muted);
+
+/* Focus ring */
+.btn:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible{
+  outline:2px solid rgba(43,108,255,.55);
+  outline-offset:2px;
 }
 
 /* ===== Cards / layout ===== */
@@ -110,7 +131,7 @@ input,select,textarea{
   width:100%;
   padding:12px 12px;
   border-radius: 14px;
-  border:1px solid var(--stroke);
+  border:1px solid rgba(255,255,255,.10);
   background: rgba(0,0,0,.18);
   color:var(--txt);
   outline:none;
@@ -128,7 +149,7 @@ textarea{resize:none}
 .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .pill{
   padding:7px 10px;border-radius:999px;
-  border:1px solid var(--stroke);
+  border:1px solid rgba(255,255,255,.10);
   background: rgba(255,255,255,.06);
   font-size:12px;color:var(--muted);
 }
@@ -151,7 +172,7 @@ textarea{resize:none}
 .leaflet-control-attribution{opacity:.75}
 .leaflet-control-zoom{display:none}
 
-/* ✅ Emoji pin */
+/* Emoji pin */
 .pin-emoji{ background: transparent !important; border:0 !important; }
 .pin-bubble{
   width:44px; height:44px;
@@ -163,7 +184,7 @@ textarea{resize:none}
   box-shadow: 0 10px 26px rgba(0,0,0,.40);
 }
 
-/* ===== Bottom sheet (IMPORTANT FIX) ===== */
+/* ===== Bottom sheet ===== */
 .sheet{
   position:absolute;left:0;right:0;bottom:0;z-index:1000;
   border-top-left-radius:22px;border-top-right-radius:22px;
@@ -202,7 +223,7 @@ textarea{resize:none}
   pointer-events:auto;
   border-radius:18px;
   padding:12px 14px;
-  border:1px solid var(--stroke);
+  border:1px solid rgba(255,255,255,.10);
   background: rgba(12,18,32,.92);
   box-shadow: 0 16px 44px rgba(0,0,0,.42);
   display:flex; align-items:flex-start; gap:10px;
@@ -214,7 +235,21 @@ textarea{resize:none}
 .toast.bad{border-color: rgba(255,92,122,.28); background: rgba(255,92,122,.10)}
 @keyframes toastIn{from{transform: translateY(-6px); opacity:0}to{transform: translateY(0); opacity:1}}
 
-/* ✅ Auth role tabs (NEW, for login page) */
+@media (max-width:520px){
+  .container{max-width:100%;padding:12px}
+  .topbar-inner{padding:10px 12px}
+  .grid2,.row{grid-template-columns:1fr}
+  .actions .btn{min-width:0; flex:1 1 48%}
+}
+@media (prefers-reduced-motion: reduce){
+  .btn{transition:none}
+  .toast{animation:none}
+}
+
+/* =========================================
+   ✅ Login page ONLY (role tabs polish)
+   - Works without changing login.html
+   ========================================= */
 .roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .roleBtn{
   min-width:160px;text-align:center;
@@ -228,26 +263,9 @@ textarea{resize:none}
   -webkit-tap-highlight-color: transparent;
   transition: transform .08s ease, filter .12s ease, background .12s ease, border-color .12s ease;
 }
-.roleBtn:active{ transform: translateY(1px); filter: brightness(1.05); }
+.roleBtn:active{transform: translateY(1px); filter: brightness(1.06);}
 .roleBtn.active{
-  background: rgba(124,77,255,.14);
-  border-color: rgba(124,77,255,.35);
-}
-.roleBtn.active::after{
-  content:"✓";
-  display:inline-block;
-  margin-right:8px;
-  font-weight:900;
-  opacity:.95;
-}
-
-@media (max-width:520px){
-  .container{max-width:100%;padding:12px}
-  .topbar-inner{padding:10px 12px}
-  .grid2,.row{grid-template-columns:1fr}
-  .actions .btn{min-width:0; flex:1 1 48%}
-}
-@media (prefers-reduced-motion: reduce){
-  .btn{transition:none}
-  .toast{animation:none}
+  background: linear-gradient(135deg, rgba(43,108,255,.18), rgba(124,92,255,.12));
+  border-color: rgba(43,108,255,.35);
+  box-shadow: 0 12px 30px rgba(43,108,255,.10);
 }
