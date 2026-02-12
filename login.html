@@ -2,14 +2,14 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#0b1220" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#050B16" />
   <title>مشوارك - تسجيل الدخول</title>
   <link rel="stylesheet" href="./styles.css?v=10">
 </head>
 
 <body>
-  <div class="container auth" style="padding-top:18px">
+  <div class="container auth">
     <div class="card auth-card">
       <div class="auth-logo">
         <div class="logoBig">م</div>
@@ -17,12 +17,17 @@
         <p class="hint">اختر تدخل ك راكب أو سائق — نفس الإيميل يشتغل في الاتنين ✅</p>
       </div>
 
-      <div class="pillRow">
-        <button type="button" class="pillBtn" id="rolePassenger">راكب 🚕</button>
-        <button type="button" class="pillBtn" id="roleDriver">سائق 🧑‍✈️</button>
+      <!-- Segmented Role -->
+      <div class="segRow" role="tablist" aria-label="نوع الاستخدام">
+        <button type="button" class="segBtn" id="rolePassenger" role="tab" aria-selected="false">
+          راكب 🚕
+        </button>
+        <button type="button" class="segBtn" id="roleDriver" role="tab" aria-selected="false">
+          سائق 🧑‍✈️
+        </button>
       </div>
 
-      <div class="hint" id="roleHint" style="text-align:center;margin-top:8px"></div>
+      <div class="hint" id="roleHint" style="text-align:center;margin-top:10px"></div>
 
       <div class="field">
         <label>الإيميل</label>
@@ -37,13 +42,12 @@
       <div class="sep"></div>
 
       <div class="grid2">
-        <!-- تسجيل دخول = أزرق -->
         <button class="btn success" id="loginBtn" type="button">تسجيل دخول</button>
-        <!-- إنشاء حساب = بنفسجي -->
         <button class="btn primary" id="signupBtn" type="button">إنشاء حساب</button>
       </div>
 
-      <div id="driverFields" style="display:none;margin-top:10px">
+      <!-- Driver Fields -->
+      <div id="driverFields" style="display:none;margin-top:12px">
         <div class="sep"></div>
 
         <div class="hint" style="margin-bottom:10px">
@@ -82,7 +86,7 @@
 
       <a class="btn" href="./index.html?v=10">↩ رجوع للرئيسية</a>
 
-      <div class="hint" id="msg" style="margin-top:10px;min-height:22px"></div>
+      <div class="hint" id="msg" style="margin-top:12px;min-height:22px"></div>
     </div>
   </div>
 
@@ -112,10 +116,18 @@
 
     function setRoleUI(role){
       const r = setActiveRole(role);
-      rolePassengerBtn.classList.toggle("active", r === "passenger");
-      roleDriverBtn.classList.toggle("active", r === "driver");
-      driverFields.style.display = (r === "driver") ? "block" : "none";
-      roleHint.textContent = (r === "driver") ? "✅ وضع السائق مفعل" : "✅ وضع الراكب مفعل";
+
+      const isPassenger = (r === "passenger");
+      const isDriver = (r === "driver");
+
+      rolePassengerBtn.classList.toggle("active", isPassenger);
+      roleDriverBtn.classList.toggle("active", isDriver);
+
+      rolePassengerBtn.setAttribute("aria-selected", String(isPassenger));
+      roleDriverBtn.setAttribute("aria-selected", String(isDriver));
+
+      driverFields.style.display = isDriver ? "block" : "none";
+      roleHint.textContent = isDriver ? "✅ وضع السائق مفعل" : "✅ وضع الراكب مفعل";
     }
 
     // init
@@ -150,15 +162,15 @@
       if(role === "driver"){
         await saveUserProfile(user.uid, {
           vehicle: vehicleEl.value || null,
-          model: modelEl.value.trim() || null,
-          plate: plateEl.value.trim() || null,
+          model: (modelEl.value || "").trim() || null,
+          plate: (plateEl.value || "").trim() || null,
         }).catch(()=>{});
       }
 
       location.href = (role === "driver") ? "./driver.html?v=10" : "./passenger.html?v=10";
     }
 
-    async function lockUI(locked){
+    function lockUI(locked){
       loginBtn.disabled = locked;
       signupBtn.disabled = locked;
       rolePassengerBtn.disabled = locked;
@@ -167,7 +179,7 @@
 
     loginBtn.addEventListener("click", async ()=>{
       msg.textContent = "جارٍ تسجيل الدخول…";
-      await lockUI(true);
+      lockUI(true);
       try{
         const email = normEmail(emailEl.value);
         const password = passEl.value || "";
@@ -177,13 +189,13 @@
         console.error(e);
         msg.textContent = showFirebaseError(e, "signin");
       }finally{
-        await lockUI(false);
+        lockUI(false);
       }
     });
 
     signupBtn.addEventListener("click", async ()=>{
       msg.textContent = "جارٍ إنشاء الحساب…";
-      await lockUI(true);
+      lockUI(true);
       try{
         const email = normEmail(emailEl.value);
         const password = passEl.value || "";
@@ -193,7 +205,7 @@
         console.error(e);
         msg.textContent = showFirebaseError(e, "signup");
       }finally{
-        await lockUI(false);
+        lockUI(false);
       }
     });
   </script>
