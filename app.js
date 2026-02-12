@@ -1,12 +1,15 @@
-// app.js — FINAL v6 (Stable + Role + Auth Guards + Profile Save + Toast)
-// مشوارك — GitHub Pages safe
+// app.js — FINAL (Exports fixed + Auth/Firestore helpers) ✅
+// Works with: index.html, login.html, profile.html, trip.html, passenger.html, driver.html
+// Firebase v10.12.5 (CDN modular)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 
 import {
   getAuth,
   onAuthStateChanged,
-  signOut
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -14,12 +17,13 @@ import {
   doc,
   getDoc,
   setDoc,
-  serverTimestamp
+  updateDoc,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// =====================
-// Firebase Config
-// =====================
+// ======================
+// ✅ Firebase config
+// ======================
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -34,154 +38,184 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// =====================
-// Helpers
-// =====================
-export function go(url) {
-  location.href = url;
+// ======================
+// ✅ Role helpers
+// ======================
+const LS_ACTIVE_ROLE = "mw_active_role"; // "passenger" | "driver"
+const LS_LAST_ROLE = "mw_last_role";     // used by login.html too
+
+export function getActiveRole() {
+  const r = (localStorage.getItem(LS_ACTIVE_ROLE) || "").trim();
+  return r === "driver" ? "driver" : "passenger";
 }
 
-export function qs(k) {
+export function setActiveRole(role) {
+  const r = role === "driver" ? "driver" : "passenger";
   try {
-    return new URLSearchParams(location.search).get(k);
+    localStorage.setItem(LS_ACTIVE_ROLE, r);
+    localStorage.setItem(LS_LAST_ROLE, r);
+  } catch {}
+  return r;
+}
+
+// ======================
+// ✅ Small utils
+// ======================
+export function qs(name) {
+  try {
+    return new URL(location.href).searchParams.get(name);
   } catch {
     return null;
   }
 }
 
-export function safeText(x) {
-  return (x ?? "").toString();
+function clean(s) {
+  return (s || "").toString().trim().replace(/\s+/g, " ");
 }
 
-// =====================
-// Role (local + user doc)
-// =====================
-const ROLE_KEY = "meshwarak_role";
-
-export function setRoleLocal(role) {
-  const r = role === "driver" ? "driver" : "passenger";
-  localStorage.setItem(ROLE_KEY, r);
-  return r;
-}
-
-export function getRoleLocal() {
-  return localStorage.getItem(ROLE_KEY) || "passenger";
-}
-
-// Backward compatibility for old code
-export function setActiveRole(role) {
-  return setRoleLocal(role);
-}
-
-// =====================
-// Toast (simple)
-// =====================
-let _toastT = null;
-
-export function toast(html, ms = 2600) {
-  const el = document.getElementById("toast");
-  if (!el) return;
-
-  el.innerHTML = html;
-  el.classList.add("show");
-
-  clearTimeout(_toastT);
-  _toastT = setTimeout(() => el.classList.remove("show"), ms);
-}
-
-// =====================
-// Auth guards
-// =====================
-export function waitAuthOnce() {
-  return new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      try { unsub(); } catch {}
-      resolve(user || null);
-    });
-  });
-}
-
-// لو المستخدم بالفعل داخل: ودّيه للصفحة المناسبة
-export async function requireNoAuth() {
-  const user = await waitAuthOnce();
-  if (user) {
-    const role = getRoleLocal();
-    if (role === "driver") go("./driver.html");
-    else go("./passenger.html");
-    throw new Error("already authed");
+function safeRedirect(url) {
+  try {
+    location.href = url;
+  } catch {
+    location.assign(url);
   }
-  return true;
 }
 
-// requireAuthAndRole(roleOrNull)
-// - لو roleOrNull = "driver" أو "passenger" -> لازم نفس الدور
-// - لو null -> بس لازم يكون داخل
-export async function requireAuthAndRole(roleOrNull = null) {
-  const user = await waitAuthOnce();
-  if (!user) {
-    go("./index.html");
-    throw new Error("not authed");
+// ======================
+// ✅ Auth exports (FIX for your error)
+// ======================
+export async function emailSignUp(email, password) {
+  const e = clean(email);
+  const p = (password || "").toString();
+  return await createUserWithEmailAndPassword(auth, e, p);
+}
+
+export async function emailSignIn(email, password) {
+  const e = clean(email);
+  const p = (password || "").toString();
+  return await signInWithEmailAndPassword(auth, e, p);
+}
+
+// ======================
+// ✅ Firestore user doc helpers
+// ======================
+export async function ensureUserDoc(uid, seed = {}) {
+  if (!uid) throw new Error("missing uid");
+  const ref = doc(db, "users", uid);
+
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    // if exists, we can still merge missing essentials safely
+    const data = snap.data() || {};
+    const patch = {};
+
+    // roles defaults
+    if (!data.roles) patch.roles = { passenger: true, driver: true };
+    if (!data.activeRole) patch.activeRole = getActiveRole();
+    if (!data.email && seed.email) patch.email = seed.email;
+
+    if (Object.keys(patch).length) {
+      patch.updatedAt = serverTimestamp();
+      await setDoc(ref, patch, { merge: true });
+    }
+    return;
   }
 
-  // اقرأ user doc
-  const data = await getUserDoc(user.uid).catch(() => null);
+  const payload = {
+    roles: { passenger: true, driver: true },
+    activeRole: getActiveRole(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...seed,
+  };
 
-  // role الحالي (local أولاً)
-  const localRole = getRoleLocal();
-  const role = localRole || data?.activeRole || "passenger";
+  // ensure seed doesn't break defaults
+  payload.roles = payload.roles || { passenger: true, driver: true };
+  payload.activeRole = payload.activeRole || getActiveRole();
 
-  // لو مطلوب دور معين
-  if (roleOrNull && role !== roleOrNull) {
-    // لو الصفحة سائق وهو راكب: ودّيه
-    if (roleOrNull === "driver") go("./driver.html");
-    else go("./passenger.html");
-    throw new Error("wrong role");
-  }
-
-  return { user, data: { ...(data || {}), role } };
+  await setDoc(ref, payload, { merge: true });
 }
 
-// =====================
-// User Doc
-// =====================
 export async function getUserDoc(uid) {
+  if (!uid) throw new Error("missing uid");
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
 
-// يضمن وجود user doc
-export async function ensureUserDoc(uid, payload = {}) {
-  const base = {
-    roles: { passenger: true, driver: true },
-    activeRole: "passenger",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-
-  await setDoc(doc(db, "users", uid), { ...base, ...payload }, { merge: true });
-}
-
 export async function saveUserProfile(uid, payload = {}) {
+  if (!uid) throw new Error("missing uid");
+  const ref = doc(db, "users", uid);
+
   const patch = {
     ...payload,
     updatedAt: serverTimestamp(),
   };
 
-  // لا تكتب undefined أبداً
-  Object.keys(patch).forEach((k) => {
-    if (patch[k] === undefined) delete patch[k];
-  });
+  // normalize roles/activeRole if provided
+  if (patch.activeRole) patch.activeRole = patch.activeRole === "driver" ? "driver" : "passenger";
+  if (patch.roles) {
+    patch.roles = {
+      passenger: patch.roles.passenger !== false,
+      driver: patch.roles.driver !== false,
+    };
+  }
 
-  await setDoc(doc(db, "users", uid), patch, { merge: true });
+  await setDoc(ref, patch, { merge: true });
 }
 
-// =====================
-// Logout
-// =====================
+// ======================
+// ✅ Logout
+// ======================
 export async function doLogout() {
   try {
     await signOut(auth);
   } catch {}
-  go("./index.html");
+  safeRedirect("./index.html");
+}
+
+// ======================
+// ✅ Auth guard (role optional)
+// ======================
+export async function requireAuthAndRole(requiredRole = null) {
+  // requiredRole: "driver" | "passenger" | null (any)
+  const roleWanted = requiredRole === "driver" ? "driver" : requiredRole === "passenger" ? "passenger" : null;
+
+  const user = await new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      unsub();
+      resolve(u || null);
+    });
+  });
+
+  if (!user) {
+    // if roleWanted -> keep it in url
+    const r = roleWanted || getActiveRole();
+    setActiveRole(r);
+    safeRedirect(`./login.html?role=${r}`);
+    throw new Error("not-authenticated");
+  }
+
+  // ensure doc exists
+  await ensureUserDoc(user.uid, {
+    email: user.email || null,
+    roles: { passenger: true, driver: true },
+    activeRole: getActiveRole(),
+  }).catch(() => {});
+
+  const data = await getUserDoc(user.uid).catch(() => null);
+  const active = (data?.activeRole || getActiveRole()) === "driver" ? "driver" : "passenger";
+
+  // keep local role synced
+  setActiveRole(active);
+
+  // if role is required, enforce it
+  if (roleWanted && active !== roleWanted) {
+    setActiveRole(roleWanted);
+    await saveUserProfile(user.uid, { activeRole: roleWanted }).catch(() => {});
+    safeRedirect(roleWanted === "driver" ? "./driver.html" : "./passenger.html");
+    throw new Error("role-mismatch-redirected");
+  }
+
+  return { user, data: { ...(data || {}), role: active } };
 }
