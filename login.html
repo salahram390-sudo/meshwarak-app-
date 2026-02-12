@@ -21,7 +21,6 @@
       user-select:none;
       font-weight:900;
       -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
     }
     .roleBtn.active{
       background: rgba(43,108,255,.14);
@@ -130,56 +129,11 @@
     </div>
   </div>
 
-  <!-- ✅ لو حصل أي Error في الموديول أو app.js يظهر هنا بدل ما الصفحة تبقى “زرار مش شغال” -->
-  <script>
-    const __msg = document.getElementById("msg");
-    function __setMsg(t, ok){
-      if(!__msg) return;
-      __msg.className = "hint " + (ok ? "msgOk" : "msgBad");
-      __msg.textContent = t || "";
-    }
-
-    window.addEventListener("error", (e)=>{
-      try{ __setMsg("⚠️ خطأ: " + (e.message || "غير معروف")); }catch{}
-    });
-    window.addEventListener("unhandledrejection", (e)=>{
-      try{ __setMsg("⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف")); }catch{}
-    });
-
-    // ✅ Fallback للـ Role (يشتغل حتى لو module فشل)
-    const rolePassengerBtn = document.getElementById("rolePassenger");
-    const roleDriverBtn = document.getElementById("roleDriver");
-    const driverBox = document.getElementById("driverBox");
-    const LS_ROLE = "mw_last_role";
-
-    function __setRole(r){
-      const role = (r === "driver") ? "driver" : "passenger";
-      try{ localStorage.setItem(LS_ROLE, role); }catch{}
-      rolePassengerBtn?.classList.toggle("active", role==="passenger");
-      roleDriverBtn?.classList.toggle("active", role==="driver");
-      if(driverBox) driverBox.style.display = (role==="driver") ? "block" : "none";
-      return role;
-    }
-
-    // init role
-    try{
-      const url = new URL(location.href);
-      const initRole =
-        (url.searchParams.get("role")==="driver") ? "driver" :
-        (url.searchParams.get("role")==="passenger") ? "passenger" :
-        (localStorage.getItem(LS_ROLE)==="driver") ? "driver" : "passenger";
-      __setRole(initRole);
-    }catch{ __setRole("passenger"); }
-
-    rolePassengerBtn?.addEventListener("click", ()=>__setRole("passenger"));
-    roleDriverBtn?.addEventListener("click", ()=>__setRole("driver"));
-  </script>
-
   <script type="module">
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole
+      setActiveRole, getActiveRole, qs
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
@@ -202,25 +156,6 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
-    const url = new URL(location.href);
-    const LS_ROLE = "mw_last_role";
-    let role =
-      (url.searchParams.get("role")==="driver") ? "driver" :
-      (url.searchParams.get("role")==="passenger") ? "passenger" :
-      (localStorage.getItem(LS_ROLE)==="driver") ? "driver" : "passenger";
-
-    function setRole(r){
-      role = (r === "driver") ? "driver" : "passenger";
-      try{ localStorage.setItem(LS_ROLE, role); }catch{}
-      rolePassengerBtn.classList.toggle("active", role==="passenger");
-      roleDriverBtn.classList.toggle("active", role==="driver");
-      driverBox.style.display = (role==="driver") ? "block" : "none";
-    }
-
-    rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"));
-    roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
-    setRole(role);
-
     function setMsg(text, ok=false){
       msg.className = "hint " + (ok ? "msgOk" : "msgBad");
       msg.textContent = text || "";
@@ -239,6 +174,26 @@
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
+    // ✅ الدور من الرابط أو التخزين
+    let role =
+      (qs("role")==="driver") ? "driver" :
+      (qs("role")==="passenger") ? "passenger" :
+      getActiveRole();
+
+    function setRole(r){
+      role = (r === "driver") ? "driver" : "passenger";
+      setActiveRole(role); // ✅ تثبيت الدور علشان مايبقاش الزر “مش مستجيب” بسبب كود ما اشتغلش قبل كده
+      rolePassengerBtn.classList.toggle("active", role==="passenger");
+      roleDriverBtn.classList.toggle("active", role==="driver");
+      driverBox.style.display = (role==="driver") ? "block" : "none";
+    }
+
+    rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"), { passive:true });
+    roleDriverBtn.addEventListener("click", ()=>setRole("driver"), { passive:true });
+
+    // ✅ أول تهيئة
+    setRole(role);
+
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
 
@@ -250,6 +205,7 @@
     }
 
     async function afterAuth(user){
+      // ✅ نفس الإيميل يشتغل للدورين
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
@@ -272,7 +228,9 @@
 
       await saveUserProfile(user.uid, payload);
 
+      // ✅ أهم سطر: يثبت الدور
       setActiveRole(role);
+
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
@@ -287,6 +245,7 @@
         const cred = await emailSignUp(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
+        console.error(e);
         setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
@@ -304,6 +263,7 @@
         const cred = await emailSignIn(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
+        console.error(e);
         setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
