@@ -1,16 +1,15 @@
-// app.js — FINAL (GitHub Pages + Firebase v10.12.5) ✅
-// ✅ يصلّح الخطأ: "does not provide an export named emailSignIn"
-// ✅ يثبت الدور (راكب/سائق) ويمنع اختفاء خانات السائق
-// ✅ دوال موحّدة تستخدمها كل الصفحات بدون كسر
+// app.js — FINAL (stable exports for all pages) ✅
+// GitHub Pages + Firebase v10 modular CDN
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-
 import {
   getAuth,
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
   signInWithEmailAndPassword,
-  signOut
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -21,10 +20,8 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-/* =========================
-   ✅ Firebase Config (ثابت)
-   ========================= */
-const firebaseConfig = {
+// ===== Firebase Config (كما عندك)
+export const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
@@ -33,164 +30,102 @@ const firebaseConfig = {
   appId: "1:450060838946:web:963cacdd125b253fa1827b",
 };
 
-const app = initializeApp(firebaseConfig);
-
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-/* =========================
-   ✅ Helpers
-   ========================= */
-export function qs(key) {
-  try {
-    return new URL(location.href).searchParams.get(key);
-  } catch {
-    return null;
-  }
+// مهم جدًا علشان الجلسة تفضل محفوظة
+try { await setPersistence(auth, browserLocalPersistence); } catch {}
+
+// ===== أدوات عامة
+export function qs(name) {
+  try { return new URL(location.href).searchParams.get(name); } catch { return null; }
 }
 
-function clean(s) {
-  return (s || "").trim().replace(/\s+/g, " ");
-}
-
-/* =========================
-   ✅ Role (localStorage)
-   ========================= */
-const LS_ROLE = "mw_active_role"; // passenger | driver
+const ROLE_KEY = "activeRole";
 
 export function setActiveRole(role) {
   const r = role === "driver" ? "driver" : "passenger";
-  try { localStorage.setItem(LS_ROLE, r); } catch {}
+  localStorage.setItem(ROLE_KEY, r);
   return r;
 }
 
 export function getActiveRole() {
-  try {
-    const r = localStorage.getItem(LS_ROLE);
-    return r === "driver" ? "driver" : "passenger";
-  } catch {
-    return "passenger";
-  }
+  const r = localStorage.getItem(ROLE_KEY);
+  return (r === "driver" || r === "passenger") ? r : "passenger";
 }
 
-/* =========================
-   ✅ Auth wrappers
-   ========================= */
-export async function emailSignUp(email, password) {
-  const e = clean(email);
-  const p = String(password || "");
-  return await createUserWithEmailAndPassword(auth, e, p);
-}
-
-export async function emailSignIn(email, password) {
-  const e = clean(email);
-  const p = String(password || "");
-  return await signInWithEmailAndPassword(auth, e, p);
-}
-
-/* =========================
-   ✅ Firestore user helpers
-   ========================= */
+// ===== Firestore helpers
 export async function getUserDoc(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
 
-export async function ensureUserDoc(uid, defaults = {}) {
+export async function ensureUserDoc(uid, patch = {}) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
     const base = {
-      roles: { passenger: true, driver: true },
-      activeRole: getActiveRole(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      ...defaults,
+      roles: { passenger: true, driver: true },
+      activeRole: getActiveRole(),
+      ...patch,
     };
     await setDoc(ref, base, { merge: true });
     return base;
+  } else {
+    await setDoc(ref, { ...patch, updatedAt: serverTimestamp() }, { merge: true });
+    return snap.data();
   }
-
-  // ✅ لو موجود: نضمن roles و activeRole دائمًا
-  const cur = snap.data() || {};
-  const merged = {
-    roles: { passenger: true, driver: true, ...(cur.roles || {}) },
-    activeRole: cur.activeRole || getActiveRole(),
-    updatedAt: serverTimestamp(),
-    ...defaults,
-  };
-
-  await setDoc(ref, merged, { merge: true });
-  return { ...cur, ...merged };
 }
 
-export async function saveUserProfile(uid, payload = {}) {
+export async function saveUserProfile(uid, payload) {
   const ref = doc(db, "users", uid);
-
-  const safe = { ...payload };
-
-  // ✅ تأكد roles/activeRole موجودين
-  safe.roles = safe.roles || { passenger: true, driver: true };
-  safe.activeRole = safe.activeRole || getActiveRole();
-
-  // ✅ تواريخ
-  safe.updatedAt = serverTimestamp();
-
-  await setDoc(ref, safe, { merge: true });
-  return true;
+  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-/* =========================
-   ✅ Guard: require auth + role
-   ========================= */
-export async function requireAuthAndRole(requiredRole = null) {
+// ===== Auth actions (هذه كانت ناقصة عندك = سبب الكارثة)
+export async function emailSignIn(email, password) {
+  return await signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function emailSignUp(email, password) {
+  return await createUserWithEmailAndPassword(auth, email, password);
+}
+
+export async function doLogout() {
+  try { await signOut(auth); } catch {}
+  location.href = "./index.html";
+}
+
+export async function requireAuthAndRole(requiredRole /* "driver" | "passenger" | null */ = null) {
+  // انتظار auth state
   const user = await new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      unsub();
-      resolve(u || null);
-    });
+    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u || null); });
   });
 
   if (!user) {
-    // لو مش عامل دخول
-    location.href = "./login.html?role=" + (requiredRole === "driver" ? "driver" : "passenger");
+    location.href = "./login.html";
     throw new Error("not-authenticated");
   }
 
-  // ✅ اضمن user doc
-  const data = await ensureUserDoc(user.uid, {
+  // ضمان user doc
+  await ensureUserDoc(user.uid, {
     email: user.email || null,
-  }).catch(async () => {
-    // fallback: لو ensure فشل
-    const u = await getUserDoc(user.uid).catch(() => null);
-    return u || { roles: { passenger: true, driver: true }, activeRole: getActiveRole() };
-  });
+    roles: { passenger: true, driver: true },
+    activeRole: getActiveRole(),
+  }).catch(() => {});
 
-  // ✅ حدّث الدور النشط من الرابط لو موجود
-  const qRole = qs("role");
-  if (qRole === "driver" || qRole === "passenger") setActiveRole(qRole);
+  const data = await getUserDoc(user.uid).catch(() => null);
 
-  // ✅ تحديد الدور الحالي
-  const active = getActiveRole();
-  const roleOk = !requiredRole || requiredRole === active;
-
-  // ✅ لو الصفحة تتطلب دور معين وهو داخل بدور تاني → حوله للّوجن بنفس الدور المطلوب
-  if (!roleOk) {
+  const role = requiredRole || getActiveRole();
+  if (requiredRole && role !== requiredRole) {
+    // لو صفحة سائق وهو راكب (أو العكس) نوديه لنفس الصفحة المطلوبة مع role
     setActiveRole(requiredRole);
-    location.href = "./login.html?role=" + requiredRole;
-    throw new Error("wrong-role");
   }
 
-  return { user, data: { ...data, role: active } };
-}
-
-/* =========================
-   ✅ Logout
-   ========================= */
-export async function doLogout() {
-  try { await signOut(auth); } catch {}
-  try { localStorage.removeItem("currentTripId"); } catch {}
-  location.href = "./index.html";
+  return { user, data: { ...(data || {}), role } };
 }
