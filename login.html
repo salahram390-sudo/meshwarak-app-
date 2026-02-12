@@ -23,8 +23,10 @@
     .roleRow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0 6px}
     .roleBtn{
       padding:10px 14px;border-radius:16px;border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);color:#fff;font-weight:800;cursor:pointer;
+      background:rgba(255,255,255,.06);color:#fff;font-weight:900;cursor:pointer;
       min-width:120px;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .roleBtn.active{
       background: linear-gradient(135deg, rgba(43,108,255,.92), rgba(98,175,255,.72));
@@ -39,7 +41,7 @@
     }
     .btn{
       border-radius:16px;border:1px solid rgba(255,255,255,.14);
-      padding:12px 12px;background:rgba(255,255,255,.06);color:#fff;cursor:pointer;font-weight:900;
+      padding:12px 12px;background:rgba(255,255,255,.06);color:#fff;cursor:pointer;font-weight:950;
       -webkit-tap-highlight-color: transparent; touch-action: manipulation;
       min-height:48px;
     }
@@ -51,6 +53,15 @@
     .msg{margin-top:10px;line-height:1.7}
     .bad{color:#ffb4b4}
     .ok{color:#b7ffd0}
+
+    /* ✅ علشان يكون شكله احترافي وثقيل أقل */
+    .miniNote{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+    }
   </style>
 </head>
 
@@ -66,11 +77,11 @@
       </div>
 
       <div class="roleRow">
-        <button class="roleBtn active" id="rolePassenger" type="button">🚕 راكب</button>
+        <button class="roleBtn" id="rolePassenger" type="button">🚕 راكب</button>
         <button class="roleBtn" id="roleDriver" type="button">🧑‍✈️ سائق</button>
       </div>
 
-      <div class="hint" style="text-align:center">✅ وضع الراكب مفعل</div>
+      <div class="miniNote hint" id="roleHint" style="text-align:center">—</div>
 
       <div class="field">
         <label>الإيميل</label>
@@ -84,13 +95,15 @@
 
       <!-- ✅ مشترك للاتنين -->
       <div class="field">
-        <label>رقم التليفون</label>
-        <input id="phone" type="tel" placeholder="مثال: 010xxxxxxxx" autocomplete="tel" inputmode="tel" />
+        <label>رقم التليفون (مشترك)</label>
+        <input id="phone" type="tel" placeholder="مثال: 010xxxxxxxx"
+               autocomplete="tel" inputmode="tel" />
       </div>
 
       <div class="field">
         <label>العنوان (اختياري)</label>
-        <input id="address" type="text" placeholder="مثال: شارع …" autocomplete="street-address" />
+        <input id="address" type="text" placeholder="مثال: شارع …"
+               autocomplete="street-address" />
       </div>
 
       <div class="row" style="margin-top:12px">
@@ -101,35 +114,46 @@
       <div class="msg" id="msg"></div>
 
       <div class="hint" style="margin-top:12px">
-        * لو أول مرة تسجل: اضغط "إنشاء حساب" — وبعدها تقدر تدخل عادي.
+        * أول مرة؟ اضغط "إنشاء حساب". بعد كده "تسجيل دخول".
       </div>
     </div>
   </div>
 
   <script type="module">
-    import { setActiveRole, emailSignIn, emailSignUp, saveUserProfile, auth } from "./app.js";
+    import { setActiveRole, emailSignIn, emailSignUp, saveUserProfile, auth, qs } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
     const msg = $("msg");
+    const roleHint = $("roleHint");
 
     let role = "passenger";
+
     function setRole(r){
       role = (r==="driver") ? "driver" : "passenger";
       setActiveRole(role);
+
       $("rolePassenger").classList.toggle("active", role==="passenger");
       $("roleDriver").classList.toggle("active", role==="driver");
+
+      roleHint.textContent = (role==="passenger") ? "✅ وضع الراكب مفعل" : "✅ وضع السائق مفعل";
       msg.textContent = "";
       msg.className = "msg";
-      document.querySelector(".hint").innerHTML = role==="passenger" ? "✅ وضع الراكب مفعل" : "✅ وضع السائق مفعل";
     }
+
+    // ✅ تحديد الدور من: ?role=  ثم localStorage  ثم default
+    const urlRole = (qs("role") || "").toLowerCase();
+    const lsRole = (localStorage.getItem("activeRole") || "").toLowerCase();
+    if(urlRole === "driver" || urlRole === "passenger") setRole(urlRole);
+    else if(lsRole === "driver" || lsRole === "passenger") setRole(lsRole);
+    else setRole("passenger");
+
     $("rolePassenger").onclick = ()=> setRole("passenger");
     $("roleDriver").onclick = ()=> setRole("driver");
-    setRole("passenger");
 
-    function goHome(){
-      // اختصرنا: خليه يروح للصفحة الرئيسية لاختيار
-      location.href = "./index.html";
+    function goNext(){
+      // ✅ بعد الدخول: يروح للوحة حسب الدور
+      location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function postProfile(){
@@ -147,60 +171,77 @@
       }).catch(()=>{});
     }
 
+    function setBusy(b){
+      $("loginBtn").disabled = b;
+      $("signupBtn").disabled = b;
+    }
+
     async function doLogin(){
       const email = clean($("email").value);
       const pass = $("pass").value || "";
+
       if(!email || pass.length < 6){
         msg.className="msg bad";
-        msg.textContent="❌ اكتب الإيميل وكلمة مرور صحيحة.";
+        msg.textContent="❌ اكتب الإيميل وكلمة مرور صحيحة (6 أحرف+).";
         return;
       }
-      $("loginBtn").disabled = true;
+
+      setBusy(true);
       msg.className="msg";
       msg.textContent="جارٍ تسجيل الدخول…";
+
       try{
         await emailSignIn(email, pass);
-        await postProfile();
+        await postProfile(); // ✅ احفظ الهاتف/العنوان حتى في تسجيل الدخول
         msg.className="msg ok";
         msg.textContent="✅ تم تسجيل الدخول.";
-        goHome();
+        goNext();
       }catch(e){
         console.error(e);
         msg.className="msg bad";
         msg.textContent="❌ فشل تسجيل الدخول. تأكد من الإيميل/كلمة المرور.";
       }finally{
-        $("loginBtn").disabled = false;
+        setBusy(false);
       }
     }
 
     async function doSignup(){
       const email = clean($("email").value);
       const pass = $("pass").value || "";
+
       if(!email || pass.length < 6){
         msg.className="msg bad";
         msg.textContent="❌ اكتب الإيميل وكلمة مرور (6 أحرف على الأقل).";
         return;
       }
-      $("signupBtn").disabled = true;
+
+      setBusy(true);
       msg.className="msg";
       msg.textContent="جارٍ إنشاء الحساب…";
+
       try{
         await emailSignUp(email, pass);
         await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم إنشاء الحساب.";
-        goHome();
+        goNext();
       }catch(e){
         console.error(e);
+        // Firebase common codes: auth/email-already-in-use
         msg.className="msg bad";
         msg.textContent="❌ فشل إنشاء الحساب. ربما الإيميل مستخدم بالفعل.";
       }finally{
-        $("signupBtn").disabled = false;
+        setBusy(false);
       }
     }
 
     $("loginBtn").onclick = doLogin;
     $("signupBtn").onclick = doSignup;
+
+    // Enter key support
+    $("pass").addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") doLogin();
+    });
   </script>
 </body>
 </html>
