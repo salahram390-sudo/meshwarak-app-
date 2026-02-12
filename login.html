@@ -8,6 +8,7 @@
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#050B16" />
   <link rel="stylesheet" href="./styles.css" />
+
   <style>
     .wrap{width:min(520px,92%);margin:18px auto 80px}
     .card{
@@ -36,8 +37,13 @@
     .field{margin-top:10px}
     .field label{display:block;margin-bottom:6px;opacity:.9}
     .field input{
-      width:100%;padding:12px 12px;border-radius:16px;border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);color:#fff;outline:none;
+      width:100%;
+      padding:12px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:#fff;
+      outline:none;
     }
     .btn{
       border-radius:16px;border:1px solid rgba(255,255,255,.14);
@@ -54,13 +60,19 @@
     .bad{color:#ffb4b4}
     .ok{color:#b7ffd0}
 
-    /* ✅ علشان يكون شكله احترافي وثقيل أقل */
     .miniNote{
       margin-top:10px;
       padding:10px 12px;
       border-radius:16px;
       border:1px solid rgba(255,255,255,.10);
       background: rgba(255,255,255,.05);
+    }
+
+    .reqStar{
+      color: rgba(255,255,255,.65);
+      font-weight: 900;
+      margin-right: 6px;
+      font-size: 12px;
     }
   </style>
 </head>
@@ -83,26 +95,34 @@
 
       <div class="miniNote hint" id="roleHint" style="text-align:center">—</div>
 
+      <!-- ✅ الاسم (إلزامي) -->
       <div class="field">
-        <label>الإيميل</label>
+        <label>الاسم <span class="reqStar">* إلزامي</span></label>
+        <input id="name" type="text" placeholder="اسمك هنا" autocomplete="name" />
+      </div>
+
+      <div class="field">
+        <label>الإيميل <span class="reqStar">* إلزامي</span></label>
         <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
       </div>
 
       <div class="field">
-        <label>كلمة المرور (6 أحرف على الأقل)</label>
+        <label>كلمة المرور <span class="reqStar">* إلزامي</span> (6 أحرف على الأقل)</label>
         <input id="pass" type="password" placeholder="••••••" autocomplete="current-password" />
       </div>
 
       <!-- ✅ مشترك للاتنين -->
       <div class="field">
-        <label>رقم التليفون (مشترك)</label>
-        <input id="phone" type="tel" placeholder="مثال: 010xxxxxxxx"
+        <label>رقم التليفون <span class="reqStar">* إلزامي</span></label>
+        <input id="phone" type="tel"
+               placeholder="01*********"
                autocomplete="tel" inputmode="tel" />
       </div>
 
       <div class="field">
         <label>العنوان (اختياري)</label>
-        <input id="address" type="text" placeholder="مثال: شارع …"
+        <input id="address" type="text"
+               placeholder="مثال: شارع …"
                autocomplete="street-address" />
       </div>
 
@@ -152,17 +172,18 @@
     $("roleDriver").onclick = ()=> setRole("driver");
 
     function goNext(){
-      // ✅ بعد الدخول: يروح للوحة حسب الدور
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
     async function postProfile(){
+      const name = clean($("name").value);
       const phone = clean($("phone").value);
       const address = clean($("address").value);
       const u = auth.currentUser;
       if(!u) return;
 
       await saveUserProfile(u.uid, {
+        name: name || null,
         email: u.email || null,
         phone: phone || null,
         address: address || null,
@@ -176,23 +197,44 @@
       $("signupBtn").disabled = b;
     }
 
-    async function doLogin(){
+    function validateCommon(){
+      const name = clean($("name").value);
+      const phone = clean($("phone").value);
       const email = clean($("email").value);
       const pass = $("pass").value || "";
+
+      if(name.length < 2){
+        msg.className="msg bad";
+        msg.textContent="❌ اكتب اسم صحيح (حرفين على الأقل).";
+        return null;
+      }
+
+      if(!/^01\d{9}$/.test(phone)){
+        msg.className="msg bad";
+        msg.textContent="❌ اكتب رقم تليفون مصري صحيح (مثال: 01*********).";
+        return null;
+      }
 
       if(!email || pass.length < 6){
         msg.className="msg bad";
         msg.textContent="❌ اكتب الإيميل وكلمة مرور صحيحة (6 أحرف+).";
-        return;
+        return null;
       }
+
+      return { name, phone, email, pass };
+    }
+
+    async function doLogin(){
+      const v = validateCommon();
+      if(!v) return;
 
       setBusy(true);
       msg.className="msg";
       msg.textContent="جارٍ تسجيل الدخول…";
 
       try{
-        await emailSignIn(email, pass);
-        await postProfile(); // ✅ احفظ الهاتف/العنوان حتى في تسجيل الدخول
+        await emailSignIn(v.email, v.pass);
+        await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم تسجيل الدخول.";
         goNext();
@@ -206,28 +248,21 @@
     }
 
     async function doSignup(){
-      const email = clean($("email").value);
-      const pass = $("pass").value || "";
-
-      if(!email || pass.length < 6){
-        msg.className="msg bad";
-        msg.textContent="❌ اكتب الإيميل وكلمة مرور (6 أحرف على الأقل).";
-        return;
-      }
+      const v = validateCommon();
+      if(!v) return;
 
       setBusy(true);
       msg.className="msg";
       msg.textContent="جارٍ إنشاء الحساب…";
 
       try{
-        await emailSignUp(email, pass);
+        await emailSignUp(v.email, v.pass);
         await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم إنشاء الحساب.";
         goNext();
       }catch(e){
         console.error(e);
-        // Firebase common codes: auth/email-already-in-use
         msg.className="msg bad";
         msg.textContent="❌ فشل إنشاء الحساب. ربما الإيميل مستخدم بالفعل.";
       }finally{
