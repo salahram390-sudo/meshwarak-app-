@@ -20,7 +20,7 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ===== Firebase Config (كما عندك)
+// ===== Firebase Config (زي ما عندك)
 export const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -34,7 +34,7 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// مهم جدًا علشان الجلسة تفضل محفوظة
+// ✅ مهم جدًا علشان الجلسة تفضل محفوظة
 try { await setPersistence(auth, browserLocalPersistence); } catch {}
 
 // ===== أدوات عامة
@@ -45,7 +45,7 @@ export function qs(name) {
 const ROLE_KEY = "activeRole";
 
 export function setActiveRole(role) {
-  const r = role === "driver" ? "driver" : "passenger";
+  const r = (role === "driver") ? "driver" : "passenger";
   localStorage.setItem(ROLE_KEY, r);
   return r;
 }
@@ -75,10 +75,17 @@ export async function ensureUserDoc(uid, patch = {}) {
       ...patch,
     };
     await setDoc(ref, base, { merge: true });
-    return base;
+    return { ...base, ...patch };
   } else {
-    await setDoc(ref, { ...patch, updatedAt: serverTimestamp() }, { merge: true });
-    return snap.data();
+    const existing = snap.data() || {};
+    const merged = {
+      ...existing,
+      ...patch,
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(ref, merged, { merge: true });
+    // نرجّع نسخة منطقية (بدون serverTimestamp كقيمة نهائية)
+    return { ...existing, ...patch };
   }
 }
 
@@ -87,7 +94,7 @@ export async function saveUserProfile(uid, payload) {
   await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// ===== Auth actions (هذه كانت ناقصة عندك = سبب الكارثة)
+// ===== Auth actions
 export async function emailSignIn(email, password) {
   return await signInWithEmailAndPassword(auth, email, password);
 }
@@ -112,6 +119,9 @@ export async function requireAuthAndRole(requiredRole /* "driver" | "passenger" 
     throw new Error("not-authenticated");
   }
 
+  // ✅ تثبيت الدور المطلوب لو الصفحة بتفرضه
+  if (requiredRole) setActiveRole(requiredRole);
+
   // ضمان user doc
   await ensureUserDoc(user.uid, {
     email: user.email || null,
@@ -120,12 +130,7 @@ export async function requireAuthAndRole(requiredRole /* "driver" | "passenger" 
   }).catch(() => {});
 
   const data = await getUserDoc(user.uid).catch(() => null);
-
   const role = requiredRole || getActiveRole();
-  if (requiredRole && role !== requiredRole) {
-    // لو صفحة سائق وهو راكب (أو العكس) نوديه لنفس الصفحة المطلوبة مع role
-    setActiveRole(requiredRole);
-  }
 
   return { user, data: { ...(data || {}), role } };
 }
