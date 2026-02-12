@@ -9,7 +9,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -17,7 +17,8 @@ import {
   doc,
   getDoc,
   setDoc,
-  serverTimestamp
+  updateDoc,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // ===== Firebase Config (زي ما عندك)
@@ -35,35 +36,59 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 // ✅ مهم جدًا علشان الجلسة تفضل محفوظة
-try { await setPersistence(auth, browserLocalPersistence); } catch {}
+try {
+  await setPersistence(auth, browserLocalPersistence);
+} catch {}
 
 // ===== أدوات عامة
 export function qs(name) {
-  try { return new URL(location.href).searchParams.get(name); } catch { return null; }
+  try {
+    return new URL(location.href).searchParams.get(name);
+  } catch {
+    return null;
+  }
 }
 
-const ROLE_KEY = "activeRole";
+export const ROLE_KEY = "activeRole";
 
 export function setActiveRole(role) {
-  const r = (role === "driver") ? "driver" : "passenger";
+  const r = role === "driver" ? "driver" : "passenger";
   localStorage.setItem(ROLE_KEY, r);
   return r;
 }
 
 export function getActiveRole() {
   const r = localStorage.getItem(ROLE_KEY);
-  return (r === "driver" || r === "passenger") ? r : "passenger";
+  return r === "driver" || r === "passenger" ? r : "passenger";
+}
+
+// ===== Utils
+const clean = (s) => (s || "").toString().trim().replace(/\s+/g, " ");
+const cleanPhone = (p) => {
+  const x = clean(p);
+  if (!x) return null;
+  // رقم مصري بسيط (مش validation قوي) — بس يمنع الفراغات
+  return x.replace(/[^\d+]/g, "");
+};
+
+export function userRef(uid) {
+  return doc(db, "users", uid);
 }
 
 // ===== Firestore helpers
 export async function getUserDoc(uid) {
-  const ref = doc(db, "users", uid);
+  const ref = userRef(uid);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
 
+/**
+ * ensureUserDoc:
+ * - ينشئ doc لو مش موجود
+ * - لو موجود: يحدّث patch فقط بدون ما "يمسح" roles أو بيانات قديمة
+ */
 export async function ensureUserDoc(uid, patch = {}) {
-  const ref = doc(db, "users", uid);
+  const ref = userRef(uid);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
@@ -72,26 +97,113 @@ export async function ensureUserDoc(uid, patch = {}) {
       updatedAt: serverTimestamp(),
       roles: { passenger: true, driver: true },
       activeRole: getActiveRole(),
+      phone: null,
+      address: null,
+      name: null,
       ...patch,
     };
     await setDoc(ref, base, { merge: true });
     return { ...base, ...patch };
-  } else {
-    const existing = snap.data() || {};
-    const merged = {
-      ...existing,
-      ...patch,
-      updatedAt: serverTimestamp(),
-    };
-    await setDoc(ref, merged, { merge: true });
-    // نرجّع نسخة منطقية (بدون serverTimestamp كقيمة نهائية)
-    return { ...existing, ...patch };
   }
+
+  const existing = snap.data() || {};
+
+  // ✅ roles: دمج بدل overwrite
+  const rolesMerged = {
+    passenger: true,
+    driver: true,
+    ...(existing.roles || {}),
+    ...(patch.roles || {}),
+  };
+
+  // ✅ تنظيف phone/address لو موجودين في patch
+  const nextPatch = { ...patch };
+  if ("phone" in nextPatch) nextPatch.phone = cleanPhone(nextPatch.phone);
+  if ("address" in nextPatch) nextPatch.address = clean(nextPatch.address) || null;
+  if ("name" in nextPatch) nextPatch.name = clean(nextPatch.name) || null;
+
+  const merged = {
+    ...nextPatch,
+    roles: rolesMerged,
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(ref, merged, { merge: true });
+
+  // نرجّع snapshot منطقي
+  return {
+    ...existing,
+    ...nextPatch,
+    roles: rolesMerged,
+  };
 }
 
+/**
+ * saveUserProfile:
+ * - يستخدمه login.html بعد signup/login
+ * - يحفظ phone/address/name + activeRole + roles بشكل آمن
+ */
 export async function saveUserProfile(uid, payload) {
-  const ref = doc(db, "users", uid);
-  await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+  const p = { ...(payload || {}) };
+
+  if ("phone" in p) p.phone = cleanPhone(p.phone);
+  if ("address" in p) p.address = clean(p.address) || null;
+  if ("name" in p) p.name = clean(p.name) || null;
+
+  // ✅ roles merge
+  const existing = await getUserDoc(uid).catch(() => null);
+  const rolesMerged = {
+    passenger: true,
+    driver: true,
+    ...(existing?.roles || {}),
+    ...(p.roles || {}),
+  };
+
+  delete p.roles;
+
+  await setDoc(
+    userRef(uid),
+    {
+      ...p,
+      roles: rolesMerged,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * updateUserProfile:
+ * - تحديث خفيف بدون قراءة doc كامل (مع merge roles إن وجدت)
+ */
+export async function updateUserProfile(uid, payload = {}) {
+  const p = { ...(payload || {}) };
+  if ("phone" in p) p.phone = cleanPhone(p.phone);
+  if ("address" in p) p.address = clean(p.address) || null;
+  if ("name" in p) p.name = clean(p.name) || null;
+
+  // لو فيه roles في update، لازم ندمجها
+  if (p.roles) {
+    const existing = await getUserDoc(uid).catch(() => null);
+    p.roles = {
+      passenger: true,
+      driver: true,
+      ...(existing?.roles || {}),
+      ...(p.roles || {}),
+    };
+  }
+
+  await updateDoc(userRef(uid), { ...p, updatedAt: serverTimestamp() });
+}
+
+/**
+ * getMyProfile:
+ * - يجيب بروفايل المستخدم الحالي (لو مسجل دخول)
+ */
+export async function getMyProfile() {
+  const u = auth.currentUser;
+  if (!u) return null;
+  return await getUserDoc(u.uid).catch(() => null);
 }
 
 // ===== Auth actions
@@ -104,14 +216,27 @@ export async function emailSignUp(email, password) {
 }
 
 export async function doLogout() {
-  try { await signOut(auth); } catch {}
+  try {
+    await signOut(auth);
+  } catch {}
+  try {
+    localStorage.removeItem("currentRideId");
+  } catch {}
   location.href = "./index.html";
 }
 
-export async function requireAuthAndRole(requiredRole /* "driver" | "passenger" | null */ = null) {
-  // انتظار auth state
+/**
+ * requireAuthAndRole(requiredRole):
+ * - يجبر تسجيل الدخول
+ * - يثبت role (لو الصفحة راكب/سائق)
+ * - يضمن users/{uid} موجود وفيه phone/address محفوظين لو اتبعتوا قبل
+ */
+export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u || null); });
+    const unsub = onAuthStateChanged(auth, (u) => {
+      unsub();
+      resolve(u || null);
+    });
   });
 
   if (!user) {
@@ -119,14 +244,13 @@ export async function requireAuthAndRole(requiredRole /* "driver" | "passenger" 
     throw new Error("not-authenticated");
   }
 
-  // ✅ تثبيت الدور المطلوب لو الصفحة بتفرضه
   if (requiredRole) setActiveRole(requiredRole);
 
-  // ضمان user doc
+  // ✅ ensure user doc بدون ما يمسح phone/address/name
   await ensureUserDoc(user.uid, {
     email: user.email || null,
-    roles: { passenger: true, driver: true },
     activeRole: getActiveRole(),
+    roles: { passenger: true, driver: true },
   }).catch(() => {});
 
   const data = await getUserDoc(user.uid).catch(() => null);
