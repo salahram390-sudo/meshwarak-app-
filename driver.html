@@ -1182,6 +1182,9 @@
         w.style.display = (w.style.display==="none") ? "block" : "none";
       });
 
+      // ===========================
+      // ✅ SEND OFFER (added driverPlate)
+      // ===========================
       el.querySelector(`[data-send-offer="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -1203,6 +1206,7 @@
           const driverPhone = d?.phone || null;
           const driverVehicle = d?.vehicle || null;
           const driverModel = d?.model || null;
+          const driverPlate = d?.plate || null;     // ✅ NEW
 
           m.textContent = "جارٍ إرسال العرض…";
           await ensureNotificationPermission();
@@ -1230,6 +1234,7 @@
               driverPhone,
               driverVehicle: driverVehicle || null,
               driverModel: driverModel || null,
+              driverPlate: driverPlate || null,      // ✅ NEW
               updatedAt: serverTimestamp()
             });
 
@@ -1253,6 +1258,9 @@
         }
       });
 
+      // ===========================
+      // ✅ ACCEPT (added driverPlate)
+      // ===========================
       el.querySelector(`[data-accept="${r.id}"]`)?.addEventListener("click", async ()=>{
         const m = el.querySelector(`#m_${r.id}`);
         const rideRef = doc(db, "rides", r.id);
@@ -1270,6 +1278,7 @@
           const driverPhone = d?.phone || null;
           const driverVehicle = d?.vehicle || null;
           const driverModel = d?.model || null;
+          const driverPlate = d?.plate || null;     // ✅ NEW
 
           await ensureNotificationPermission();
 
@@ -1308,6 +1317,7 @@
               driverPhone,
               driverVehicle: driverVehicle || null,
               driverModel: driverModel || null,
+              driverPlate: driverPlate || null,      // ✅ NEW
               priceEGP: finalPrice,
               updatedAt: serverTimestamp()
             });
