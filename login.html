@@ -2,74 +2,27 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1020" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
   <title>مشوارك - تسجيل الدخول</title>
-  <!-- كسر كاش قوي -->
-  <link rel="stylesheet" href="./styles.css?v=20260212a">
-  <style>
-    /* مهم: أي لمعة/overlay ما تمسكش اللمس */
-    .card::before, .card::after, .glow::before, .glow::after { pointer-events:none !important; }
-    .card, .container, .topbar, .btn, button, input, select, a { pointer-events:auto; }
-    .seg, .actions { position:relative; z-index:3; }
-
-    /* Segmented control (راكب/سائق) */
-    .seg{
-      display:flex;
-      gap:10px;
-      background: rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.10);
-      padding:10px;
-      border-radius:18px;
-      margin-top:12px;
-      user-select:none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .seg-btn{
-      flex:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-      height:52px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.04);
-      color: #e9eefc;
-      font-weight:700;
-      cursor:pointer;
-      touch-action: manipulation;
-    }
-    .seg-btn .ic{ font-size:20px; opacity:.95; }
-    .seg-btn.active{
-      background: linear-gradient(135deg, rgba(58,123,255,.35), rgba(138,58,255,.25));
-      border-color: rgba(110,170,255,.45);
-      box-shadow: 0 0 0 1px rgba(110,170,255,.15) inset, 0 12px 30px rgba(40,110,255,.18);
-    }
-
-    /* إظهار driver fields: افتراضيًا ظاهرين (لو JS حصل له مشكلة) */
-    #driverFields { display:block; }
-    body.role-passenger #driverFields { display:none; }
-  </style>
+  <link rel="stylesheet" href="./styles.css?v=9">
 </head>
 
-<body class="role-passenger">
-  <div class="container" style="padding-top:18px">
-    <div class="card glow" style="max-width:520px;margin:0 auto">
-      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+<body>
+  <div class="container auth" style="padding-top:18px">
+    <div class="card auth-card">
+      <div class="auth-logo">
         <div class="logoBig">م</div>
-        <h1 style="margin:0">تسجيل الدخول / إنشاء حساب</h1>
-        <div class="hint">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</div>
+        <h1>تسجيل الدخول / إنشاء حساب</h1>
+        <p class="hint">اختر تدخل ك راكب أو سائق — نفس الإيميل يشتغل في الاتنين ✅</p>
       </div>
 
-      <div class="seg" role="tablist" aria-label="اختيار الدور">
-        <button type="button" class="seg-btn active" id="passBtn" aria-selected="true">
-          <span class="ic">🚕</span> راكب
-        </button>
-        <button type="button" class="seg-btn" id="drvBtn" aria-selected="false">
-          <span class="ic">🧑‍✈️</span> سائق
-        </button>
+      <div class="pillRow">
+        <button type="button" class="pillBtn" id="rolePassenger">راكب 🚕</button>
+        <button type="button" class="pillBtn" id="roleDriver">سائق 🧑‍✈️</button>
       </div>
+
+      <div class="hint" id="roleHint" style="text-align:center;margin-top:8px"></div>
 
       <div class="field">
         <label>الإيميل</label>
@@ -78,158 +31,168 @@
 
       <div class="field">
         <label>كلمة المرور (6 أحرف على الأقل)</label>
-        <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+        <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
+      <div class="sep"></div>
 
-      <div class="field">
-        <label>الاسم (اختياري)</label>
-        <input id="name" placeholder="اسمك" autocomplete="name" />
+      <div class="grid2">
+        <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
+        <button class="btn" id="signupBtn" type="button">إنشاء حساب</button>
       </div>
 
-      <div class="field">
-        <label>رقم الهاتف (مهم لتجنب الطلبات الوهمية)</label>
-        <input id="phone" placeholder="01xxxxxxxxx" inputmode="tel" autocomplete="tel" />
-      </div>
+      <div id="driverFields" style="display:none;margin-top:10px">
+        <div class="sep"></div>
 
-      <!-- خانات السائق -->
-      <div id="driverFields">
-        <div class="sep" style="height:1px;background:var(--stroke);margin:14px 0"></div>
-
-        <div class="field">
-          <label>نوع المركبة (للسائق)</label>
-          <select id="vehicle">
-            <option value="car">سيارة ملاكي</option>
-            <option value="microbus">ميكروباص</option>
-            <option value="tuktuk">توكتوك</option>
-            <option value="tmanya">تمناية</option>
-            <option value="motor_delivery">موتسيكل دليفري</option>
-            <option value="caboot">عربية كابوت</option>
-          </select>
+        <div class="hint" style="margin-bottom:10px">
+          بيانات السائق تظهر هنا (هتتحفظ في ملف حسابي بعد الدخول)
         </div>
 
         <div class="grid2">
           <div class="field" style="margin-top:0">
-            <label>موديل/سنة</label>
-            <input id="model" placeholder="مثال: 2020 / BYD" />
+            <label>نوع المركبة</label>
+            <select id="vehicle">
+              <option value="tuktuk">توكتوك</option>
+              <option value="motor_delivery">موتسيكل دليفري</option>
+              <option value="car">سيارة ملاكي</option>
+              <option value="microbus">ميكروباص</option>
+              <option value="tamanya">تمناية</option>
+              <option value="caboot">عربية كابوت</option>
+            </select>
           </div>
           <div class="field" style="margin-top:0">
-            <label>رقم اللوحة (اختياري)</label>
-            <input id="plate" placeholder="مثال: س ج 1234" />
+            <label>موديل / سنة الصنع</label>
+            <input id="model" placeholder="مثال: 2020" />
           </div>
         </div>
 
-        <div class="hint">* بيانات المركبة تظهر للراكب عند قبول الرحلة.</div>
+        <div class="field">
+          <label>رقم اللوحة / كود</label>
+          <input id="plate" placeholder="مثال: ب س 1234" />
+        </div>
       </div>
 
-      <div class="actions" style="margin-top:14px;flex-direction:column;gap:10px">
-        <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
-        <button class="btn" id="signupBtn" type="button">إنشاء حساب</button>
-        <a class="btn" href="./index.html">↩ رجوع للرئيسية</a>
-      </div>
+      <div class="sep"></div>
 
-      <div class="hint" id="msg" style="margin-top:10px"></div>
+      <a class="btn" href="./index.html">↩ رجوع للرئيسية</a>
+
+      <div class="hint" id="msg" style="margin-top:10px;min-height:22px"></div>
     </div>
   </div>
 
   <script type="module">
-    import { emailSignIn, emailSignUp, saveUserProfile } from "./app.js";
+    import {
+      setActiveRole, getActiveRole,
+      ensureUserDoc, saveUserProfile,
+      emailSignIn, emailSignUp
+    } from "./app.js?v=9";
 
     const msg = document.getElementById("msg");
 
-    const passBtn = document.getElementById("passBtn");
-    const drvBtn  = document.getElementById("drvBtn");
+    const rolePassengerBtn = document.getElementById("rolePassenger");
+    const roleDriverBtn = document.getElementById("roleDriver");
+    const roleHint = document.getElementById("roleHint");
 
     const emailEl = document.getElementById("email");
-    const passEl  = document.getElementById("pass");
-    const nameEl  = document.getElementById("name");
-    const phoneEl = document.getElementById("phone");
+    const passEl = document.getElementById("password");
+
+    const driverFields = document.getElementById("driverFields");
     const vehicleEl = document.getElementById("vehicle");
-    const modelEl   = document.getElementById("model");
-    const plateEl   = document.getElementById("plate");
+    const modelEl = document.getElementById("model");
+    const plateEl = document.getElementById("plate");
 
-    function setRole(role){
-      localStorage.setItem("role", role);
-      document.body.classList.toggle("role-passenger", role !== "driver");
+    const loginBtn = document.getElementById("loginBtn");
+    const signupBtn = document.getElementById("signupBtn");
 
-      passBtn.classList.toggle("active", role !== "driver");
-      drvBtn.classList.toggle("active", role === "driver");
-
-      passBtn.setAttribute("aria-selected", role !== "driver");
-      drvBtn.setAttribute("aria-selected", role === "driver");
+    function setRoleUI(role){
+      const r = setActiveRole(role);
+      rolePassengerBtn.classList.toggle("active", r === "passenger");
+      roleDriverBtn.classList.toggle("active", r === "driver");
+      driverFields.style.display = (r === "driver") ? "block" : "none";
+      roleHint.textContent = (r === "driver")
+        ? "✅ وضع السائق مفعل"
+        : "✅ وضع الراكب مفعل";
     }
 
-    // افتراضي
-    setRole(localStorage.getItem("role") || "passenger");
+    // init
+    setRoleUI(getActiveRole());
 
-    passBtn.addEventListener("click", ()=> setRole("passenger"));
-    drvBtn.addEventListener("click", ()=> setRole("driver"));
+    rolePassengerBtn.addEventListener("click", ()=> setRoleUI("passenger"));
+    roleDriverBtn.addEventListener("click", ()=> setRoleUI("driver"));
 
-    function normalizePhone(p){
-      const x = (p || "").trim();
-      if(!x) return null;
-      const cleaned = x.replace(/[^\d+]/g, "");
-      return cleaned.length >= 8 ? cleaned : null;
+    function normEmail(x){ return (x||"").trim().toLowerCase(); }
+
+    function showFirebaseError(e, mode){
+      const code = e?.code || "";
+      if(mode === "signin"){
+        if(code.includes("user-not-found")) return "❌ الحساب غير موجود. جرّب (إنشاء حساب).";
+        if(code.includes("wrong-password")) return "❌ كلمة المرور غلط.";
+        if(code.includes("invalid-email")) return "❌ الإيميل غير صحيح.";
+        if(code.includes("too-many-requests")) return "⚠️ محاولات كثيرة. جرّب بعد شوية.";
+        return "❌ فشل تسجيل الدخول: " + code;
+      }else{
+        if(code.includes("email-already-in-use")) return "❌ الإيميل مستخدم بالفعل. جرّب (تسجيل دخول).";
+        if(code.includes("weak-password")) return "❌ كلمة المرور ضعيفة. لازم 6 أحرف أو أكثر.";
+        if(code.includes("invalid-email")) return "❌ الإيميل غير صحيح.";
+        return "❌ فشل إنشاء الحساب: " + code;
+      }
     }
 
     async function afterAuth(user){
-      const role = localStorage.getItem("role") === "driver" ? "driver" : "passenger";
-      const payload = {
-        name: nameEl.value.trim() || null,
-        phone: normalizePhone(phoneEl.value),
-        role,
-      };
+      const role = getActiveRole();
 
+      // إنشاء/تحديث user doc + حفظ الدور
+      await ensureUserDoc(user.uid, { activeRole: role });
+
+      // لو سائق: خزّن بيانات المركبة (اختياري)
       if(role === "driver"){
-        payload.vehicle = vehicleEl.value || null;
-        payload.model = modelEl.value.trim() || null;
-        payload.plate = plateEl.value.trim() || null;
-      }else{
-        payload.vehicle = null; payload.model = null; payload.plate = null;
+        await saveUserProfile(user.uid, {
+          vehicle: vehicleEl.value || null,
+          model: modelEl.value.trim() || null,
+          plate: plateEl.value.trim() || null,
+        }).catch(()=>{});
       }
 
-      await saveUserProfile(user.uid, payload);
-
       // توجيه حسب الدور
-      location.href = role === "driver" ? "./driver.html" : "./passenger.html";
+      location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
-    document.getElementById("loginBtn").addEventListener("click", async ()=>{
+    async function lockUI(locked){
+      loginBtn.disabled = locked;
+      signupBtn.disabled = locked;
+      rolePassengerBtn.disabled = locked;
+      roleDriverBtn.disabled = locked;
+    }
+
+    loginBtn.addEventListener("click", async ()=>{
       msg.textContent = "جارٍ تسجيل الدخول…";
+      await lockUI(true);
       try{
-        const email = emailEl.value.trim();
-        const pass  = passEl.value;
-        const cred = await emailSignIn(email, pass);
+        const email = normEmail(emailEl.value);
+        const password = passEl.value || "";
+        const cred = await emailSignIn(email, password);
         await afterAuth(cred.user);
       }catch(e){
         console.error(e);
-        msg.textContent = "❌ فشل تسجيل الدخول. تأكد من الإيميل وكلمة المرور.";
+        msg.textContent = showFirebaseError(e, "signin");
+      }finally{
+        await lockUI(false);
       }
     });
 
-    document.getElementById("signupBtn").addEventListener("click", async ()=>{
+    signupBtn.addEventListener("click", async ()=>{
       msg.textContent = "جارٍ إنشاء الحساب…";
+      await lockUI(true);
       try{
-        const email = emailEl.value.trim();
-        const pass  = passEl.value;
-
-        if(pass.length < 6){
-          msg.textContent = "❌ كلمة المرور لازم 6 أحرف على الأقل.";
-          return;
-        }
-
-        // لو كتب رقم ومش صالح
-        if(phoneEl.value.trim() && !normalizePhone(phoneEl.value)){
-          msg.textContent = "❌ رقم الهاتف غير صحيح (اكتب رقم أطول).";
-          return;
-        }
-
-        const cred = await emailSignUp(email, pass);
+        const email = normEmail(emailEl.value);
+        const password = passEl.value || "";
+        const cred = await emailSignUp(email, password);
         await afterAuth(cred.user);
       }catch(e){
         console.error(e);
-        msg.textContent = "❌ فشل إنشاء الحساب. ربما الإيميل مستخدم بالفعل.";
+        msg.textContent = showFirebaseError(e, "signup");
+      }finally{
+        await lockUI(false);
       }
     });
   </script>
