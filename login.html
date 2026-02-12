@@ -6,37 +6,63 @@
   <title>مشوارك - تسجيل الدخول</title>
 
   <link rel="icon" href="./favicon.png">
-  <link rel="stylesheet" href="./styles.css?v=auth1">
+  <link rel="stylesheet" href="./styles.css">
   <meta name="theme-color" content="#050B16" />
+
+  <style>
+    .roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .roleBtn{
+      min-width:160px;text-align:center;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      border-radius:16px;
+      padding:12px 14px;
+      cursor:pointer;
+      user-select:none;
+      font-weight:900;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .roleBtn.active{
+      background: rgba(43,108,255,.14);
+      border-color: rgba(43,108,255,.35);
+    }
+    .field label{display:block;margin-bottom:8px}
+    input, select{
+      width:100%;
+      padding:14px 14px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color:#fff;
+      outline:none;
+    }
+    input::placeholder{color:rgba(255,255,255,.55)}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:520px){ .row2{grid-template-columns:1fr} }
+    .divider{height:1px;background:rgba(255,255,255,.10);margin:14px 0}
+    .msgOk{color:#7CFFB2}
+    .msgBad{color:#FF8E8E}
+  </style>
 </head>
 
 <body>
-  <div class="auth-page">
-    <div class="auth-glass card">
+  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
+    <div class="card" style="width:min(560px,100%);text-align:center">
 
-      <div style="display:flex;justify-content:center;margin-bottom:14px">
-        <div class="logo" style="width:70px;height:70px;border-radius:22px;font-size:28px">م</div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px">
+        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
       </div>
 
-      <h1 class="auth-title">تسجيل الدخول / إنشاء حساب</h1>
+      <h1 style="margin:0;font-size:20px">تسجيل الدخول / إنشاء حساب</h1>
+      <p class="hint" style="margin:8px 0 14px">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
 
-      <p class="auth-sub">
-        اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين
-      </p>
-
-      <div class="auth-chip">✅ نفس الإيميل يشتغل في الاثنين</div>
-
-      <!-- ✅ Segmented role -->
-      <div class="seg" style="margin-top:14px">
-        <button id="rolePassenger" type="button">
-          <span class="ic">🚕</span><span>راكب</span>
-        </button>
-        <button id="roleDriver" type="button">
-          <span class="ic">🧑‍✈️</span><span>سائق</span>
-        </button>
+      <div class="roleTabs" style="margin-bottom:14px">
+        <button class="roleBtn" id="rolePassenger" type="button">راكب</button>
+        <button class="roleBtn" id="roleDriver" type="button">سائق</button>
       </div>
 
-      <div class="field" style="text-align:right;margin-top:10px">
+      <div class="field" style="text-align:right">
         <label>الإيميل</label>
         <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
       </div>
@@ -46,13 +72,12 @@
         <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <!-- ✅ Buttons: login primary / signup secondary -->
-      <div class="auth-actions">
+      <div class="row2" style="margin-top:14px">
+        <button class="btn success" id="signupBtn" type="button">إنشاء حساب</button>
         <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
-        <button class="btn secondary" id="signupBtn" type="button">إنشاء حساب</button>
       </div>
 
-      <div class="auth-divider"></div>
+      <div class="divider"></div>
 
       <div class="field" style="text-align:right">
         <label>الاسم <span class="hint">(اختياري)</span></label>
@@ -66,7 +91,7 @@
 
       <!-- Driver extra fields -->
       <div id="driverBox" style="display:none;text-align:right;margin-top:14px">
-        <div class="auth-divider"></div>
+        <div class="divider"></div>
 
         <div class="field">
           <label>نوع المركبة (للسائق)</label>
@@ -81,12 +106,12 @@
           </select>
         </div>
 
-        <div class="grid2" style="margin-top:12px">
-          <div class="field" style="margin-top:0">
+        <div class="row2" style="margin-top:12px">
+          <div class="field">
             <label>موديل/كود المركبة</label>
             <input id="model" type="text" placeholder="مثال: 2020 / BYD / إلخ" />
           </div>
-          <div class="field" style="margin-top:0">
+          <div class="field">
             <label>رقم اللوحة <span class="hint">(اختياري)</span></label>
             <input id="plate" type="text" placeholder="مثال: س ج 1234" />
           </div>
@@ -97,13 +122,58 @@
         </p>
       </div>
 
-      <p id="msg" class="hint auth-msg"></p>
+      <p id="msg" class="hint" style="margin:14px 0 0"></p>
 
       <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
         <a class="btn" href="./index.html" style="min-width:220px;text-align:center">↩️ رجوع للرئيسية</a>
       </div>
     </div>
   </div>
+
+  <!-- ✅ لو حصل أي Error في الموديول أو app.js يظهر هنا بدل ما الصفحة تبقى “زرار مش شغال” -->
+  <script>
+    const __msg = document.getElementById("msg");
+    function __setMsg(t, ok){
+      if(!__msg) return;
+      __msg.className = "hint " + (ok ? "msgOk" : "msgBad");
+      __msg.textContent = t || "";
+    }
+
+    window.addEventListener("error", (e)=>{
+      try{ __setMsg("⚠️ خطأ: " + (e.message || "غير معروف")); }catch{}
+    });
+    window.addEventListener("unhandledrejection", (e)=>{
+      try{ __setMsg("⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف")); }catch{}
+    });
+
+    // ✅ Fallback للـ Role (يشتغل حتى لو module فشل)
+    const rolePassengerBtn = document.getElementById("rolePassenger");
+    const roleDriverBtn = document.getElementById("roleDriver");
+    const driverBox = document.getElementById("driverBox");
+    const LS_ROLE = "mw_last_role";
+
+    function __setRole(r){
+      const role = (r === "driver") ? "driver" : "passenger";
+      try{ localStorage.setItem(LS_ROLE, role); }catch{}
+      rolePassengerBtn?.classList.toggle("active", role==="passenger");
+      roleDriverBtn?.classList.toggle("active", role==="driver");
+      if(driverBox) driverBox.style.display = (role==="driver") ? "block" : "none";
+      return role;
+    }
+
+    // init role
+    try{
+      const url = new URL(location.href);
+      const initRole =
+        (url.searchParams.get("role")==="driver") ? "driver" :
+        (url.searchParams.get("role")==="passenger") ? "passenger" :
+        (localStorage.getItem(LS_ROLE)==="driver") ? "driver" : "passenger";
+      __setRole(initRole);
+    }catch{ __setRole("passenger"); }
+
+    rolePassengerBtn?.addEventListener("click", ()=>__setRole("passenger"));
+    roleDriverBtn?.addEventListener("click", ()=>__setRole("driver"));
+  </script>
 
   <script type="module">
     import {
@@ -146,12 +216,13 @@
       roleDriverBtn.classList.toggle("active", role==="driver");
       driverBox.style.display = (role==="driver") ? "block" : "none";
     }
+
     rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"));
     roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
     setRole(role);
 
     function setMsg(text, ok=false){
-      msg.className = "hint auth-msg " + (ok ? "msgOk" : "msgBad");
+      msg.className = "hint " + (ok ? "msgOk" : "msgBad");
       msg.textContent = text || "";
     }
 
@@ -170,6 +241,7 @@
 
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
+
       const v = clean(vehicleEl.value);
       const m = clean(modelEl.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
@@ -199,8 +271,8 @@
       }
 
       await saveUserProfile(user.uid, payload);
-      setActiveRole(role);
 
+      setActiveRole(role);
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
