@@ -29,19 +29,32 @@
 html,body{
   margin:0;
   padding:0;
-  background: radial-gradient(1200px 800px at 50% 0%, rgba(46,107,255,0.12), transparent 60%),
-              radial-gradient(900px 600px at 15% 30%, rgba(123,92,255,0.10), transparent 55%),
-              linear-gradient(180deg, var(--bg1), var(--bg2));
+  min-height:100%;
+  background:
+    radial-gradient(1200px 800px at 50% 0%, rgba(46,107,255,0.12), transparent 60%),
+    radial-gradient(900px 600px at 15% 30%, rgba(123,92,255,0.10), transparent 55%),
+    linear-gradient(180deg, var(--bg1), var(--bg2));
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
 }
 
 a{ color:inherit; text-decoration:none; }
 
-.container{
-  padding: 16px;
+.container{ padding:16px; }
+
+/* ===== Auth layout (مهم عشان مايبقاش فيه صفحة بيضا) ===== */
+.container.auth{
+  min-height: 100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
+.auth-card{
+  width: min(560px, 100%);
+}
+
+/* ===== Card ===== */
 .card{
   background: var(--card);
   border: 1px solid var(--stroke);
@@ -53,6 +66,19 @@ a{ color:inherit; text-decoration:none; }
   backdrop-filter: blur(18px);
 }
 
+.hint{
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.sep{
+  margin: 14px 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+}
+
+/* ===== Logo blocks ===== */
 .logo{
   display:grid;
   place-items:center;
@@ -65,10 +91,35 @@ a{ color:inherit; text-decoration:none; }
   font-weight:800;
 }
 
-.hint{
-  color: var(--muted);
-  line-height: 1.6;
-  font-size: 14px;
+.logoBig{
+  width: 86px;
+  height: 86px;
+  border-radius: 26px;
+  margin: 0 auto 10px;
+  display:grid;
+  place-items:center;
+  font-weight: 900;
+  font-size: 34px;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(46,107,255,0.92), rgba(25,195,125,0.60));
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow:
+    0 18px 60px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.auth-logo{
+  text-align:center;
+}
+
+.auth-logo h1{
+  margin: 6px 0 0;
+  font-size: 26px;
+  letter-spacing: .2px;
+}
+
+.auth-logo p{
+  margin: 8px 0 0;
 }
 
 /* ===== Fields ===== */
@@ -136,11 +187,10 @@ input:focus, select:focus{
 
   transition: transform .12s ease, filter .12s ease, border-color .12s ease;
   user-select:none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.btn:active{
-  transform: scale(0.985);
-}
+.btn:active{ transform: scale(0.985); }
 
 .btn.primary{
   background: linear-gradient(135deg, var(--purple1), var(--purple2));
@@ -163,22 +213,86 @@ input:focus, select:focus{
   transform:none;
 }
 
-/* ===== Segmented Role ===== */
-.seg .btn{
-  border-radius: 22px;
-  min-height: 52px;
+/* ===== Grid helpers ===== */
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
-.seg .btn.primary{
+/* ===== Role segmented (زي الصورة اللي انت عايزها) ===== */
+.pillRow{
+  display:flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pillBtn{
+  flex:1;
+  min-height: 54px;
+  border-radius: 22px;
+  border: 1px solid var(--stroke);
+  background: rgba(10, 16, 32, 0.55);
+  color: var(--text);
+  font-size: 16px;
+  cursor:pointer;
+  box-shadow:
+    0 22px 70px rgba(0,0,0,0.24),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: transform .12s ease, filter .12s ease, border-color .12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pillBtn:active{ transform: scale(0.985); }
+
+.pillBtn.active{
+  border-color: rgba(255,255,255,0.14);
+  background: linear-gradient(135deg, rgba(46,107,255,0.85), rgba(31,72,184,0.65));
   box-shadow:
     0 28px 90px rgba(0,0,0,0.35),
     0 0 0 3px rgba(46,107,255,0.14),
     inset 0 1px 0 rgba(255,255,255,0.18);
 }
 
+/* ===== Topbar (للصفحات اللي فيها شريط علوي) ===== */
+.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(18px);
+  background: rgba(5, 11, 22, 0.55);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.topbar-inner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+}
+
+.brand h1{
+  margin:0;
+  font-size: 18px;
+}
+
+.brand p{
+  margin:0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* ===== Responsive ===== */
-@media (max-width:420px){
+@media (max-width:520px){
+  .grid2{ grid-template-columns: 1fr; }
   .card{ padding: 16px; }
   .btn{ padding: 13px 14px; font-size: 15px; }
-  input{ padding: 13px 14px; }
+  input, select{ padding: 13px 14px; }
 }
