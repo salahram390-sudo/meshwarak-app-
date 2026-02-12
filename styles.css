@@ -2,12 +2,22 @@
   --bg:#070A10;
   --card:#0C1220;
   --stroke:rgba(255,255,255,.08);
+  --stroke2:rgba(255,255,255,.12);
   --txt:#EAF0FF;
   --muted:rgba(234,240,255,.72);
+
   --primary:#2B6CFF;
+  --primary2:#1F55FF;
+
   --success:#22C55E;
   --danger:#FF5C7A;
+
+  /* ✅ جديد: زر ثانوي فاخر (للـ Signup مثلًا) */
+  --accent:#7C3AED;
+  --accent2:#5B21B6;
+
   --shadow: 0 16px 44px rgba(0,0,0,.40);
+  --shadow2: 0 18px 55px rgba(0,0,0,.38);
   --r:18px;
 }
 
@@ -19,7 +29,8 @@ body{
   text-rendering: optimizeLegibility;
   background:
     radial-gradient(1200px 600px at 90% 10%, rgba(43,108,255,.12), transparent 55%),
-    radial-gradient(900px 500px at 10% 0%, rgba(34,197,94,.08), transparent 50%),
+    radial-gradient(900px 500px at 10% 0%, rgba(124,58,237,.10), transparent 52%),
+    radial-gradient(900px 520px at 20% 90%, rgba(34,197,94,.07), transparent 55%),
     var(--bg);
   color:var(--txt);
 }
@@ -32,40 +43,25 @@ a{color:inherit;text-decoration:none}
   position:sticky; top:0; z-index:50;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  background: linear-gradient(to bottom, rgba(7,10,16,.88), rgba(7,10,16,.55));
+  background: linear-gradient(to bottom, rgba(7,10,16,.90), rgba(7,10,16,.55));
   border-bottom:1px solid var(--stroke);
 }
 .topbar-inner{display:flex;align-items:center;justify-content:space-between;padding:14px 16px}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{
   width:38px;height:38px;border-radius:12px;
-  background: linear-gradient(135deg, rgba(43,108,255,.9), rgba(34,197,94,.65));
+  background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(124,58,237,.72));
   box-shadow: 0 10px 28px rgba(0,0,0,.35);
   display:grid;place-items:center;font-weight:900;
 }
 .brand h1{margin:0;font-size:15px;letter-spacing:.2px}
 .brand p{margin:0;font-size:12px;color:var(--muted)}
 
-/* ===== Buttons ===== */
-.btn{
-  border:0; cursor:pointer;
-  padding:12px 14px; border-radius:14px;
-  font-weight:800;
-  background: rgba(255,255,255,.06);
-  color:var(--txt);
-  border:1px solid var(--stroke);
-  user-select:none;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform .08s ease, filter .12s ease, opacity .12s ease;
-  touch-action: manipulation;
-}
-.btn:active{ transform: translateY(1px); filter: brightness(1.05); }
-.btn:disabled{opacity:.55;cursor:not-allowed; transform:none; filter:none;}
-
-.btn.primary{background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(43,108,255,.72));border:1px solid rgba(43,108,255,.35)}
-.btn.secondary{background: rgba(255,255,255,.06);border:1px solid var(--stroke)}
-.btn.success{background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.62));border:1px solid rgba(34,197,94,.35);color:#04110a}
-.btn.danger{background: rgba(255,92,122,.12);border:1px solid rgba(255,92,122,.28);color:#ffd6dd}
+/* ===== Typography ===== */
+.hint{color:var(--muted);font-size:13px;line-height:1.6}
+.small{font-size:12px;color:var(--muted)}
+.text-ok{color:#bfffe0}
+.text-bad{color:#ffd0d8}
 
 /* ===== Cards / layout ===== */
 .card{
@@ -73,31 +69,88 @@ a{color:inherit;text-decoration:none}
   border:1px solid var(--stroke);
   border-radius: var(--r);
   padding:14px;
-  box-shadow: 0 14px 42px rgba(0,0,0,.32);
+  box-shadow: var(--shadow2);
 }
-.hint{color:var(--muted);font-size:13px;line-height:1.55}
+.list{display:grid;gap:12px}
+
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid3{display:grid;grid-template-columns: 1fr auto; gap:10px; align-items:end}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ===== Fields ===== */
 .field{display:grid;gap:8px;margin-top:10px}
 label{font-size:12px;color:var(--muted)}
 input,select,textarea{
   width:100%;
-  padding:12px 12px;
-  border-radius: 14px;
+  padding:13px 14px;
+  border-radius: 16px;
   border:1px solid var(--stroke);
   background: rgba(0,0,0,.18);
   color:var(--txt);
   outline:none;
   font-size:16px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
 textarea{resize:none}
-.small{font-size:12px;color:var(--muted)}
-.text-ok{color:#bfffe0}
-.text-bad{color:#ffd0d8}
+input::placeholder, textarea::placeholder{color:rgba(255,255,255,.55)}
+input:focus,select:focus,textarea:focus{
+  border-color: rgba(43,108,255,.45);
+  box-shadow: 0 0 0 4px rgba(43,108,255,.12);
+  background: rgba(0,0,0,.22);
+}
 
-/* ===== Lists ===== */
-.list{display:grid;gap:12px}
+/* ===== Buttons ===== */
+.btn{
+  border:0; cursor:pointer;
+  padding:12px 14px; border-radius:16px;
+  font-weight:900;
+  background: rgba(255,255,255,.06);
+  color:var(--txt);
+  border:1px solid var(--stroke);
+  user-select:none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .08s ease, filter .12s ease, opacity .12s ease, box-shadow .15s ease, border-color .15s ease;
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+}
+.btn:active{ transform: translateY(1px); filter: brightness(1.05); }
+.btn:disabled{opacity:.55;cursor:not-allowed; transform:none; filter:none; box-shadow:none;}
+
+.btn.primary{
+  background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(31,85,255,.72));
+  border:1px solid rgba(43,108,255,.35);
+}
+.btn.secondary{
+  background: rgba(255,255,255,.06);
+  border:1px solid var(--stroke);
+}
+.btn.success{
+  background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.62));
+  border:1px solid rgba(34,197,94,.35);
+  color:#04110a;
+}
+.btn.danger{
+  background: rgba(255,92,122,.12);
+  border:1px solid rgba(255,92,122,.28);
+  color:#ffd6dd;
+}
+
+/* ✅ جديد: زر Accent (مناسب لـ "إنشاء حساب" بدل الأخضر) */
+.btn.accent{
+  background: linear-gradient(135deg, rgba(124,58,237,.95), rgba(91,33,182,.72));
+  border:1px solid rgba(124,58,237,.35);
+  color:#F4EEFF;
+}
+
+/* ✅ جديد: Outline نضيف */
+.btn.outline{
+  background: rgba(0,0,0,.10);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:none;
+}
+
+/* ===== Actions row ===== */
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.actions .btn{flex:1; min-width:140px}
 
 /* ===== Pills ===== */
 .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
@@ -110,10 +163,7 @@ textarea{resize:none}
 .pill.ok{border-color: rgba(34,197,94,.28);background: rgba(34,197,94,.10);color:#bfffe0}
 .pill.bad{border-color: rgba(255,92,122,.28);background: rgba(255,92,122,.10);color:#ffd0d8}
 
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.actions .btn{flex:1; min-width:140px}
-
-/* ===== Map (passenger) ===== */
+/* ===== Map (passenger/driver) ===== */
 .map-wrap{
   position:relative;
   width:100%;
@@ -126,7 +176,7 @@ textarea{resize:none}
 .leaflet-control-attribution{opacity:.75}
 .leaflet-control-zoom{display:none}
 
-/* ===== Emoji pin ===== */
+/* ✅ Emoji pin */
 .pin-emoji{ background: transparent !important; border:0 !important; }
 .pin-bubble{
   width:44px; height:44px;
@@ -138,7 +188,7 @@ textarea{resize:none}
   box-shadow: 0 10px 26px rgba(0,0,0,.40);
 }
 
-/* ===== Bottom sheet (IMPORTANT FIX) ===== */
+/* ===== Bottom sheet ===== */
 .sheet{
   position:absolute;left:0;right:0;bottom:0;z-index:1000;
   border-top-left-radius:22px;border-top-right-radius:22px;
@@ -150,7 +200,6 @@ textarea{resize:none}
   overflow:hidden;
   will-change: transform;
   touch-action:auto;
-  pointer-events:auto;
 }
 .sheet-handle{
   width:52px;height:5px;border-radius:999px;margin:0 auto 10px;
@@ -168,24 +217,51 @@ textarea{resize:none}
 }
 
 /* ===== Toast ===== */
-#toast{
-  position:fixed; left:14px; right:14px; top:78px;
-  background:rgba(10,18,34,.92);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:16px;
-  padding:12px 14px;
-  color:#fff;
-  box-shadow:0 16px 55px rgba(0,0,0,.45);
-  transform: translateY(-18px);
-  opacity:0;
+.toast-wrap{
+  position:fixed; left:12px; right:12px; top:74px;
+  z-index:2000;
+  display:grid; gap:10px;
   pointer-events:none;
-  transition:.25s ease;
-  z-index:9999;
-  max-width:720px;
-  margin:auto;
 }
-#toast.show{opacity:1; transform: translateY(0);}
+.toast{
+  pointer-events:auto;
+  border-radius:18px;
+  padding:12px 14px;
+  border:1px solid var(--stroke);
+  background: rgba(12,18,32,.92);
+  box-shadow: 0 16px 44px rgba(0,0,0,.42);
+  display:flex; align-items:flex-start; gap:10px;
+  animation: toastIn .18s ease both;
+}
+.toast .t-ic{font-size:18px; line-height:1}
+.toast .t-txt{font-size:13px; color:var(--txt); line-height:1.45}
+.toast.ok{border-color: rgba(34,197,94,.28); background: rgba(34,197,94,.10)}
+.toast.bad{border-color: rgba(255,92,122,.28); background: rgba(255,92,122,.10)}
+@keyframes toastIn{from{transform: translateY(-6px); opacity:0}to{transform: translateY(0); opacity:1}}
 
+/* ===== Auth role tabs (يدعم login.html بدون تعديل كبير) ===== */
+.roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.roleBtn{
+  min-width:160px;text-align:center;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.05);
+  border-radius:18px;
+  padding:12px 14px;
+  cursor:pointer;
+  user-select:none;
+  font-weight:900;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease, transform .08s ease;
+  box-shadow: 0 10px 26px rgba(0,0,0,.16);
+}
+.roleBtn:active{transform: translateY(1px)}
+.roleBtn.active{
+  background: rgba(43,108,255,.16);
+  border-color: rgba(43,108,255,.40);
+  box-shadow: 0 0 0 4px rgba(43,108,255,.10), 0 10px 26px rgba(0,0,0,.16);
+}
+
+/* ===== Responsive ===== */
 @media (max-width:520px){
   .container{max-width:100%;padding:12px}
   .topbar-inner{padding:10px 12px}
@@ -193,6 +269,6 @@ textarea{resize:none}
   .actions .btn{min-width:0; flex:1 1 48%}
 }
 @media (prefers-reduced-motion: reduce){
-  .btn{transition:none}
-  #toast{transition:none}
+  .btn,.roleBtn{transition:none}
+  .toast{animation:none}
 }
