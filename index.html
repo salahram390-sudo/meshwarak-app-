@@ -6,12 +6,11 @@
   <meta name="theme-color" content="#050B16" />
   <title>مشوارك</title>
 
-  <link rel="stylesheet" href="./styles.css?v=10">
+  <link rel="stylesheet" href="./styles.css">
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./favicon.png">
 
   <style>
-    /* ✅ ضمان الخلفية اللمّاعة حتى لو CSS اتأخر/اتكاش */
     html,body{min-height:100%;}
 
     .pageWrap{
@@ -24,9 +23,7 @@
       padding-bottom: calc(18px + env(safe-area-inset-bottom));
     }
 
-    .homeCard{
-      width: min(520px, 100%);
-    }
+    .homeCard{ width: min(520px, 100%); }
 
     .auth-logo{
       display:flex;
@@ -58,9 +55,7 @@
       gap: 10px;
       margin-top: 14px;
     }
-    @media (max-width:420px){
-      .grid2{ grid-template-columns: 1fr; }
-    }
+    @media (max-width:420px){ .grid2{ grid-template-columns: 1fr; } }
 
     .sep{
       height:1px;
@@ -68,9 +63,7 @@
       margin: 14px 0;
     }
 
-    .hint.center{
-      text-align:center;
-    }
+    .hint.center{ text-align:center; }
   </style>
 </head>
 
@@ -84,21 +77,22 @@
       </div>
 
       <div class="grid2">
-        <a class="btn success" href="./login.html?v=10">تسجيل / إنشاء حساب</a>
-        <a class="btn" href="./account.html?v=10">حسابي</a>
+        <a class="btn success" href="./login.html">تسجيل / إنشاء حساب</a>
+        <a class="btn" href="./account.html">حسابي</a>
       </div>
 
       <div class="sep"></div>
 
       <div class="grid2">
-        <a class="btn" id="goPassenger" href="./passenger.html?v=10">الدخول كـ راكب</a>
-        <a class="btn" id="goDriver" href="./driver.html?v=10">الدخول كـ سائق</a>
+        <a class="btn" id="goPassenger" href="./passenger.html">الدخول كـ راكب</a>
+        <a class="btn" id="goDriver" href="./driver.html">الدخول كـ سائق</a>
       </div>
 
       <div class="sep"></div>
 
       <button class="btn primary" id="hardRefreshBtn" type="button">↩ تحديث قوي (حل المشاكل)</button>
       <div class="hint center" id="swHint" style="margin-top:10px"></div>
+
       <div class="hint center" style="margin-top:8px;opacity:.8">
         ✅ التطبيق جاهز للعمل كـ PWA (SW شغال).
       </div>
@@ -109,13 +103,17 @@
     const swHint = document.getElementById("swHint");
     const hardRefreshBtn = document.getElementById("hardRefreshBtn");
 
-    // ✅ خزن الدور المختار (بيفيد صفحات تانية)
     const ROLE_KEY = "activeRole";
-    document.getElementById("goPassenger").addEventListener("click", ()=>{
+
+    // ✅ مرّر الدور كمان في الرابط (يفيد login.html يظبط الواجهة صح)
+    document.getElementById("goPassenger").addEventListener("click", (e)=>{
       localStorage.setItem(ROLE_KEY, "passenger");
+      e.currentTarget.href = "./passenger.html?role=passenger";
     });
-    document.getElementById("goDriver").addEventListener("click", ()=>{
+
+    document.getElementById("goDriver").addEventListener("click", (e)=>{
       localStorage.setItem(ROLE_KEY, "driver");
+      e.currentTarget.href = "./driver.html?role=driver";
     });
 
     async function nukeSW(){
@@ -138,7 +136,6 @@
     hardRefreshBtn.addEventListener("click", async ()=>{
       swHint.textContent = "جارٍ التنظيف…";
       await nukeSW();
-      // ✅ Reload نظيف + كسر الكاش
       location.replace("./index.html?v=" + Date.now());
     });
 
