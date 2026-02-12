@@ -124,6 +124,28 @@
     .miniChip.ok{ background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.25); }
     .miniChip.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.25); }
 
+    /* ✅ input row for search buttons */
+    .inputRow{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .inputRow input{
+      flex:1 1 auto;
+      min-height: 46px;
+    }
+    .iconBtn{
+      flex:0 0 auto;
+      min-width: 52px;
+      height: 46px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+      cursor:pointer;
+    }
+    .iconBtn:active{ transform: translateY(1px); }
+
     @media (max-width:420px){
       .grid2{ grid-template-columns: 1fr; }
       .pills{ grid-template-columns: 1fr 1fr; }
@@ -248,7 +270,7 @@
     import { requireAuthAndRole, doLogout, db, setActiveRole } from "./app.js";
     import {
       collection, addDoc, serverTimestamp,
-      doc, onSnapshot, setDoc, updateDoc
+      doc, onSnapshot, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // ===== Auth
@@ -590,7 +612,6 @@
         invalidateMapSoon();
       }catch(e){
         console.error(e);
-        // ما نكترش رسائل هنا عشان ما يزعجش المستخدم
       }
     }
 
@@ -623,7 +644,6 @@
         return;
       }
 
-      // لو كتب نص بس وما اتحددش، نحاول نحدده قبل الإرسال
       if(!fromLatLng){
         const ok = await applyGeocode("from", fromText.value);
         if(!ok) return;
@@ -745,14 +765,14 @@
     window.addEventListener("resize", ()=> setSheetSnap(currentSnap));
 
     // ======================================================
-    // ✅ LIVE TRACKING (Passenger <-> Driver)
+    // ✅ LIVE TRACKING (Passenger <-> Driver)  (UPDATED)
     // ======================================================
     const trackBtn = document.getElementById("trackBtn");
     const focusBtn = document.getElementById("focusBtn");
 
     let currentRideId = localStorage.getItem("currentRideId") || null;
     let unsubRide = null;
-    let unsubDriverStatus = null;
+    let unsubDriverStatus = null; // fallback
     let trackingOn = false;
     let watchId = null;
     let rideRef = null;
@@ -782,6 +802,8 @@
         trackHint.textContent = "❌ جهازك لا يدعم GPS.";
         return;
       }
+      if(trackingOn) return;
+
       trackingOn = true;
       trackBtn.textContent = "⛔ إيقاف التتبع";
       trackHint.textContent = "📡 التتبع شغال…";
@@ -804,11 +826,12 @@
         try{
           if(rideRef){
             await updateDoc(rideRef, {
-              passengerLive: { lat, lng, at: serverTimestamp() }
+              passengerLive: { lat, lng, at: serverTimestamp() },
+              passengerLiveAt: serverTimestamp()
             });
           }
         }catch(e){
-          // نبلع الأخطاء عشان ما يعطلش التتبع
+          // صامت
         }
       }, (err)=>{
         console.error(err);
@@ -822,7 +845,8 @@
       else await startTracking();
     });
 
-    function watchDriver(uid){
+    // ✅ fallback: driver_status (لو driverLive مش موجود)
+    function watchDriverStatusFallback(uid){
       if(unsubDriverStatus){ try{unsubDriverStatus()}catch{} unsubDriverStatus=null; }
       if(!uid) return;
 
@@ -842,12 +866,21 @@
       });
     }
 
+    function setDriverOnMap(lat, lng){
+      if(!map) return;
+      if(!driverMarker){
+        driverMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚗 السائق");
+      }else{
+        driverMarker.setLatLng([lat,lng]);
+      }
+    }
+
     function startWatchRide(id){
       currentRideId = id;
       rideRef = doc(db, "rides", id);
 
       if(unsubRide){ try{unsubRide()}catch{} unsubRide=null; }
-      unsubRide = onSnapshot(rideRef, (snap)=>{
+      unsubRide = onSnapshot(rideRef, async (snap)=>{
         if(!snap.exists()){
           msg.textContent = "⚠️ الطلب غير موجود.";
           return;
@@ -859,13 +892,27 @@
         const duid = r.driverUid || null;
         if(duid && duid !== currentDriverUid){
           currentDriverUid = duid;
-          watchDriver(duid);
+          // هنفعل fallback كاحتياط
+          watchDriverStatusFallback(duid);
+        }
+
+        // ✅ عرض السائق من ride.driverLive (ده الأساسي)
+        const dLat = Number(r.driverLive?.lat);
+        const dLng = Number(r.driverLive?.lng);
+        if(Number.isFinite(dLat) && Number.isFinite(dLng)){
+          setDriverOnMap(dLat, dLng);
+        }
+
+        // ✅ تشغيل التتبع تلقائيًا بعد تعيين السائق / بداية الرحلة
+        const shouldAutoTrack = !!duid && ["accepted","arrived","started"].includes(st);
+        if(shouldAutoTrack && !trackingOn){
+          await startTracking();
         }
 
         // عرض حالة بسيطة
         trackHint.textContent = `حالة الطلب: ${st}${duid ? " • تم تعيين سائق ✅" : ""}`;
 
-        // نقاط القيام/الوصول من الدوك (للتوافق)
+        // نقاط القيام/الوصول من الدوك
         const pLat = Number(r.from?.lat), pLng = Number(r.from?.lng);
         const tLat = Number(r.to?.lat),   tLng = Number(r.to?.lng);
 
@@ -886,6 +933,12 @@
         }
 
         drawRouteFromTo();
+
+        // لو الرحلة خلصت
+        if(["completed","canceled","done"].includes(st)){
+          stopTracking();
+          msg.textContent = "✅ تم إنهاء الرحلة.";
+        }
       });
     }
 
@@ -893,7 +946,6 @@
     if(currentRideId){
       setTimeout(()=> startWatchRide(currentRideId), 700);
     }
-
   </script>
 </body>
 </html>
