@@ -11,19 +11,12 @@
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* ===== Page Layout ===== */
-    body.page{
-      min-height: 100vh;
-      display:flex;
-      flex-direction:column;
-      overflow-x:hidden;
-    }
-
+    /* ===== Topbar ===== */
     .topbar{
       position: sticky;
       top: 0;
-      z-index: 2000; /* أعلى من Leaflet */
-      background: rgba(5, 11, 22, 0.72);
+      z-index: 90;
+      background: rgba(5, 11, 22, 0.78);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
@@ -38,23 +31,36 @@
       display:flex;
       align-items:center;
       gap: 10px;
+      min-width: 0;
     }
     .brand h1{
       margin:0;
       font-size: 16px;
       font-weight: 900;
       letter-spacing: .2px;
+      white-space: nowrap;
     }
     .brand p{
       margin:0;
       font-size: 12px;
       color: rgba(255,255,255,0.70);
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 52vw;
     }
     .logo{
       width: 44px;
       height: 44px;
       border-radius: 16px;
       font-size: 18px;
+    }
+
+    body.page{
+      min-height: 100vh;
+      display:flex;
+      flex-direction:column;
+      overflow-x: hidden;
     }
 
     /* ===== Map ===== */
@@ -70,99 +76,92 @@
       z-index: 1;
     }
 
-    /* Leaflet layers/controls fix (لا تغطي الشيت) */
-    .leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow{
-      z-index: 2 !important;
-    }
-    .leaflet-control-container{
-      z-index: 800 !important;  /* أقل من الشيت */
-      position: relative;
-    }
-    .leaflet-top, .leaflet-bottom{
-      z-index: 800 !important;
-    }
-
-    /* ===== Bottom Sheet (FIX) ===== */
-    :root{
-      --sheetZ: 1600; /* أعلى من Leaflet controls */
-    }
-
+    /* ===== Bottom Sheet (Centered + Draggable) ===== */
     .sheet{
       position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: calc(12px + env(safe-area-inset-bottom));
-      z-index: var(--sheetZ);
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 0;
+      width: min(720px, calc(100vw - 24px));
+      z-index: 120;
 
-      background: var(--card);
-      border: 1px solid var(--stroke);
-      border-radius: 26px;
-      box-shadow: 0 30px 90px rgba(0,0,0,.55);
+      background: rgba(15, 24, 45, 0.72);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 28px 28px 22px 22px;
+      box-shadow: 0 30px 95px rgba(0,0,0,.62);
       backdrop-filter: blur(18px);
 
-      max-height: 65vh;
       overflow: hidden;
-      transform: translateZ(0);
-    }
-
-    /* لما الكيبورد يفتح (Android) نرفع الشيت */
-    body.kb-open .sheet{
-      bottom: calc(150px + env(safe-area-inset-bottom));
-      max-height: 55vh;
+      will-change: transform;
+      touch-action: none; /* مهم جدًا للسحب */
     }
 
     .sheetHeader{
-      padding: 10px 14px 0;
+      padding: 10px 14px 8px;
       display:flex;
       justify-content:center;
+      cursor: grab;
+      user-select:none;
     }
+    .sheetHeader:active{ cursor: grabbing; }
+
     .sheetHandle{
-      width: 56px;
-      height: 6px;
+      width: 64px;
+      height: 7px;
       border-radius: 99px;
-      background: rgba(255,255,255,.16);
+      background: rgba(255,255,255,.18);
       border: 1px solid rgba(255,255,255,.10);
     }
+
     .sheetBody{
-      padding: 14px;
+      padding: 14px 14px 18px;
       overflow-y: auto;
-      max-height: calc(65vh - 24px);
       -webkit-overflow-scrolling: touch;
-    }
-    body.kb-open .sheetBody{
-      max-height: calc(55vh - 24px);
+      max-height: calc(80vh - 48px);
+      touch-action: pan-y; /* يسمح بالسكرول داخل الشيت */
     }
 
+    /* ===== Content ===== */
     .sectionTitle{
-      margin: 6px 0 10px;
+      margin: 4px 0 10px;
       font-weight: 900;
       font-size: 14px;
-      color: rgba(255,255,255,.88);
+      color: rgba(255,255,255,.92);
+      text-align: center;
     }
+
     .grid2{
       display:grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
+
+    @media (max-width:520px){
+      .grid2{ grid-template-columns: 1fr; }
+    }
+
     .note{
       margin-top: 10px;
       font-size: 12px;
-      color: rgba(255,255,255,.65);
-      line-height: 1.5;
+      color: rgba(255,255,255,.70);
+      line-height: 1.6;
+      text-align:center;
     }
+
     .sep{
       height: 1px;
       background: rgba(255,255,255,0.06);
       margin: 14px 0;
     }
 
-    /* أزرار اختيار نوع المركبة */
+    /* ===== Vehicle Pills ===== */
     .pills{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
       margin-top: 10px;
     }
+
     .pillBtn{
       flex: 1;
       min-width: 120px;
@@ -178,7 +177,11 @@
       justify-content:center;
       gap:10px;
       user-select:none;
+      transition: transform .12s ease, filter .12s ease;
     }
+
+    .pillBtn:active{ transform: scale(.985); }
+
     .pillBtn.active{
       background: linear-gradient(135deg, var(--blue1), var(--blue2));
       border-color: rgba(255,255,255,0.16);
@@ -188,15 +191,28 @@
         inset 0 1px 0 rgba(255,255,255,0.16);
     }
 
-    .footerActions{
+    /* ===== Actions ===== */
+    .actions{
       display:flex;
-      gap: 10px;
+      gap: 12px;
       margin-top: 14px;
+      flex-wrap:wrap;
     }
-    .footerActions .btn{ width: 100%; }
+    .actions .btn{
+      flex: 1;
+      min-width: 160px;
+    }
 
-    /* select arrow fix */
-    select{ appearance: none; }
+    /* ===== Fix select arrows ===== */
+    select{ appearance:none; }
+
+    /* ===== Leaflet Controls fix (always above map but below sheet) ===== */
+    .leaflet-control-container{
+      z-index: 10;
+    }
+    .leaflet-top, .leaflet-bottom{
+      z-index: 10;
+    }
   </style>
 </head>
 
@@ -218,12 +234,16 @@
     </div>
   </div>
 
+  <!-- Map -->
   <div class="mapWrap">
     <div id="map"></div>
   </div>
 
+  <!-- Bottom Sheet -->
   <div class="sheet" id="sheet">
-    <div class="sheetHeader"><div class="sheetHandle"></div></div>
+    <div class="sheetHeader" id="sheetHeader">
+      <div class="sheetHandle"></div>
+    </div>
 
     <div class="sheetBody" id="sheetBody">
       <div class="sectionTitle">منطقتك (لاختيار السائقين)</div>
@@ -278,17 +298,19 @@
         <button class="btn primary" id="createRideBtn" type="button" style="width:100%">إرسال الطلب ✅</button>
       </div>
 
-      <div class="hint" id="msg" style="margin-top:10px"></div>
+      <div class="hint" id="msg" style="margin-top:10px;text-align:center"></div>
 
-      <div class="footerActions">
-        <a class="btn" href="./index.html">↩ رجوع للرئيسية</a>
+      <div class="actions">
+        <a class="btn" href="./index.html" style="width:100%">↩ رجوع للرئيسية</a>
       </div>
     </div>
   </div>
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, setActiveRole } from "./app.js";
-    import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      collection, addDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // ===== Auth
     setActiveRole("passenger");
@@ -297,7 +319,6 @@
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     const msg = document.getElementById("msg");
-    const sheetBody = document.getElementById("sheetBody");
 
     // ===== Leaflet Map
     let map, markerFrom=null, markerTo=null;
@@ -312,6 +333,9 @@
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
+
+      // مهم جدًا علشان الخريطة ما تتكسرش مع الشيت
+      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 300);
 
       map.on("click", (e)=>{
         if(!pickMode) return;
@@ -330,12 +354,9 @@
           msg.textContent = "✅ تم تحديد الوصول.";
         }
       });
-
-      // مهم: بعد ظهور الخريطة داخل flex/position
-      setTimeout(()=> map.invalidateSize(), 250);
-      window.addEventListener("resize", ()=> map.invalidateSize());
     }
 
+    // انتظر Leaflet
     const waitLeaflet = setInterval(()=>{
       if(window.L){
         clearInterval(waitLeaflet);
@@ -343,7 +364,7 @@
       }
     }, 30);
 
-    // ===== Region data
+    // ===== Regions
     const regions = {
       "أسوان": ["أسوان", "دراو", "كوم أمبو", "إدفو"],
       "القاهرة": ["مدينة نصر", "المعادي", "حلوان", "مصر الجديدة"],
@@ -379,54 +400,38 @@
     // ===== Vehicle pills
     let vehicleType = "car";
     const pillsWrap = document.getElementById("vehiclePills");
+
     function setVehicle(v){
       vehicleType = v;
       [...pillsWrap.querySelectorAll(".pillBtn")].forEach(b=>{
         b.classList.toggle("active", b.dataset.type === v);
       });
     }
+
     pillsWrap.addEventListener("click", (e)=>{
       const btn = e.target.closest(".pillBtn");
       if(!btn) return;
       setVehicle(btn.dataset.type);
     });
+
     setVehicle("car");
 
     // ===== Buttons
     document.getElementById("pickFromMapBtn").onclick = ()=>{
       pickMode = "from";
       msg.textContent = "📍 اضغط على الخريطة لتحديد الانطلاق.";
+      collapseSheet();
     };
+
     document.getElementById("pickToMapBtn").onclick = ()=>{
       pickMode = "to";
       msg.textContent = "🏁 اضغط على الخريطة لتحديد الوصول.";
+      collapseSheet();
     };
 
     const fromText = document.getElementById("fromText");
     const toText = document.getElementById("toText");
     const createRideBtn = document.getElementById("createRideBtn");
-
-    // ===== Keyboard helper (يرفع الشيت ويعمل سكرول للحقل)
-    function scrollIntoSheet(el){
-      try{
-        const r = el.getBoundingClientRect();
-        const b = sheetBody.getBoundingClientRect();
-        const overflow = (r.bottom - b.bottom);
-        if(overflow > -20){
-          sheetBody.scrollBy({ top: overflow + 40, behavior: "smooth" });
-        }
-      }catch{}
-    }
-
-    [fromText, toText, govSelect, centerSelect].forEach((el)=>{
-      el.addEventListener("focus", ()=>{
-        document.body.classList.add("kb-open");
-        setTimeout(()=> scrollIntoSheet(el), 60);
-      });
-      el.addEventListener("blur", ()=>{
-        setTimeout(()=> document.body.classList.remove("kb-open"), 150);
-      });
-    });
 
     createRideBtn.onclick = async ()=>{
       msg.textContent = "";
@@ -459,20 +464,23 @@
 
           governorate,
           center,
-          vehicleType,
+
+          requestedVehicle: vehicleType,   // ⭐ مهم للسائق
+          vehicleType,                     // احتياطي
 
           fromText: fromText.value.trim(),
           toText: toText.value.trim(),
           from: { lat: fromLatLng.lat, lng: fromLatLng.lng },
           to:   { lat: toLatLng.lat,   lng: toLatLng.lng },
 
-          status: "pending",
+          status: "open",                  // ⭐ مهم للسائق
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
 
         msg.textContent = "✅ تم إرسال الطلب.";
         localStorage.setItem("currentRideId", docRef.id);
+        expandSheet();
 
       }catch(e){
         console.error(e);
@@ -481,6 +489,124 @@
         createRideBtn.disabled = false;
       }
     };
+
+    // ==========================================================
+    // ✅ Draggable Sheet (Uber-like)
+    // ==========================================================
+    const sheet = document.getElementById("sheet");
+    const sheetHeader = document.getElementById("sheetHeader");
+    const sheetBody = document.getElementById("sheetBody");
+
+    // Snap positions
+    const SNAP = {
+      expanded: 0,   // fully up
+      mid: 0.38,     // middle
+      collapsed: 0.72 // down
+    };
+
+    let currentSnap = "mid";
+    let startY = 0;
+    let startTranslate = 0;
+    let isDragging = false;
+
+    function sheetMaxTranslate(){
+      // translateY value in px (down)
+      const vh = window.innerHeight;
+      return Math.max(260, Math.floor(vh * 0.72));
+    }
+
+    function getSnapPx(name){
+      const maxT = sheetMaxTranslate();
+      if(name === "expanded") return Math.floor(maxT * SNAP.expanded);
+      if(name === "mid") return Math.floor(maxT * SNAP.mid);
+      return Math.floor(maxT * SNAP.collapsed);
+    }
+
+    function setSheetTo(name, animate=true){
+      currentSnap = name;
+      const y = getSnapPx(name);
+      sheet.style.transition = animate ? "transform .22s cubic-bezier(.2,.9,.2,1)" : "none";
+      sheet.style.transform = `translateX(-50%) translateY(${y}px)`;
+
+      // لو expanded نسمح بالسكرول
+      if(name === "expanded"){
+        sheetBody.style.pointerEvents = "auto";
+      }else{
+        sheetBody.style.pointerEvents = "auto";
+      }
+
+      // تحديث الخريطة
+      setTimeout(()=>{ try{ map?.invalidateSize(true); }catch{} }, 120);
+    }
+
+    function expandSheet(){ setSheetTo("expanded", true); }
+    function collapseSheet(){ setSheetTo("collapsed", true); }
+    function midSheet(){ setSheetTo("mid", true); }
+
+    // initial
+    window.addEventListener("load", ()=> setTimeout(()=> midSheet(), 80));
+    window.addEventListener("resize", ()=> setSheetTo(currentSnap, false));
+
+    // Drag logic
+    function onDown(e){
+      // لو المستخدم بيسكرول جوه الشيت ما نسحبش
+      const target = e.target;
+      const insideScrollable = target.closest("#sheetBody");
+      if(insideScrollable && sheetBody.scrollTop > 0) return;
+
+      isDragging = true;
+      sheet.style.transition = "none";
+
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      const cur = getSnapPx(currentSnap);
+      startTranslate = cur;
+
+      try{ e.preventDefault(); }catch{}
+    }
+
+    function onMove(e){
+      if(!isDragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dy = y - startY;
+
+      const maxT = sheetMaxTranslate();
+      let next = startTranslate + dy;
+      next = Math.max(0, Math.min(maxT, next));
+
+      sheet.style.transform = `translateX(-50%) translateY(${next}px)`;
+      try{ e.preventDefault(); }catch{}
+    }
+
+    function onUp(e){
+      if(!isDragging) return;
+      isDragging = false;
+
+      // Decide snap based on current translate
+      const style = getComputedStyle(sheet);
+      const matrix = new DOMMatrixReadOnly(style.transform);
+      const translateY = matrix.m42;
+
+      const maxT = sheetMaxTranslate();
+      const p = translateY / maxT;
+
+      // nearest snap
+      let target = "mid";
+      if(p < 0.22) target = "expanded";
+      else if(p < 0.55) target = "mid";
+      else target = "collapsed";
+
+      setSheetTo(target, true);
+    }
+
+    // Events
+    sheetHeader.addEventListener("touchstart", onDown, {passive:false});
+    sheetHeader.addEventListener("touchmove", onMove, {passive:false});
+    sheetHeader.addEventListener("touchend", onUp, {passive:true});
+
+    sheetHeader.addEventListener("mousedown", onDown);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+
   </script>
 </body>
 </html>
