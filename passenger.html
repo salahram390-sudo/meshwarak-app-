@@ -6,7 +6,6 @@
   <title>مشوارك - راكب</title>
 
   <link rel="icon" href="./favicon.png">
-  <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./styles.css">
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#050B16" />
@@ -34,6 +33,34 @@
     .actions{ position:relative; z-index:60; }
     button, a, input, select{ touch-action: manipulation; }
 
+    /* =======================================================
+       ✅ FIX (CRITICAL): Bottom Sheet لازم يظهر فوق الخريطة
+       السبب: أحيانًا transform + z-index + vh على الموبايل
+       ======================================================= */
+    .map-wrap{
+      position:relative;
+      width:100%;
+      height:calc(100vh - 64px);
+      height:calc(100dvh - 64px);
+      overflow:hidden;
+    }
+    #map{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      z-index:1;
+    }
+    .sheet{
+      position:absolute;
+      left:0; right:0; bottom:0;
+      z-index:9999 !important;
+      pointer-events:auto !important;
+      transform: translateY(0);
+    }
+    .sheet, .sheet *{ pointer-events:auto !important; }
+    .actions{ position:relative; z-index:10000 !important; }
+
     /* Toast */
     #toast{
       position:fixed; left:14px; right:14px; top:78px;
@@ -47,7 +74,7 @@
       opacity:0;
       pointer-events:none;
       transition:.25s ease;
-      z-index:9999;
+      z-index:99999;
       max-width:720px;
       margin:auto;
     }
@@ -288,7 +315,7 @@
 
     const vehGrid = $("vehGrid");
 
-    // ✅ FIX: ضمان إن الزر فعلاً بياخد Tap على الموبايل
+    // ✅ FIX: ضمان إن الزر فعلاً بياخد Click على الموبايل (حتى لو كان فيه لمس/Drag)
     const hardBindTap = (el, fn)=>{
       if(!el) return;
       const run = (e)=>{ try{ e.preventDefault(); e.stopPropagation(); }catch{} fn(e); };
@@ -832,8 +859,9 @@
           contactBox.style.display="none"; contactBox.innerHTML="";
           currentRideId=null; localStorage.removeItem(LS.lastRideId);
 
-          // ✅ FIX: كان فيه suser.uid (غير موجود) -> user.uid
+          // ✅ FIX: كان فيه خطأ suser.uid (غير موجود)
           await setDoc(doc(db,"users",user.uid), { currentRideId:null, updatedAt:serverTimestamp() }, {merge:true}).catch(()=>{});
+
           updateUI();
           return;
         }
@@ -961,7 +989,7 @@
         if(!from || !to){ msg.textContent="❌ حدد القيام والوصول."; updateUI(); return; }
 
         if(!passengerPhone){
-          msg.textContent="❌ رقم الهاتف غير مسجل. افتح حسابي وسجّل رقمك.";
+          msg.textContent="❌ رقم الهاتف غير مسجل. افتح حسابي واحفظه.";
           return;
         }
 
