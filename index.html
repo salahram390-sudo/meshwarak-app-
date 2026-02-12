@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#0b1220" />
   <title>مشوارك</title>
-  <link rel="stylesheet" href="./styles.css?v=9">
+  <link rel="stylesheet" href="./styles.css?v=10">
 </head>
 
 <body>
-  <div class="container auth" style="padding-top:18px">
+  <div class="container auth">
     <div class="card auth-card">
       <div class="auth-logo">
         <div class="logoBig">م</div>
@@ -17,21 +17,21 @@
         <p class="hint">اختر نوع الاستخدام</p>
       </div>
 
-      <div class="grid2">
-        <a class="btn primary" href="./login.html">تسجيل / إنشاء حساب</a>
-        <a class="btn" href="./account.html">حسابي</a>
+      <div class="grid2" style="margin-top:14px">
+        <a class="btn success" href="./login.html?v=10">تسجيل / إنشاء حساب</a>
+        <a class="btn" href="./account.html?v=10">حسابي</a>
       </div>
 
       <div class="sep"></div>
 
       <div class="grid2">
-        <a class="btn" href="./passenger.html">الدخول كـ راكب</a>
-        <a class="btn" href="./driver.html">الدخول كـ سائق</a>
+        <a class="btn" href="./passenger.html?v=10">الدخول كـ راكب</a>
+        <a class="btn" href="./driver.html?v=10">الدخول كـ سائق</a>
       </div>
 
       <div class="sep"></div>
 
-      <button class="btn" id="hardRefreshBtn" type="button">↩ تحديث قوي (حل المشاكل)</button>
+      <button class="btn primary" id="hardRefreshBtn" type="button">↩ تحديث قوي (حل المشاكل)</button>
       <div class="hint" id="swHint" style="margin-top:10px"></div>
     </div>
   </div>
@@ -59,12 +59,10 @@
     hardRefreshBtn.addEventListener("click", async ()=>{
       swHint.textContent = "جارٍ التنظيف…";
       await nukeSW();
-      // اجبار تحميل جديد
       location.href = "./index.html?v=" + Date.now();
     });
 
-    // رسالة سريعة
-    swHint.textContent = "لو الصفحة ما اتحدثتش فوراً، جرّب Refresh.";
+    swHint.textContent = "لو الشكل ما اتحدثش فوراً، اضغط (تحديث قوي).";
   </script>
 </body>
 </html>
