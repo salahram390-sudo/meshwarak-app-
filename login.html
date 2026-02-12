@@ -8,91 +8,89 @@
   <link rel="icon" href="./favicon.png">
   <link rel="stylesheet" href="./styles.css">
   <meta name="theme-color" content="#050B16" />
-
-  <style>
-    .roleTabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-    .roleBtn{
-      min-width:160px;text-align:center;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.05);
-      border-radius:16px;
-      padding:12px 14px;
-      cursor:pointer;
-      user-select:none;
-      font-weight:900;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .roleBtn.active{
-      background: rgba(43,108,255,.14);
-      border-color: rgba(43,108,255,.35);
-    }
-    .field label{display:block;margin-bottom:8px}
-    input, select{
-      width:100%;
-      padding:14px 14px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06);
-      color:#fff;
-      outline:none;
-    }
-    input::placeholder{color:rgba(255,255,255,.55)}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:520px){ .row2{grid-template-columns:1fr} }
-    .divider{height:1px;background:rgba(255,255,255,.10);margin:14px 0}
-    .msgOk{color:#7CFFB2}
-    .msgBad{color:#FF8E8E}
-  </style>
 </head>
 
-<body>
-  <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
-    <div class="card" style="width:min(560px,100%);text-align:center">
+<body class="auth">
+  <div class="auth-wrap">
+    <div class="auth-card">
 
-      <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
+      <div class="auth-logo">م</div>
+
+      <h1 class="auth-title">تسجيل الدخول / إنشاء حساب</h1>
+      <p class="auth-sub">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين</p>
+
+      <div class="auth-pill">✅ <span>نفس الإيميل يشتغل في الاثنين</span></div>
+
+      <!-- ✅ Segmented Tabs (نفس الـ IDs) -->
+      <div class="segment" aria-label="role tabs">
+        <button class="seg-btn" id="rolePassenger" type="button">
+          <span class="ic" aria-hidden="true">
+            <!-- Car icon (SVG) -->
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3.5 13.2 5.2 8.9c.5-1.3 1.7-2.2 3.1-2.2h7.4c1.4 0 2.6.9 3.1 2.2l1.7 4.3"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M4.2 13.3h15.6c.7 0 1.2.5 1.2 1.2v2.6c0 .7-.5 1.2-1.2 1.2H18.5"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M5.5 18.3H4.2c-.7 0-1.2-.5-1.2-1.2v-2.6c0-.7.5-1.2 1.2-1.2"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M8 18.3a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z"
+                    stroke="currentColor" stroke-width="1.8"/>
+              <path d="M16 18.3a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z"
+                    stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+          </span>
+          <span>راكب</span>
+        </button>
+
+        <button class="seg-btn" id="roleDriver" type="button">
+          <span class="ic" aria-hidden="true">
+            <!-- Driver icon (SVG) -->
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M12 11.2a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z"
+                    stroke="currentColor" stroke-width="1.8"/>
+              <path d="M4.8 20.5c.8-3.6 4-6.2 7.2-6.2s6.4 2.6 7.2 6.2"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M9.2 14.9l2.8 2.2 2.8-2.2"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span>سائق</span>
+        </button>
       </div>
 
-      <h1 style="margin:0;font-size:20px">تسجيل الدخول / إنشاء حساب</h1>
-      <p class="hint" style="margin:8px 0 14px">اختر تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاثنين ✅</p>
-
-      <div class="roleTabs" style="margin-bottom:14px">
-        <button class="roleBtn" id="rolePassenger" type="button">راكب</button>
-        <button class="roleBtn" id="roleDriver" type="button">سائق</button>
-      </div>
-
-      <div class="field" style="text-align:right">
+      <div class="auth-field">
         <label>الإيميل</label>
         <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
       </div>
 
-      <div class="field" style="text-align:right;margin-top:12px">
-        <label>كلمة المرور <span class="hint">(6 أحرف على الأقل)</span></label>
+      <div class="auth-field">
+        <label>كلمة المرور <span style="color:rgba(234,240,255,.55)">(6 أحرف على الأقل)</span></label>
         <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <div class="row2" style="margin-top:14px">
-        <button class="btn success" id="signupBtn" type="button">إنشاء حساب</button>
-        <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
+      <!-- ✅ زرار: تسجيل دخول أزرق (Glow) + إنشاء حساب (ثانوي) -->
+      <div class="auth-actions">
+        <button class="auth-btn primary glow" id="loginBtn" type="button">تسجيل دخول</button>
+        <button class="auth-btn secondary" id="signupBtn" type="button">إنشاء حساب</button>
       </div>
 
-      <div class="divider"></div>
+      <div class="auth-divider"></div>
 
-      <div class="field" style="text-align:right">
-        <label>الاسم <span class="hint">(اختياري)</span></label>
+      <div class="auth-field">
+        <label>الاسم <span style="color:rgba(234,240,255,.55)">(اختياري)</span></label>
         <input id="name" type="text" placeholder="اسمك" autocomplete="name" />
       </div>
 
-      <div class="field" style="text-align:right;margin-top:12px">
-        <label>رقم الهاتف <span class="hint">(مهم لتجنب الطلبات الوهمية)</span></label>
+      <div class="auth-field">
+        <label>رقم الهاتف <span style="color:rgba(234,240,255,.55)">(مهم لتجنب الطلبات الوهمية)</span></label>
         <input id="phone" type="tel" placeholder="01xxxxxxxxx" autocomplete="tel" />
       </div>
 
-      <!-- Driver extra fields -->
+      <!-- Driver extra fields (زي ما هي) -->
       <div id="driverBox" style="display:none;text-align:right;margin-top:14px">
-        <div class="divider"></div>
+        <div class="auth-divider"></div>
 
-        <div class="field">
+        <div class="auth-field" style="margin-top:0">
           <label>نوع المركبة (للسائق)</label>
           <select id="vehicle">
             <option value="">اختر نوع المركبة…</option>
@@ -105,27 +103,26 @@
           </select>
         </div>
 
-        <div class="row2" style="margin-top:12px">
-          <div class="field">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+          <div class="auth-field" style="margin-top:0">
             <label>موديل/كود المركبة</label>
             <input id="model" type="text" placeholder="مثال: 2020 / BYD / إلخ" />
           </div>
-          <div class="field">
-            <label>رقم اللوحة <span class="hint">(اختياري)</span></label>
+          <div class="auth-field" style="margin-top:0">
+            <label>رقم اللوحة <span style="color:rgba(234,240,255,.55)">(اختياري)</span></label>
             <input id="plate" type="text" placeholder="مثال: س ج 1234" />
           </div>
         </div>
 
-        <p class="hint" style="margin:10px 0 0">
+        <p class="auth-sub" style="margin:10px 0 0;text-align:right">
           * بيانات المركبة تظهر للراكب عند قبول الرحلة.
         </p>
       </div>
 
-      <p id="msg" class="hint" style="margin:14px 0 0"></p>
+      <p id="msg" class="auth-msg"></p>
 
-      <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
-        <a class="btn" href="./index.html" style="min-width:220px;text-align:center">↩️ رجوع للرئيسية</a>
-      </div>
+      <a class="auth-back" href="./index.html">↩️ رجوع للرئيسية</a>
+
     </div>
   </div>
 
@@ -133,7 +130,7 @@
     import {
       emailSignUp, emailSignIn,
       ensureUserDoc, saveUserProfile,
-      setActiveRole, getActiveRole, qs
+      setActiveRole
     } from "./app.js";
 
     const $ = (id)=>document.getElementById(id);
@@ -156,8 +153,28 @@
     const loginBtn = $("loginBtn");
     const msg = $("msg");
 
+    const url = new URL(location.href);
+    const LS_ROLE = "mw_last_role";
+    let role =
+      (url.searchParams.get("role")==="driver") ? "driver" :
+      (url.searchParams.get("role")==="passenger") ? "passenger" :
+      (localStorage.getItem(LS_ROLE)==="driver") ? "driver" : "passenger";
+
+    function setRole(r){
+      role = (r === "driver") ? "driver" : "passenger";
+      try{ localStorage.setItem(LS_ROLE, role); }catch{}
+
+      rolePassengerBtn.classList.toggle("active", role==="passenger");
+      roleDriverBtn.classList.toggle("active", role==="driver");
+      driverBox.style.display = (role==="driver") ? "block" : "none";
+    }
+
+    rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"));
+    roleDriverBtn.addEventListener("click", ()=>setRole("driver"));
+    setRole(role);
+
     function setMsg(text, ok=false){
-      msg.className = "hint " + (ok ? "msgOk" : "msgBad");
+      msg.className = "auth-msg " + (ok ? "ok" : "bad");
       msg.textContent = text || "";
     }
 
@@ -174,29 +191,8 @@
       return "❌ فشل العملية. " + (e?.message || "");
     }
 
-    // ✅ الدور من الرابط أو التخزين
-    let role =
-      (qs("role")==="driver") ? "driver" :
-      (qs("role")==="passenger") ? "passenger" :
-      getActiveRole();
-
-    function setRole(r){
-      role = (r === "driver") ? "driver" : "passenger";
-      setActiveRole(role); // ✅ تثبيت الدور علشان مايبقاش الزر “مش مستجيب” بسبب كود ما اشتغلش قبل كده
-      rolePassengerBtn.classList.toggle("active", role==="passenger");
-      roleDriverBtn.classList.toggle("active", role==="driver");
-      driverBox.style.display = (role==="driver") ? "block" : "none";
-    }
-
-    rolePassengerBtn.addEventListener("click", ()=>setRole("passenger"), { passive:true });
-    roleDriverBtn.addEventListener("click", ()=>setRole("driver"), { passive:true });
-
-    // ✅ أول تهيئة
-    setRole(role);
-
     function validateRoleFields(){
       if(role !== "driver") return { ok:true };
-
       const v = clean(vehicleEl.value);
       const m = clean(modelEl.value);
       if(!v) return { ok:false, msg:"❌ اختر نوع المركبة." };
@@ -205,7 +201,6 @@
     }
 
     async function afterAuth(user){
-      // ✅ نفس الإيميل يشتغل للدورين
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: role,
@@ -227,8 +222,6 @@
       }
 
       await saveUserProfile(user.uid, payload);
-
-      // ✅ أهم سطر: يثبت الدور
       setActiveRole(role);
 
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
@@ -245,7 +238,6 @@
         const cred = await emailSignUp(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        console.error(e);
         setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
@@ -263,7 +255,6 @@
         const cred = await emailSignIn(emailEl.value, passEl.value);
         await afterAuth(cred.user);
       }catch(e){
-        console.error(e);
         setMsg(niceAuthError(e));
       }finally{
         signupBtn.disabled = false; loginBtn.disabled = false;
