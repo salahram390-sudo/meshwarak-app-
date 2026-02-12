@@ -138,6 +138,20 @@
     }
     .iconBtn:active{ transform: scale(.985); }
 
+    /* ✅ Driver card */
+    .driverCard{
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(10, 16, 32, 0.55);
+      border-radius: 20px;
+      padding: 12px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .driverRow{ display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
+    .driverName{ font-weight:900; font-size:14px; }
+    .driverMeta{ font-size:12px; color: rgba(255,255,255,.75); line-height:1.6; margin-top:6px; }
+    .driverActions{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+    .driverActions .btn{ flex: 1 1 140px; min-height:48px; }
+
     @media (max-width:420px){
       .grid2{ grid-template-columns: 1fr; }
       .pills{ grid-template-columns: 1fr 1fr; }
@@ -250,6 +264,21 @@
       </div>
       <div class="hint" id="trackHint" style="margin-top:10px"></div>
 
+      <!-- ✅ بيانات السائق تظهر للراكب -->
+      <div id="driverCard" class="driverCard" style="margin-top:12px; display:none">
+        <div class="driverRow">
+          <div class="driverName" id="dName">🚗 السائق</div>
+          <span class="miniChip ok" id="dState">متصل</span>
+        </div>
+
+        <div class="driverMeta" id="dMeta">—</div>
+
+        <div class="driverActions">
+          <a class="btn success" id="callDriverBtn" href="javascript:void(0)" style="display:none">📞 اتصال بالسائق</a>
+          <button class="btn" id="navDriverBtn" type="button" style="display:none">🧭 ملاحة لموقع السائق</button>
+        </div>
+      </div>
+
       <div class="hint" id="msg" style="margin-top:10px"></div>
 
       <div class="footerActions">
@@ -277,6 +306,11 @@
       let t=null;
       return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
     }
+    function escapeHTML(s){
+      return String(s ?? "").replace(/[&<>"']/g, (c)=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+      }[c]));
+    }
 
     // ===== Auth
     setActiveRole("passenger");
@@ -293,11 +327,21 @@
     const toChip = document.getElementById("toChip");
     const trackHint = document.getElementById("trackHint");
 
+    // ✅ driver card elements
+    const driverCard = document.getElementById("driverCard");
+    const dName = document.getElementById("dName");
+    const dState = document.getElementById("dState");
+    const dMeta = document.getElementById("dMeta");
+    const callDriverBtn = document.getElementById("callDriverBtn");
+    const navDriverBtn = document.getElementById("navDriverBtn");
+
     // ===== Leaflet Map
     let map, markerFrom=null, markerTo=null, meMarker=null, driverMarker=null, routeLine=null;
     let pickMode = null; // "from" | "to"
     let fromLatLng=null, toLatLng=null;
     let meLatLng = null;
+
+    let lastDriverLL = null; // ✅ لزر الملاحة للسائق
 
     function setChip(el, ok, text){
       el.textContent = text;
@@ -505,14 +549,12 @@
       if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
       lastGeoAt = Date.now();
 
-      // ✅ نزيد الدقة: نضيف المحافظة + Egypt داخل query
       const g = clean(governorate);
       const q2 = g ? `${clean(q)}, ${g}, Egypt` : `${clean(q)}, Egypt`;
 
-      // ✅ Bias لموقعك (viewbox) + bounded=1
       let extra = `&countrycodes=eg&limit=7&addressdetails=1&accept-language=ar`;
       if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
-        const d = 0.22; // ~ 20-30 كم تقريبًا (سريع + مناسب للمدن)
+        const d = 0.22;
         const left   = (near.lng - d);
         const right  = (near.lng + d);
         const top    = (near.lat + d);
@@ -531,9 +573,6 @@
       const data = await res.json();
       if(!data || !data.length) return null;
 
-      // ✅ اختيار أفضل نتيجة:
-      // 1) نفضّل اللي في نفس المحافظة (لو متاحة في address)
-      // 2) ولو موقعك معروف: نختار الأقرب ليك
       const wantGov = clean(governorate);
       const mapped = data.map(it=>{
         const lat = Number(it.lat);
@@ -548,9 +587,7 @@
       if(!mapped.length) return null;
 
       mapped.sort((a,b)=>{
-        // محافظة أولاً (1 أعلى)
         if(b.scoreGov !== a.scoreGov) return b.scoreGov - a.scoreGov;
-        // أقرب مسافة ثانيًا
         return a.scoreDist - b.scoreDist;
       });
 
@@ -688,7 +725,6 @@
         return;
       }
 
-      // لو كتب نص بس وما اتحددش، نحاول نحدده قبل الإرسال
       if(!fromLatLng){
         const ok = await applyGeocode("from", fromText.value);
         if(!ok) return;
@@ -707,7 +743,6 @@
       msg.textContent = "جارٍ إرسال الطلب…";
 
       try{
-        // refresh profile سريع
         try{ passengerProfile = await getUserDoc(user.uid); }catch{}
 
         const passengerPhone = passengerProfile?.phone || user.phoneNumber || null;
@@ -733,7 +768,6 @@
           from: { lat: fromLatLng.lat, lng: fromLatLng.lng },
           to:   { lat: toLatLng.lat,   lng: toLatLng.lng },
 
-          // ✅ نقطة بداية live
           passengerLive: meLatLng ? { lat: meLatLng.lat, lng: meLatLng.lng, at: serverTimestamp() } : null,
           passengerLiveAt: meLatLng ? serverTimestamp() : null,
 
@@ -827,7 +861,7 @@
 
     let currentRideId = localStorage.getItem("currentRideId") || null;
     let unsubRide = null;
-    let unsubDriverStatus = null; // fallback
+    let unsubDriverStatus = null;
     let trackingOn = false;
     let watchId = null;
     let rideRef = null;
@@ -869,7 +903,6 @@
 
         meLatLng = { lat, lng };
 
-        // تحديث ماركر الراكب (موقعك)
         if(map){
           if(!meMarker){
             meMarker = L.circleMarker([lat,lng], { radius:9, weight:2, fillOpacity:.85 })
@@ -879,7 +912,6 @@
           }
         }
 
-        // ابعت live للرحلة
         try{
           if(rideRef){
             await updateDoc(rideRef, {
@@ -914,17 +946,72 @@
         const lng = safeNum(d.lng);
         if(lat==null || lng==null) return;
 
-        setDriverOnMap(lat, lng);
+        setDriverOnMap(lat, lng, { name: null });
       });
     }
 
-    function setDriverOnMap(lat, lng){
+    function setDriverOnMap(lat, lng, { name=null } = {}){
       if(!map) return;
+      lastDriverLL = { lat, lng };
+
+      const popupText = name ? `🚗 السائق: ${name}` : "🚗 السائق";
       if(!driverMarker){
-        driverMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚗 السائق");
+        driverMarker = L.marker([lat,lng]).addTo(map).bindPopup(popupText);
       }else{
         driverMarker.setLatLng([lat,lng]);
+        try{ driverMarker.setPopupContent(popupText); }catch{}
       }
+
+      navDriverBtn.style.display = (Number.isFinite(lat) && Number.isFinite(lng)) ? "inline-flex" : "none";
+    }
+
+    function openGoogleMapsNav(lat, lng){
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      window.open(url, "_blank");
+    }
+
+    navDriverBtn.addEventListener("click", ()=>{
+      if(!lastDriverLL) return;
+      openGoogleMapsNav(lastDriverLL.lat, lastDriverLL.lng);
+    });
+
+    function showDriverCard(driver, status){
+      // driver: {name, phone, vehicle, model, plate, email}
+      const name = clean(driver?.name) || "السائق";
+      const phone = clean(driver?.phone) || "";
+      const vehicle = clean(driver?.vehicle) || "";
+      const model = clean(driver?.model) || "";
+      const plate = clean(driver?.plate) || "";
+      const email = clean(driver?.email) || "";
+
+      dName.textContent = `🚗 ${name}`;
+      dState.textContent = status || "—";
+      dState.classList.remove("ok","bad");
+      dState.classList.add((status && ["accepted","arrived","started","offered"].includes(status)) ? "ok" : "bad");
+
+      const parts = [];
+      if(vehicle || model) parts.push(`<b>المركبة:</b> ${escapeHTML(vehicle || "-")}${model ? ` • ${escapeHTML(model)}` : ""}`);
+      if(plate) parts.push(`<b>اللوحة:</b> ${escapeHTML(plate)}`);
+      if(phone) parts.push(`<b>الهاتف:</b> ${escapeHTML(phone)}`);
+      if(email) parts.push(`<b>الإيميل:</b> ${escapeHTML(email)}`);
+
+      dMeta.innerHTML = parts.length ? parts.join("<br>") : "لا توجد بيانات سائق حالياً.";
+
+      if(phone){
+        callDriverBtn.style.display = "inline-flex";
+        callDriverBtn.href = `tel:${phone}`;
+      }else{
+        callDriverBtn.style.display = "none";
+        callDriverBtn.href = "javascript:void(0)";
+      }
+
+      driverCard.style.display = "block";
+    }
+
+    function hideDriverCard(){
+      driverCard.style.display = "none";
+      lastDriverLL = null;
+      navDriverBtn.style.display = "none";
     }
 
     function startWatchRide(id){
@@ -935,13 +1022,16 @@
       unsubRide = onSnapshot(rideRef, async (snap)=>{
         if(!snap.exists()){
           msg.textContent = "⚠️ الطلب غير موجود.";
+          hideDriverCard();
           return;
         }
         const r = snap.data();
         const st = r.status || "-";
 
-        // لو السائق اتحدد
+        // ✅ بيانات السائق من ride doc (يتم كتابتها من driver.html)
         const duid = r.driverUid || null;
+
+        // لو السائق اتحدد
         if(duid && duid !== currentDriverUid){
           currentDriverUid = duid;
           watchDriverStatusFallback(duid); // احتياط
@@ -950,7 +1040,25 @@
         // الأساسي: driverLive داخل ride (لو موجود)
         const dLat = safeNum(r.driverLive?.lat);
         const dLng = safeNum(r.driverLive?.lng);
-        if(dLat!=null && dLng!=null) setDriverOnMap(dLat, dLng);
+        const driverName = clean(r.driverName || "");
+
+        if(dLat!=null && dLng!=null){
+          setDriverOnMap(dLat, dLng, { name: driverName || null });
+        }
+
+        // ✅ إظهار بيانات السائق للراكب
+        if(duid){
+          showDriverCard({
+            name: r.driverName || "سائق",
+            phone: r.driverPhone || "",
+            vehicle: r.driverVehicle || "",
+            model: r.driverModel || "",
+            plate: r.driverPlate || "",     // (اختياري لو هتضيفه في driver.html)
+            email: r.driverEmail || ""
+          }, st);
+        }else{
+          hideDriverCard();
+        }
 
         // تشغيل التتبع تلقائيًا بعد تعيين السائق / بداية الرحلة
         const shouldAutoTrack = !!duid && ["accepted","arrived","started"].includes(st);
