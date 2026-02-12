@@ -549,56 +549,74 @@
     // ======================================================
     let lastGeoAt = 0;
 
-    async function geocodeNominatim(q, { governorate="", near=null } = {}){
-      const now = Date.now();
-      if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
-      lastGeoAt = Date.now();
+async function geocodeNominatim(q, { governorate="", near=null } = {}){
+  const now = Date.now();
+  if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
+  lastGeoAt = Date.now();
 
-      const g = clean(governorate);
-      const q2 = g ? `${clean(q)}, ${g}, Egypt` : `${clean(q)}, Egypt`;
+  const text = clean(q);
+  if(text.length < 2) return null;
 
-      let extra = `&countrycodes=eg&limit=7&addressdetails=1&accept-language=ar`;
-      if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
-        const d = 0.22;
-        const left   = (near.lng - d);
-        const right  = (near.lng + d);
-        const top    = (near.lat + d);
-        const bottom = (near.lat - d);
-        extra += `&viewbox=${left},${top},${right},${bottom}&bounded=1`;
-      }
+  // نكوّن نص البحث (مع المحافظة لو موجودة)
+  const wantGov = clean(governorate);
+  const queryText = wantGov ? `${text}, ${wantGov}, Egypt` : `${text}, Egypt`;
 
-      const url =
-        "https://nominatim.openstreetmap.org/search" +
-        `?format=json` +
-        `&q=` + encodeURIComponent(q2) +
-        extra;
+  // نأسّس الـ params
+  let params =
+    `format=json` +
+    `&q=${encodeURIComponent(queryText)}` +
+    `&countrycodes=eg` +
+    `&limit=10` +
+    `&addressdetails=1` +
+    `&accept-language=ar`;
 
-      const res = await fetch(url, { headers: { "Accept": "application/json" }});
-      if(!res.ok) throw new Error("geocode_failed");
-      const data = await res.json();
-      if(!data || !data.length) return null;
+  // لو عنا موقع الجهاز ("bias")
+  if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
+    const d = 0.35; // ده تقريبًا 35 كم
+    const left   = (near.lng - d);
+    const right  = (near.lng + d);
+    const top    = (near.lat + d);
+    const bottom = (near.lat - d);
+    params += `&viewbox=${left},${top},${right},${bottom}`;
+  }
 
-      const wantGov = clean(governorate);
-      const mapped = data.map(it=>{
-        const lat = Number(it.lat);
-        const lng = Number(it.lon);
-        const addr = it.address || {};
-        const state = clean(addr.state || addr.county || addr.city || addr.town || "");
-        const scoreGov = (wantGov && state && (state.includes(wantGov) || wantGov.includes(state))) ? 1 : 0;
-        const scoreDist = (near && Number.isFinite(lat) && Number.isFinite(lng)) ? dist2({lat,lng}, near) : 999999;
-        return { lat, lng, name: it.display_name || q, scoreGov, scoreDist };
-      }).filter(x=>Number.isFinite(x.lat) && Number.isFinite(x.lng));
+  const url = `https://nominatim.openstreetmap.org/search?${params}`;
 
-      if(!mapped.length) return null;
+  const res = await fetch(url, { headers: { "Accept": "application/json" }});
+  if(!res.ok) throw new Error("geocode_failed");
 
-      mapped.sort((a,b)=>{
-        if(b.scoreGov !== a.scoreGov) return b.scoreGov - a.scoreGov;
-        return a.scoreDist - b.scoreDist;
-      });
+  const data = await res.json();
+  if(!data || !data.length) return null;
 
-      return mapped[0];
+  const mapped = data.map(it=>{
+    const lat = Number(it.lat);
+    const lng = Number(it.lon);
+    const addr = it.address || {};
+
+    const state = clean(addr.state || addr.county || addr.city || addr.town || "");
+
+    const scoreGov = (wantGov && state && (state.includes(wantGov) || wantGov.includes(state))) ? 1 : 0;
+
+    const scoreDist = (near && Number.isFinite(lat) && Number.isFinite(lng))
+      ? ((lat - near.lat)**2 + (lng - near.lng)**2)
+      : 999999;
+
+    return { lat, lng, name: it.display_name || text, scoreGov, scoreDist };
+  }).filter(x=>Number.isFinite(x.lat) && Number.isFinite(x.lng));
+
+  if(!mapped.length) return null;
+
+  mapped.sort((a,b)=>{
+    if(b.scoreGov !== a.scoreGov){
+      const distRatio = (a.scoreDist + 1) / (b.scoreDist + 1);
+      if(distRatio > 6) return a.scoreDist - b.scoreDist;
+      return b.scoreGov - a.scoreGov;
     }
+    return a.scoreDist - b.scoreDist;
+  });
 
+  return mapped[0];
+}
     const fromText = document.getElementById("fromText");
     const toText = document.getElementById("toText");
     const fromSearchBtn = document.getElementById("fromSearchBtn");
