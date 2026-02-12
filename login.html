@@ -4,13 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>مشوارك — تسجيل الدخول</title>
+
   <link rel="icon" href="./favicon.png">
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#050B16" />
   <link rel="stylesheet" href="./styles.css" />
 
   <style>
-    .wrap{width:min(520px,92%);margin:18px auto 80px}
+    .wrap{width:min(560px,92%);margin:18px auto 90px}
     .card{
       background: linear-gradient(180deg, rgba(15,24,44,.96), rgba(8,14,28,.86));
       border:1px solid rgba(255,255,255,.12);
@@ -18,80 +19,33 @@
       padding:14px;
       box-shadow:0 18px 60px rgba(0,0,0,.35);
     }
-    .card *{max-width:100%}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .row .btn{flex:1}
-/* ✅ Segmented control (راكب/سائق) زي الصورة */
-/* ✅ Uber Segmented Control */
-.roleRow{
-  display:flex;
-  width:100%;
-  gap:0;
-  margin:12px 0 10px;
-  padding:6px;
-  border-radius:18px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.05);
-  overflow:hidden;
-}
-.roleBtn{
-  flex:1;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-
-  padding:12px 12px;
-  border-radius:14px;
-
-  border:0;
-  background:transparent;
-
-  color:#cfd7ff;
-  font-weight:950;
-  cursor:pointer;
-
-  min-height:52px;
-
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-.roleBtn .ico{font-size:20px; opacity:.95}
-.roleBtn.active{
-  background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(98,175,255,.70));
-  color:#fff;
-  box-shadow: 0 14px 40px rgba(0,0,0,.35), 0 0 0 3px rgba(46,107,255,.12);
-}
-    .field{margin-top:10px}
-    .field input::placeholder{opacity:.55}
-.field input{font-weight:800}
-      width:100%;
-      padding:12px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      outline:none;
+    .brandTop{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+    .logoBox{
+      width:52px;height:52px;border-radius:18px;
+      display:grid;place-items:center;
+      font-weight:950;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
     }
-    .btn{
-      border-radius:16px;border:1px solid rgba(255,255,255,.14);
-      padding:12px 12px;background:rgba(255,255,255,.06);color:#fff;cursor:pointer;font-weight:950;
-      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-      min-height:48px;
+    .title{font-weight:950;font-size:22px;margin:0 0 2px}
+    .sub{opacity:.75;margin:0}
+
+    .roleRow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:12px 0 6px}
+    .roleBtn{
+      flex:1 1 180px;
+      padding:12px 14px;border-radius:18px;border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);color:#fff;font-weight:950;cursor:pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      min-height:52px;
+      display:flex;align-items:center;justify-content:center;gap:10px;
     }
-    .btn.primary{background:rgba(43,108,255,.9);border-color:rgba(43,108,255,.35)}
-    .btn.secondary{background:rgba(255,255,255,.07)}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .title{
-  font-weight:950;
-  font-size:22px;
-  margin:8px 0 2px;
-  word-break:keep-all;
-}
-    .sub{opacity:.75;margin:0 0 10px}
-    .msg{margin-top:10px;line-height:1.7}
-    .bad{color:#ffb4b4}
-    .ok{color:#b7ffd0}
+    .roleBtn.active{
+      background: linear-gradient(135deg, rgba(43,108,255,.92), rgba(98,175,255,.72));
+      border-color: rgba(255,255,255,.18);
+      box-shadow: 0 16px 55px rgba(0,0,0,.35), 0 0 0 3px rgba(46,107,255,.14);
+    }
 
     .miniNote{
       margin-top:10px;
@@ -99,74 +53,106 @@
       border-radius:16px;
       border:1px solid rgba(255,255,255,.10);
       background: rgba(255,255,255,.05);
+      text-align:center;
+      opacity:.9;
+      line-height:1.7;
     }
 
-    .reqStar{
-      color: rgba(255,255,255,.65);
-      font-weight: 900;
-      margin-right: 6px;
-      font-size: 12px;
+    .field{margin-top:10px}
+    .field label{display:block;margin-bottom:6px;opacity:.9}
+    .field input{
+      width:100%;
+      padding:12px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:#fff;
+      outline:none;
+      font-weight:850;
     }
+    .field input::placeholder{opacity:.55}
+
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .row .btn{flex:1}
+
+    .btn{
+      border-radius:16px;border:1px solid rgba(255,255,255,.14);
+      padding:12px 12px;background:rgba(255,255,255,.06);
+      color:#fff;cursor:pointer;font-weight:950;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+      min-height:48px;
+    }
+    .btn.primary{background:rgba(43,108,255,.9);border-color:rgba(43,108,255,.35)}
+    .btn.secondary{background:rgba(255,255,255,.07)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+
+    .msg{margin-top:10px;line-height:1.7}
+    .bad{color:#ffb4b4}
+    .ok{color:#b7ffd0}
   </style>
 </head>
 
 <body>
   <div class="wrap">
     <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-        <div class="logo" style="width:52px;height:52px;border-radius:18px;display:grid;place-items:center;font-weight:950">مشوارك</div>
-<div class="roleRow">
-  <button class="roleBtn" id="rolePassenger" type="button">
-    <span class="ico">🚕</span> <span>راكب</span>
-  </button>
-  <button class="roleBtn" id="roleDriver" type="button">
-    <span class="ico">🧑‍✈️</span> <span>سائق</span>
-  </button>
-</div>
 
-      <div class="miniNote hint" id="roleHint" style="text-align:center">—</div>
+      <div class="brandTop">
+        <div class="logoBox">مشوارك</div>
+        <div style="min-width:0">
+          <div class="title">تسجيل الدخول / إنشاء حساب</div>
+          <p class="sub">اختار تدخل كـ راكب أو سائق — نفس الإيميل يشتغل في الاتنين ✅</p>
+        </div>
+      </div>
 
-      <!-- ✅ الاسم (إلزامي) -->
+      <!-- ✅ ممنوع تغيير IDs/classes هنا -->
+      <div class="roleRow">
+        <button class="roleBtn" id="rolePassenger" type="button">
+          <span class="ico">🚕</span> <span>راكب</span>
+        </button>
+        <button class="roleBtn" id="roleDriver" type="button">
+          <span class="ico">🧑‍✈️</span> <span>سائق</span>
+        </button>
+      </div>
+
+      <div class="miniNote" id="roleHint">—</div>
+
+      <!-- ✅ مشتركة للاتنين + إلزامية -->
       <div class="field">
-        <label>الاسم <span class="reqStar">* إلزامي</span></label>
-        <input id="name" type="text" placeholder="اسمك هنا" autocomplete="name" />
+        <label>الاسم (إلزامي)</label>
+        <input id="name" type="text" placeholder="اسمك هنا" autocomplete="name" required />
       </div>
 
       <div class="field">
-        <label>الإيميل <span class="reqStar">* إلزامي</span></label>
+        <label>رقم التليفون (إلزامي)</label>
+        <input id="phone" type="tel" placeholder="01*********" autocomplete="tel" inputmode="tel" required />
+      </div>
+
+      <div class="field">
+        <label>العنوان</label>
+        <input id="address" type="text" placeholder="مثال: شارع ********" autocomplete="street-address" />
+      </div>
+
+      <div class="field">
+        <label>الإيميل</label>
         <input id="email" type="email" placeholder="example@gmail.com" autocomplete="email" />
       </div>
 
       <div class="field">
-        <label>كلمة المرور <span class="reqStar">* إلزامي</span> (6 أحرف على الأقل)</label>
-        <input id="pass" type="password" placeholder="••••••" autocomplete="current-password" />
+        <label>كلمة المرور (6 أحرف على الأقل)</label>
+        <input id="pass" type="password" placeholder="******" autocomplete="current-password" />
       </div>
 
-      <!-- ✅ مشترك للاتنين -->
-      <div class="field">
-        <label>رقم التليفون <span class="reqStar">* إلزامي</span></label>
-        <input id="phone" type="tel"
-               placeholder="01*********"
-               autocomplete="tel" inputmode="tel" />
-      </div>
-
-      <div class="field">
-        <label>العنوان (اختياري)</label>
-        <input id="address" type="text"
-               placeholder="مثال: شارع …"
-               autocomplete="street-address" />
-      </div>
-
-      <div class="row" style="margin-top:12px">
+      <div class="row">
         <button class="btn primary" id="loginBtn" type="button">تسجيل دخول</button>
         <button class="btn secondary" id="signupBtn" type="button">إنشاء حساب</button>
       </div>
 
       <div class="msg" id="msg"></div>
 
-      <div class="hint" style="margin-top:12px">
+      <div class="miniNote" style="margin-top:12px">
         * أول مرة؟ اضغط "إنشاء حساب". بعد كده "تسجيل دخول".
       </div>
+
     </div>
   </div>
 
@@ -192,7 +178,6 @@
       msg.className = "msg";
     }
 
-    // ✅ تحديد الدور من: ?role=  ثم localStorage  ثم default
     const urlRole = (qs("role") || "").toLowerCase();
     const lsRole = (localStorage.getItem("activeRole") || "").toLowerCase();
     if(urlRole === "driver" || urlRole === "passenger") setRole(urlRole);
@@ -210,16 +195,29 @@
       const name = clean($("name").value);
       const phone = clean($("phone").value);
       const address = clean($("address").value);
+
+      if(!name || name.length < 2){
+        msg.className="msg bad";
+        msg.textContent="❌ اكتب الاسم (حرفين على الأقل).";
+        throw new Error("name_required");
+      }
+      if(!phone || phone.length < 8){
+        msg.className="msg bad";
+        msg.textContent="❌ اكتب رقم تليفون صحيح.";
+        throw new Error("phone_required");
+      }
+
       const u = auth.currentUser;
       if(!u) return;
 
       await saveUserProfile(u.uid, {
-        name: name || null,
+        name,
         email: u.email || null,
-        phone: phone || null,
+        phone,
         address: address || null,
         activeRole: role,
-        roles: { passenger:true, driver:true }
+        roles: { passenger:true, driver:true },
+        updatedAt: Date.now()
       }).catch(()=>{});
     }
 
@@ -228,66 +226,55 @@
       $("signupBtn").disabled = b;
     }
 
-    function validateCommon(){
-      const name = clean($("name").value);
-      const phone = clean($("phone").value);
+    async function doLogin(){
       const email = clean($("email").value);
       const pass = $("pass").value || "";
-
-      if(name.length < 2){
-        msg.className="msg bad";
-        msg.textContent="❌ اكتب اسم صحيح (حرفين على الأقل).";
-        return null;
-      }
-
-      if(!/^01\d{9}$/.test(phone)){
-        msg.className="msg bad";
-        msg.textContent="❌ اكتب رقم تليفون مصري صحيح (مثال: 01*********).";
-        return null;
-      }
 
       if(!email || pass.length < 6){
         msg.className="msg bad";
         msg.textContent="❌ اكتب الإيميل وكلمة مرور صحيحة (6 أحرف+).";
-        return null;
+        return;
       }
-
-      return { name, phone, email, pass };
-    }
-
-    async function doLogin(){
-      const v = validateCommon();
-      if(!v) return;
 
       setBusy(true);
       msg.className="msg";
       msg.textContent="جارٍ تسجيل الدخول…";
 
       try{
-        await emailSignIn(v.email, v.pass);
+        await emailSignIn(email, pass);
         await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم تسجيل الدخول.";
         goNext();
       }catch(e){
         console.error(e);
-        msg.className="msg bad";
-        msg.textContent="❌ فشل تسجيل الدخول. تأكد من الإيميل/كلمة المرور.";
+        if(String(e?.message||"").includes("name_required") || String(e?.message||"").includes("phone_required")){
+          // الرسالة اتعرضت بالفعل
+        }else{
+          msg.className="msg bad";
+          msg.textContent="❌ فشل تسجيل الدخول. تأكد من الإيميل/كلمة المرور.";
+        }
       }finally{
         setBusy(false);
       }
     }
 
     async function doSignup(){
-      const v = validateCommon();
-      if(!v) return;
+      const email = clean($("email").value);
+      const pass = $("pass").value || "";
+
+      if(!email || pass.length < 6){
+        msg.className="msg bad";
+        msg.textContent="❌ اكتب الإيميل وكلمة مرور (6 أحرف على الأقل).";
+        return;
+      }
 
       setBusy(true);
       msg.className="msg";
       msg.textContent="جارٍ إنشاء الحساب…";
 
       try{
-        await emailSignUp(v.email, v.pass);
+        await emailSignUp(email, pass);
         await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم إنشاء الحساب.";
@@ -304,7 +291,6 @@
     $("loginBtn").onclick = doLogin;
     $("signupBtn").onclick = doSignup;
 
-    // Enter key support
     $("pass").addEventListener("keydown", (e)=>{
       if(e.key === "Enter") doLogin();
     });
