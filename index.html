@@ -2,45 +2,47 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>مشوارك</title>
 
+  <meta name="theme-color" content="#050B16">
   <link rel="icon" href="./favicon.png">
   <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#050B16">
-  <link rel="stylesheet" href="./styles.css">
+
+  <!-- ✅ Cache-bust لمنع رجوع CSS قديم -->
+  <link rel="stylesheet" href="./styles.css?v=13">
 </head>
 
 <body>
   <div class="container" style="min-height:calc(100vh - 32px);display:grid;place-items:center">
-    <div class="card" style="width:min(520px, 100%); text-align:center">
+    <div class="card auth-card" style="width:min(560px, 100%); text-align:center">
 
-      <div style="display:flex;justify-content:center;margin-bottom:12px">
-        <div class="logo" style="width:54px;height:54px;border-radius:18px;font-size:22px">م</div>
+      <div style="display:flex;justify-content:center;margin-bottom:14px">
+        <div class="logo auth-logo" style="width:68px;height:68px;border-radius:22px;font-size:26px">م</div>
       </div>
 
-      <h1 style="margin:0;font-size:20px">🚖 مشوارك</h1>
-      <p class="hint" style="margin:8px 0 14px">اختر نوع الاستخدام</p>
+      <h1 style="margin:0;font-size:22px;letter-spacing:.2px">🚖 مشوارك</h1>
+      <p class="hint" style="margin:10px 0 16px">اختر نوع الاستخدام</p>
 
-      <!-- ✅ أزرار الدخول (ضيف) -->
-      <div class="actions" id="guestBtns" style="justify-content:center">
-        <a class="btn success" id="guestPassenger" href="./login.html?role=passenger" style="min-width:220px;text-align:center">🚕 راكب</a>
-        <a class="btn primary" id="guestDriver" href="./login.html?role=driver" style="min-width:220px;text-align:center">🧑‍✈️ سائق</a>
+      <!-- ✅ اختيار الدور -->
+      <div class="actions" id="guestBtns" style="justify-content:center;gap:12px">
+        <a class="btn primary" id="guestPassenger" href="./login.html?role=passenger" style="min-width:230px;text-align:center">🚕 راكب</a>
+        <a class="btn secondary" id="guestDriver" href="./login.html?role=driver" style="min-width:230px;text-align:center">🧑‍✈️ سائق</a>
       </div>
 
-      <!-- ✅ صندوق المستخدم الحالي -->
+      <!-- صندوق المستخدم الحالي -->
       <div id="meBox" class="card" style="margin-top:14px; display:none; text-align:right">
         <div class="hint" id="meText" style="margin-top:0"></div>
 
         <div class="actions" style="margin-top:12px;flex-wrap:wrap">
-          <button class="btn success" id="openPassengerBtn" type="button" style="min-width:180px">فتح الراكب</button>
-          <button class="btn primary" id="openDriverBtn" type="button" style="min-width:180px">فتح السائق</button>
+          <button class="btn primary" id="openPassengerBtn" type="button" style="min-width:180px">فتح الراكب</button>
+          <button class="btn secondary" id="openDriverBtn" type="button" style="min-width:180px">فتح السائق</button>
           <button class="btn danger" id="logoutBtn" type="button" style="min-width:180px">تسجيل خروج</button>
         </div>
       </div>
 
       <div class="actions" style="justify-content:center;margin-top:12px;flex-wrap:wrap">
-        <button class="btn" id="hardRefreshBtn" type="button" style="min-width:220px">🔄 تحديث قوي (حل المشاكل)</button>
+        <button class="btn" id="hardRefreshBtn" type="button" style="min-width:230px">🔄 تحديث قوي (حل المشاكل)</button>
       </div>
 
       <p class="hint" style="margin:14px 0 0">
@@ -52,34 +54,37 @@
     </div>
   </div>
 
-  <!-- ✅ تجميع أخطاء الصفحة في مكان واحد -->
+  <!-- ✅ منع “رجوع” لنسخة قديمة (bfcache) اللي بتعمل صفحة بيضا -->
   <script>
+    window.addEventListener("pageshow", (e) => {
+      try{
+        if (e.persisted) location.reload();
+      }catch{}
+    });
+
     const errMsg = document.getElementById("errMsg");
-    function showErr(t){
-      try{ errMsg.textContent = t; }catch{}
-    }
     window.addEventListener("error", (e)=>{
-      showErr("⚠️ خطأ: " + (e?.message || "غير معروف"));
+      try{ errMsg.textContent = "⚠️ خطأ: " + (e.message || "غير معروف"); }catch{}
     });
     window.addEventListener("unhandledrejection", (e)=>{
-      showErr("⚠️ Promise Error: " + (e?.reason?.message || e?.reason || "غير معروف"));
+      try{ errMsg.textContent = "⚠️ Promise Error: " + (e.reason?.message || e.reason || "غير معروف"); }catch{}
     });
   </script>
 
   <script type="module">
-    import { auth, db, setActiveRole, ensureUserDoc } from "./app.js";
-    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { auth, db, setActiveRole, ensureUserDoc } from "./app.js?v=13";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const guestBtns = document.getElementById("guestBtns");
+
     const meBox = document.getElementById("meBox");
     const meText = document.getElementById("meText");
-
     const logoutBtn = document.getElementById("logoutBtn");
     const openPassengerBtn = document.getElementById("openPassengerBtn");
     const openDriverBtn = document.getElementById("openDriverBtn");
 
-    // ✅ تثبيت الدور قبل فتح login (مهم علشان الزر “يبان مش مستجيب” لو الدور مش متثبت)
+    // ✅ تثبيت الدور قبل فتح login
     const guestPassenger = document.getElementById("guestPassenger");
     const guestDriver = document.getElementById("guestDriver");
     guestPassenger?.addEventListener("click", ()=>{ try{ setActiveRole("passenger"); }catch{} });
@@ -96,6 +101,18 @@
       return snap.exists() ? snap.data() : null;
     }
 
+    logoutBtn?.addEventListener("click", async ()=>{
+      try{
+        await auth.signOut();
+      }catch{
+        try{
+          const { signOut } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+          await signOut(auth);
+        }catch{}
+      }
+      location.href = "./index.html";
+    });
+
     function vehText(v){
       return (v==="tuktuk")?"توكتوك":
         (v==="motor_delivery")?"موتسيكل دليفري":
@@ -104,11 +121,6 @@
         (v==="tamanya")?"تمناية":
         (v==="caboot")?"عربية كابوت": (v || "-");
     }
-
-    logoutBtn?.addEventListener("click", async ()=>{
-      try{ await signOut(auth); }catch{}
-      location.href = "./index.html";
-    });
 
     onAuthStateChanged(auth, async (user)=>{
       if(!user){
@@ -119,7 +131,7 @@
 
       guestBtns.style.display = "none";
 
-      // ✅ اضمن الدوك (حل القديم/الجديد)
+      // ✅ اضمن إن أي حساب عنده role راكب + سائق
       await ensureUserDoc(user.uid, {
         roles: { passenger:true, driver:true },
         activeRole: "passenger",
@@ -141,35 +153,33 @@
       meBox.style.display = "block";
       meText.innerHTML =
         `👤 <b>${name}</b><br>` +
-        `📧 ${user.email || "-"}<br>` +
+        `📧 ${user.email}<br>` +
         `📍 ${gov} / ${cen}<br>` +
         `🧩 الأدوار: ${(hasPassenger ? "راكب" : "")}${(hasDriver ? (hasPassenger ? " + " : "") + "سائق" : "")}<br>` +
         `${hasDriver ? `🚗 مركبة: ${vehText(data?.vehicle)} • موديل: ${(data?.model || "-")}` : "🚗 لم يتم إعداد السائق بعد"}`;
 
-      // ✅ فتح راكب
       openPassengerBtn.textContent = hasPassenger ? "فتح الراكب" : "إعداد الراكب";
       openPassengerBtn.onclick = ()=>{
-        try{ setActiveRole("passenger"); }catch{}
+        setActiveRole("passenger");
         location.href = hasPassenger ? "./passenger.html" : "./login.html?role=passenger";
       };
 
-      // ✅ فتح سائق
       if(!hasDriver){
         openDriverBtn.textContent = "إعداد السائق";
         openDriverBtn.onclick = ()=>{
-          try{ setActiveRole("driver"); }catch{}
+          setActiveRole("driver");
           location.href = "./login.html?role=driver";
         };
       }else if(!driverReady){
         openDriverBtn.textContent = "أكمل بيانات السائق";
         openDriverBtn.onclick = ()=>{
-          try{ setActiveRole("driver"); }catch{}
+          setActiveRole("driver");
           location.href = "./login.html?role=driver";
         };
       }else{
         openDriverBtn.textContent = "فتح السائق";
         openDriverBtn.onclick = ()=>{
-          try{ setActiveRole("driver"); }catch{}
+          setActiveRole("driver");
           location.href = "./driver.html";
         };
       }
@@ -191,15 +201,16 @@
           await Promise.all(keys.map(k => caches.delete(k)));
         }
       }catch{}
-      // ✅ reload مضبوط على الموبايل
+      // ✅ Reload clean
       location.href = "./index.html?v=" + Date.now();
     }
 
     hardRefreshBtn.addEventListener("click", hardRefresh);
 
     if ("serviceWorker" in navigator) {
-      // ✅ نسخة ثابتة (خلي التحديثات من داخل SW نفسه)
-      navigator.serviceWorker.register("./sw.js")
+      // ✅ Version ثابت بدل Date.now علشان مايبقاش SW بيعيد تثبيت كل مرة
+      const v = "13";
+      navigator.serviceWorker.register("./sw.js?v=" + v)
         .then(()=>{ swMsg.textContent = "✅ التطبيق جاهز للعمل كـ PWA (SW شغال)."; })
         .catch(()=>{ swMsg.textContent = "⚠️ تعذر تشغيل Service Worker (مش مشكلة كبيرة)."; });
     }
