@@ -240,17 +240,19 @@
   ></script>
 
   <script type="module">
-    import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
+    import { requireAuthAndRole, doLogout, db, getUserDoc, setActiveRole } from "./app.js";
     import { initMessaging, notify, ensureNotificationPermission } from "./messaging.js";
     import {
       collection, query, where, limit,
       doc, runTransaction, serverTimestamp, setDoc,
-      onSnapshot, updateDoc, getDoc
+      onSnapshot, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const $ = (id)=>document.getElementById(id);
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
     const safeNum = (x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
+
+    setActiveRole("driver");
 
     // ✅ Messaging init
     await initMessaging({
@@ -1362,7 +1364,6 @@
 
       const myVeh = clean(driverProfile?.vehicle || driverProfile?.vehicleType || "") || null;
 
-      // ✅ Firestore لا يسمح where == null بشكل ثابت في بعض الحالات => نستخدم "open" فقط
       const qy = query(
         collection(db, "rides"),
         where("status", "==", "open"),
@@ -1381,10 +1382,9 @@
           return;
         }
 
-        // ✅ فلترة إضافية للطلبات المفتوحة غير المحجوزة
         const docs = snap.docs.filter(d=>{
           const r=d.data();
-          return !r.driverUid; // لازم فاضي
+          return !r.driverUid;
         });
 
         if(!docs.length){
@@ -1439,3 +1439,4 @@
   </script>
 </body>
 </html>
+```0
