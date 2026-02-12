@@ -20,23 +20,44 @@
     }
     .row{display:flex;gap:10px;flex-wrap:wrap}
     .row .btn{flex:1}
-    .hint{opacity:.9;line-height:1.7}
-    .roleRow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0 6px}
-    .roleBtn{
-      padding:10px 14px;border-radius:16px;border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);color:#fff;font-weight:900;cursor:pointer;
-      min-width:120px;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-    .roleBtn.active{
-      background: linear-gradient(135deg, rgba(43,108,255,.92), rgba(98,175,255,.72));
-      border-color: rgba(255,255,255,.18);
-      box-shadow: 0 16px 55px rgba(0,0,0,.35), 0 0 0 3px rgba(46,107,255,.14);
-    }
+/* ✅ Segmented control (راكب/سائق) زي الصورة */
+.roleRow{
+  display:flex;
+  width:100%;
+  margin:12px 0 8px;
+  padding:6px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);
+  gap:6px;
+}
+.roleBtn{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:12px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background:transparent;
+  color:#cfd7ff;
+  font-weight:950;
+  cursor:pointer;
+  min-height:48px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.roleBtn .ico{font-size:20px; opacity:.95}
+.roleBtn.active{
+  background: linear-gradient(135deg, rgba(43,108,255,.95), rgba(98,175,255,.70));
+  color:#fff;
+  border-color: rgba(255,255,255,.16);
+  box-shadow: 0 14px 40px rgba(0,0,0,.35), 0 0 0 3px rgba(46,107,255,.16);
+}
     .field{margin-top:10px}
-    .field label{display:block;margin-bottom:6px;opacity:.9}
-    .field input{
+    .field input::placeholder{opacity:.55}
+.field input{font-weight:800}
       width:100%;
       padding:12px 12px;
       border-radius:16px;
