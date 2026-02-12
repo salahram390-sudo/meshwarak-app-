@@ -1,27 +1,9 @@
-// sw.js — FINAL v14 (Cache + FCM Background Push) ✅
-// ✅ GitHub Pages safe + Cache safe + Firebase compat + Notification click open
-const CACHE = "meshwarak-v14";
+// sw.js — FINAL v15 ✅ (NO CACHE at all + FCM Background Push)
+// الهدف: إنهاء مشاكل الكاش/التحديث نهائيًا على GitHub Pages
+// - لا يوجد install caching
+// - لا يوجد fetch handler (كل شيء Network)
+// - يحتفظ بـ FCM background + notification click
 
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./login.html",
-  "./passenger.html",
-  "./driver.html",
-  "./trip.html",
-  "./profile.html",
-  "./styles.css",
-  "./app.js",
-  "./messaging.js",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./icon-192-maskable.png",
-  "./icon-512-maskable.png",
-  "./favicon.png"
-];
-
-// ========= Firebase Messaging (Compat in SW)
 importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js");
 
@@ -37,112 +19,12 @@ firebase.initializeApp({
 let messaging = null;
 try { messaging = firebase.messaging(); } catch {}
 
-function isBypass(url) {
-  return (
-    url.startsWith("https://www.gstatic.com/") ||
-    url.startsWith("https://unpkg.com/") ||
-    url.startsWith("https://cdn.jsdelivr.net/") ||
-    url.includes("openstreetmap.org") ||
-    url.includes("tile.openstreetmap.org") ||
-    url.includes("nominatim.openstreetmap.org") ||
-    url.includes("router.project-osrm.org")
-  );
-}
-
-function isHtml(req) {
-  return req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
-}
-
-function isCodeAsset(pathname) {
-  return pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".html") || pathname.endsWith(".json");
-}
-
-// ===== install
+// ✅ install/activate: فقط تفعيل سريع بدون كاش
 self.addEventListener("install", (e) => {
-  e.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-
-    // ✅ كاش آمن: نحفظ بنفس الـ Request الحقيقي
-    await Promise.all(
-      ASSETS.map(async (path) => {
-        try {
-          const req = new Request(path, { cache: "reload" });
-          const res = await fetch(req);
-          if (res && res.ok) await cache.put(req, res.clone());
-        } catch {}
-      })
-    );
-
-    await self.skipWaiting();
-  })());
+  e.waitUntil(self.skipWaiting());
 });
-
-// ===== activate
 self.addEventListener("activate", (e) => {
-  e.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
-    await self.clients.claim();
-  })());
-});
-
-// ===== fetch
-self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  const url = req.url;
-
-  // ✅ سيب الخارجي Network طبيعي
-  if (isBypass(url)) return;
-
-  let pathname = "";
-  try { pathname = new URL(url).pathname; } catch {}
-
-  // ✅ HTML/JS/CSS/JSON: Network-first (علشان التحديثات توصل فورًا)
-  if (isHtml(req) || isCodeAsset(pathname)) {
-    e.respondWith((async () => {
-      const cache = await caches.open(CACHE);
-
-      try {
-        const res = await fetch(req, { cache: "no-store" });
-        if (res && res.ok) await cache.put(req, res.clone());
-        return res;
-      } catch {
-        const cached = await cache.match(req, { ignoreSearch: true });
-        if (cached) return cached;
-
-        // fallback للصفحات
-        if (isHtml(req)) {
-          const homeReq = new Request("./index.html", { cache: "reload" });
-          const home = await cache.match(homeReq, { ignoreSearch: true });
-          if (home) return home;
-        }
-
-        throw new Error("offline");
-      }
-    })());
-    return;
-  }
-
-  // ✅ باقي الملفات: Cache-first + تحديث خلفي
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req, { ignoreSearch: true });
-
-    const networkFetch = fetch(req)
-      .then(async (res) => {
-        if (res && res.ok) await cache.put(req, res.clone());
-        return res;
-      })
-      .catch(() => null);
-
-    if (cached) {
-      e.waitUntil(networkFetch);
-      return cached;
-    }
-
-    const res = await networkFetch;
-    return res || cached;
-  })());
+  e.waitUntil(self.clients.claim());
 });
 
 // =======================
