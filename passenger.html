@@ -1114,10 +1114,22 @@ if(driver?.priceTxt){
     }
 
     function startWatchRide(id){
-      currentRideId = id;
-      rideRef = doc(db, "rides", id);
+  currentRideId = id;
 
-      if(unsubRide){ try{unsubRide()}catch{} unsubRide=null; }
+  // اقفل الاشتراك القديم
+  if(unsubRide){
+    try{ unsubRide(); }catch(e){}
+    unsubRide = null;
+  }
+
+  // صفّر القديم
+  rideRef = null;
+  currentDriverUid = null;
+
+  // اعمل ref جديد
+  rideRef = doc(db, "rides", id);
+
+  // افتح snapshot
       unsubRide = onSnapshot(rideRef, async (snap)=>{
         if(!snap.exists()){
           msg.textContent = "⚠️ الطلب غير موجود.";
