@@ -1144,6 +1144,7 @@ if(priceText){
             vehicle: r.driverVehicle || "",
             model: r.driverModel || "",
             plate: r.driverPlate || "",   // ✅ هتظهر تلقائي لما نضيفها في driver.html
+            priceEGP: (r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP ?? null),
             email: r.driverEmail || ""
           }, st);
         }else{
