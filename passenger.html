@@ -750,6 +750,31 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     // ===== Pick from map
     const createRideBtn = document.getElementById("createRideBtn");
 const cancelRideBtn = document.getElementById("cancelRideBtn");
+    cancelRideBtn?.addEventListener("click", async ()=>{
+  if(!currentRideId) return;
+  if(!confirm("تأكيد إلغاء الطلب؟")) return;
+
+  cancelRideBtn.disabled = true;
+  cancelRideBtn.textContent = "⏳ جاري الإلغاء...";
+
+  try{
+    await updateDoc(doc(db, "rides", currentRideId), {
+      status: "canceled",
+      canceledBy: "passenger",
+      canceledAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    msg.textContent = "🛑 تم إلغاء الطلب.";
+    clearCurrentRideUI(); // ✅ يرجّع الواجهة للوضع الطبيعي
+  }catch(e){
+    console.error(e);
+    msg.textContent = "⚠️ حصل خطأ أثناء الإلغاء.";
+  }finally{
+    cancelRideBtn.disabled = false;
+    cancelRideBtn.textContent = "🛑 إلغاء الطلب";
+  }
+});
     document.getElementById("pickFromMapBtn").onclick = ()=>{
   pickMode = "from";
   msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
