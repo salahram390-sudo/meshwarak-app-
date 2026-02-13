@@ -299,17 +299,17 @@
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, setActiveRole } from "./app.js";
+  import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
+  import {
+    collection, addDoc, serverTimestamp,
+    doc, onSnapshot, updateDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ✅ مهم جدًا: ثبّت الدور قبل فحصه
-setActiveRole("passenger");
-await requireAuthAndRole("passenger");
-    import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
-    import {
-      collection, addDoc, serverTimestamp,
-      doc, onSnapshot, updateDoc
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  // ✅ ثبّت الدور ثم افحص الدخول (لازم)
+  setActiveRole("passenger");
+  await requireAuthAndRole("passenger");
 
+  // باقي كودك يبدأ هنا...
     // =========================
     // Helpers
     // =========================
