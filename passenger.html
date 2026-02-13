@@ -1180,11 +1180,17 @@ if(priceText){
         drawRouteFromTo();
 
         if(["completed","canceled","done"].includes(st)){
-          stopTracking();
-          msg.textContent = "✅ تم إنهاء الرحلة.";
-        }
-      });
-    }
+  stopTracking();
+
+  if(st === "canceled"){
+    msg.textContent = "🛑 تم إلغاء الرحلة.";
+  }else{
+    msg.textContent = "✅ تم إنهاء الرحلة.";
+  }
+
+  clearCurrentRideUI();  // ✅ يمسح currentRideId ويخفي زر الإلغاء والكارت
+  return;
+}
 
     // init watch if exists
     if(currentRideId){
