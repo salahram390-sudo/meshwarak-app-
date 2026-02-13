@@ -1141,6 +1141,8 @@ if (endRideBtn) {
         }
 const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
 const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
+        const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
+const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
         if(duid){
           showDriverCard({
             name: r.driverName || "سائق",
@@ -1148,8 +1150,7 @@ const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : n
             vehicle: r.driverVehicle || "",
             model: r.driverModel || "",
             plate: r.driverPlate || "",   // ✅ هتظهر تلقائي لما نضيفها في driver.html
-            const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
-const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
+            
             email: r.driverEmail || ""
           }, st);
         }else{
