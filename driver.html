@@ -227,6 +227,11 @@
   </div>
 
   <script type="module">
+    import { requireAuthAndRole, setActiveRole } from "./app.js";
+
+// ✅ مهم جدًا
+setActiveRole("driver");
+await requireAuthAndRole("driver");
     import { doc, getDoc, requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
     import {
       collection, query, where, orderBy, onSnapshot,
