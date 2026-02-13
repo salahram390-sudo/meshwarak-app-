@@ -471,40 +471,46 @@ function statusText(st){
     });
 
     // ===== Vehicle pills
-    let vehicleType = "car";
-    const pillsWrap = document.getElementById("vehiclePills");
-    function setVehicle(v){
+    // ===== Vehicle pills
+let vehicleType = "car";
+const pillsWrap = document.getElementById("vehiclePills");
+
+function setVehicle(v){
   vehicleType = v;
   [...pillsWrap.querySelectorAll(".pillBtn")].forEach(b=>{
     b.classList.toggle("active", b.dataset.type === v);
   });
 }
-    }
-    pillsWrap.addEventListener("click", (e)=>{
-      const btn = e.target.closest(".pillBtn");
-      if(!btn) return;
-      setVehicle(btn.dataset.type);
-    });
-    setVehicle("car");
+
+pillsWrap.addEventListener("click", (e)=>{
+  const btn = e.target.closest(".pillBtn");
+  if(!btn) return;
+  setVehicle(btn.dataset.type);
+});
+
+setVehicle("car");
 
     // ======================================================
     // ✅ Geocoding
     // ======================================================
-    let lastGeoAt = 0;
+    // ======================================================
+// ✅ Geocoding (Nominatim)
+// ======================================================
+let lastGeoAt = 0;
 
 async function geocodeNominatim(q, { governorate="", near=null } = {}){
   const now = Date.now();
-  if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
+  if(now - lastGeoAt < 650){
+    await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
+  }
   lastGeoAt = Date.now();
 
   const text = clean(q);
   if(text.length < 2) return null;
 
-  // نكوّن نص البحث (مع المحافظة لو موجودة)
   const wantGov = clean(governorate);
   const queryText = wantGov ? `${text}, ${wantGov}, Egypt` : `${text}, Egypt`;
 
-  // نأسّس الـ params
   let params =
     `format=json` +
     `&q=${encodeURIComponent(queryText)}` +
@@ -513,9 +519,8 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     `&addressdetails=1` +
     `&accept-language=ar`;
 
-  // لو عنا موقع الجهاز ("bias")
   if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
-    const d = 0.35; // ده تقريبًا 35 كم
+    const d = 0.35;
     const left   = (near.lng - d);
     const right  = (near.lng + d);
     const top    = (near.lat + d);
@@ -524,7 +529,6 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
   }
 
   const url = `https://nominatim.openstreetmap.org/search?${params}`;
-
   const res = await fetch(url, { headers: { "Accept": "application/json" }});
   if(!res.ok) throw new Error("geocode_failed");
 
@@ -535,7 +539,6 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     const lat = Number(it.lat);
     const lng = Number(it.lon);
     const addr = it.address || {};
-
     const state = clean(addr.state || addr.county || addr.city || addr.town || "");
 
     const scoreGov = (wantGov && state && (state.includes(wantGov) || wantGov.includes(state))) ? 1 : 0;
@@ -560,63 +563,65 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
 
   return mapped[0];
 }
-    const fromText = document.getElementById("fromText");
-    const toText = document.getElementById("toText");
-    const fromSearchBtn = document.getElementById("fromSearchBtn");
-    const toSearchBtn = document.getElementById("toSearchBtn");
 
-    async function applyGeocode(kind, q, { silent=false } = {}){
-      const text = clean(q);
-      if(text.length < 3){
-        if(!silent) msg.textContent = "⚠️ اكتب 3 أحرف على الأقل.";
-        return false;
-      }
+const fromText = document.getElementById("fromText");
+const toText = document.getElementById("toText");
+const fromSearchBtn = document.getElementById("fromSearchBtn");
+const toSearchBtn = document.getElementById("toSearchBtn");
 
-      if(!silent) msg.textContent = "🔎 جارٍ البحث عن أقرب مكان…";
+async function applyGeocode(kind, q, { silent=false } = {}){
+  const text = clean(q);
+  if(text.length < 3){
+    if(!silent) msg.textContent = "⚠️ اكتب 3 أحرف على الأقل.";
+    return false;
+  }
 
-      try{
-        const gov = govSelect.value || "";
-        const r = await geocodeNominatim(text, { governorate: gov, near: meLatLng });
-        if(!r){
-          if(!silent) msg.textContent = "⚠️ لم يتم العثور على مكان قريب مطابق.";
-          return false;
-        }
+  if(!silent) msg.textContent = "🔎 جارٍ البحث عن أقرب مكان…";
 
-        const ll = L.latLng(r.lat, r.lng);
-
-        if(kind === "from"){
-          fromLatLng = ll;
-          if(markerFrom) markerFrom.remove();
-          markerFrom = L.marker(ll).addTo(map).bindPopup("القيام").openPopup();
-          setChip(fromChip, true, "القيام: تم تحديده ✅");
-        }else{
-          toLatLng = ll;
-          if(markerTo) markerTo.remove();
-          markerTo = L.marker(ll).addTo(map).bindPopup("الوصول").openPopup();
-          setChip(toChip, true, "الوصول: تم تحديده ✅");
-        }
-
-        drawRouteFromTo();
-        fitFromTo();
-        if(!silent) msg.textContent = "✅ تم تحديد أقرب مكان على الخريطة.";
-        return true;
-      }catch(e){
-        console.error(e);
-        if(!silent) msg.textContent = "❌ تعذر البحث الآن. جرّب تاني.";
-        return false;
-      }
+  try{
+    const gov = govSelect.value || "";
+    const r = await geocodeNominatim(text, { governorate: gov, near: meLatLng });
+    if(!r){
+      if(!silent) msg.textContent = "⚠️ لم يتم العثور على مكان قريب مطابق.";
+      return false;
     }
 
-    const debFrom = debounce(()=> applyGeocode("from", fromText.value, { silent:true }), 700);
-    const debTo   = debounce(()=> applyGeocode("to", toText.value, { silent:true }), 700);
+    const ll = L.latLng(r.lat, r.lng);
 
-    fromText.addEventListener("input", debFrom);
-    toText.addEventListener("input", debTo);
+    if(kind === "from"){
+      fromLatLng = ll;
+      if(markerFrom) markerFrom.remove();
+      markerFrom = L.marker(ll).addTo(map).bindPopup("القيام").openPopup();
+      setChip(fromChip, true, "القيام: تم تحديده ✅");
+    }else{
+      toLatLng = ll;
+      if(markerTo) markerTo.remove();
+      markerTo = L.marker(ll).addTo(map).bindPopup("الوصول").openPopup();
+      setChip(toChip, true, "الوصول: تم تحديده ✅");
+    }
 
-    toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
+    drawRouteFromTo();
+    fitFromTo();
+    if(!silent) msg.textContent = "✅ تم تحديد أقرب مكان على الخريطة.";
+    return true;
+  }catch(e){
+    console.error(e);
+    if(!silent) msg.textContent = "❌ تعذر البحث الآن. جرّب تاني.";
+    return false;
+  }
+}
 
-    fromSearchBtn.addEventListener("click", ()=> applyGeocode("from", fromText.value));
-    toSearchBtn.addEventListener("click", ()=> applyGeocode("to", toText.value));
+const debFrom = debounce(()=> applyGeocode("from", fromText.value, { silent:true }), 700);
+const debTo   = debounce(()=> applyGeocode("to", toText.value, { silent:true }), 700);
+
+fromText.addEventListener("input", debFrom);
+toText.addEventListener("input", debTo);
+
+fromText.addEventListener("blur", ()=> applyGeocode("from", fromText.value));
+toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
+
+fromSearchBtn.addEventListener("click", ()=> applyGeocode("from", fromText.value));
+toSearchBtn.addEventListener("click", ()=> applyGeocode("to", toText.value));
 
     // ======================================================
     // ✅ Route (OSRM)
