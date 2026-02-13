@@ -812,8 +812,9 @@ const cancelRideBtn = document.getElementById("cancelRideBtn");
         console.error(e);
         msg.textContent = "❌ حصل خطأ أثناء إرسال الطلب.";
       }finally{
-        createRideBtn.disabled = false;
-      }
+  cancelRideBtn.disabled = false;
+  cancelRideBtn.textContent = "🛑 إلغاء الرحلة";
+}
     };
 function clearCurrentRideUI(){
   localStorage.removeItem("currentRideId");
