@@ -489,18 +489,43 @@
     }
 
     function resubscribeRides(force=false){
-      if(unsubRides){ unsubRides(); unsubRides=null; }
-      clearRides();
-      msgEl.textContent = "";
+  if(unsubRides){ unsubRides(); unsubRides=null; }
+  msgEl.textContent = "";
 
-      const qy = buildRidesQuery();
-      if(!qy){
-        msgEl.textContent = "أنت Offline.";
+  const qy = buildRidesQuery();
+  if(!qy){
+    msgEl.textContent = "أنت Offline.";
+    return;
+  }
+
+  // متفضيش القائمة قبل ما الداتا توصل
+  unsubRides = onSnapshot(
+    qy,
+    (snap)=>{
+      if(snap.empty){
+        ridesList.innerHTML = "";
+        msgEl.textContent = "لا توجد طلبات الآن.";
         return;
       }
 
+      msgEl.textContent = "";
+      const docs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      ridesList.innerHTML = docs.map(rideCardHTML).join("");
+    },
+    (err)=>{
+      console.error(err);
+
+      // متفضيش القائمة عند الخطأ
+      msgEl.textContent = "⚠️ حصل خطأ مؤقت في تحميل الطلبات.. جرّب تحديث.";
+
+      setTimeout(()=> {
+        try { resubscribeRides(true); } catch(e){}
+      }, 1500);
+    }
+  );
+}
+
       unsubRides = onSnapshot(qy, (snap)=>{
-        clearRides();
         if(snap.empty){
           msgEl.textContent = "لا توجد طلبات الآن.";
           return;
