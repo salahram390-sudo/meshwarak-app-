@@ -750,6 +750,10 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     // ===== Pick from map
     const createRideBtn = document.getElementById("createRideBtn");
 const cancelRideBtn = document.getElementById("cancelRideBtn");
+    if (currentRideId) {
+  cancelRideBtn.style.display = "inline-flex";
+  setTimeout(() => startWatchRide(currentRideId), 700);
+}
     cancelRideBtn?.addEventListener("click", async ()=>{
   if(!currentRideId) return;
   if(!confirm("تأكيد إلغاء الطلب؟")) return;
