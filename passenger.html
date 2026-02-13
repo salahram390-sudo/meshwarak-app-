@@ -192,71 +192,20 @@
       <div class="grid2">
         <div class="field" style="margin-top:0">
           <label>المحافظة</label>
-          <select id="govSelect">
-            <option value="">اختر المحافظة…</option>
-          </select>
-        </div>
 
-        <div class="field" style="margin-top:0">
-          <label>المركز</label>
-          <select id="centerSelect" disabled>
-            <option value="">اختر المركز…</option>
-          </select>
-        </div>
-      </div>
 
-      <div class="note">* الطلب سيظهر فقط للسائقين في نفس المحافظة + المركز.</div>
 
-      <div class="sep"></div>
 
-      <div class="sectionTitle">نوع المركبة</div>
-      <div class="pills" id="vehiclePills">
-        <button class="pillBtn" data-type="car" type="button">🚗 ملاكي</button>
-        <button class="pillBtn" data-type="tuktuk" type="button">🛺 توكتوك</button>
-        <button class="pillBtn" data-type="motor_delivery" type="button">🏍️ موتسيكل دليفري</button>
-        <button class="pillBtn" data-type="microbus" type="button">🚌 ميكروباص</button>
-        <button class="pillBtn" data-type="tamanya" type="button">🚐 تمناية</button>
-        <button class="pillBtn" data-type="caboot" type="button">🚚 عربية كابوت</button>
-      </div>
 
-      <div class="sep"></div>
 
-      <div class="sectionTitle">بيانات الرحلة</div>
 
-      <div class="field">
-        <label>مكان القيام</label>
-        <div class="inputRow">
-          <input id="fromText" type="text" placeholder="اكتب مكان القيام" autocomplete="off" />
-          <button class="iconBtn" id="fromSearchBtn" type="button" title="بحث">🔍</button>
-        </div>
-      </div>
 
-      <div class="field">
-        <label>مكان الوصول</label>
-        <div class="inputRow">
-          <input id="toText" type="text" placeholder="اكتب مكان الوصول" autocomplete="off" />
-          <button class="iconBtn" id="toSearchBtn" type="button" title="بحث">🔍</button>
-        </div>
-      </div>
 
-      <div class="miniRow">
-        <span class="miniChip" id="fromChip">القيام: غير محدد</span>
-        <span class="miniChip" id="toChip">الوصول: غير محدد</span>
-      </div>
 
-      <div class="actions">
-        <button class="btn" id="myLocBtn" type="button">📍 موقعي</button>
-        <button class="btn success" id="pickFromMapBtn" type="button">📍 اختيار القيام من الخريطة</button>
-        <button class="btn success" id="pickToMapBtn" type="button">🏁 اختيار الوصول من الخريطة</button>
-      </div>
 
-      <div class="actions">
-  <button class="btn primary" id="createRideBtn" type="button" style="width:100%">إرسال الطلب ✅</button>
         <button id="endRideBtn" class="btn danger" type="button" style="width:100%; display:none;">🏁 إنهاء الرحلة</button>
 </div>
 
-<div class="actions">
-  <button class="btn danger" id="cancelRideBtn" type="button" style="width:100%; display:none">⛔ إلغاء المشوار</button>
 </div>
       <div class="sep"></div>
 
@@ -310,69 +259,12 @@
         (v==="motor_delivery")?"موتسيكل دليفري":
         (v==="car")?"ملاكي":
         (v==="microbus")?"ميكروباص":
-        (v==="tamanya")?"تمناية":
-        (v==="caboot")?"عربية كابوت": (v||"-");
-    }
-    function statusText(st){
-      st = clean(st);
-      if(st==="open") return "مفتوح";
-      if(st==="offered") return "تم اقتراح سعر";
-      if(st==="accepted") return "تم القبول";
-      if(st==="arrived") return "السائق وصل";
-      if(st==="started") return "الرحلة بدأت";
-      if(st==="completed"||st==="done") return "انتهت";
-      if(st==="canceled") return "ملغي";
-      return st || "—";
-    }
-async function fetchRouteStatsOSRM(a, b){
-  const url = `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const r = data?.routes?.[0];
-  if(!r) return null;
-  return { distanceM: r.distance, durationS: r.duration };
-}
 
-function estimatePriceEGP(vehicleType, distanceM){
-  const km = (Number(distanceM) || 0) / 1000;
 
-  const PRICING = {
-    tuktuk:        { base: 10, perKm: 6 },
-    motor_delivery:{ base: 10, perKm: 5 },
-    car:           { base: 15, perKm: 8 },
-    microbus:      { base: 20, perKm: 10 },
-    tamanya:       { base: 25, perKm: 12 },
-    caboot:        { base: 18, perKm: 9 },
-  };
 
-  const p = PRICING[vehicleType] || PRICING.car;
-  const price = p.base + (km * p.perKm);
-  return Math.max(p.base, Math.round(price));
-}
-    // ===== Auth
-    setActiveRole("passenger");
-    const { user } = await requireAuthAndRole("passenger");
-    document.getElementById("who").textContent = user.email || user.phoneNumber || "-";
-    document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
-    // load profile (phone/address/name)
-    let passengerProfile = null;
-    try{ passengerProfile = await getUserDoc(user.uid); }catch{ passengerProfile=null; }
 
-    const msg = document.getElementById("msg");
-    const createRideBtn = document.getElementById("createRideBtn");
-const cancelRideBtn = document.getElementById("cancelRideBtn");
-const endRideBtn    = document.getElementById("endRideBtn");
-    const fromChip = document.getElementById("fromChip"); 
-    const toChip = document.getElementById("toChip");
-    const trackHint = document.getElementById("trackHint");
 
-    // driver card
-    const driverCard = document.getElementById("driverCard");
-    const dName = document.getElementById("dName");
-    const dState = document.getElementById("dState");
-    const dMeta = document.getElementById("dMeta");
-    const callDriverBtn = document.getElementById("callDriverBtn");
     const navDriverBtn = document.getElementById("navDriverBtn");
 
     // ===== Leaflet
@@ -511,7 +403,6 @@ const endRideBtn    = document.getElementById("endRideBtn");
       "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي"],
       "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة"],
       "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية"],
-      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة"],
       "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا"],
       "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
       "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن"],
@@ -564,7 +455,6 @@ const endRideBtn    = document.getElementById("endRideBtn");
     const pillsWrap = document.getElementById("vehiclePills");
     function setVehicle(v){
       vehicleType = v;
-      [...pillsWrap.querySelectorAll(".pillBtn")].forEach(b=>{
         b.classList.toggle("active", b.dataset.type === v);
       });
     }
@@ -701,7 +591,6 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     fromText.addEventListener("input", debFrom);
     toText.addEventListener("input", debTo);
 
-    fromText.addEventListener("blur", ()=> applyGeocode("from", fromText.value));
     toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
 
     fromSearchBtn.addEventListener("click", ()=> applyGeocode("from", fromText.value));
@@ -773,76 +662,18 @@ const endRideBtn    = document.getElementById("endRideBtn");
 
       if(!governorate || !center){
         msg.textContent = "❌ اختر المحافظة والمركز.";
-        return;
-      }
-      if(!clean(fromText.value) || !clean(toText.value)){
-        msg.textContent = "❌ اكتب مكان القيام ومكان الوصول.";
-        return;
-      }
 
-      if(!fromLatLng){
-        const ok = await applyGeocode("from", fromText.value);
-        if(!ok) return;
-      }
-      if(!toLatLng){
-        const ok = await applyGeocode("to", toText.value);
-        if(!ok) return;
-      }
 
-      if(!fromLatLng || !toLatLng){
-        msg.textContent = "❌ لازم يتحدد القيام والوصول على الخريطة.";
-        return;
-      }
 
-      createRideBtn.disabled = true;
-      msg.textContent = "جارٍ إرسال الطلب…";
 
-        // ✅ احسب سعر تقديري واحفظه في الرحلة
-let priceEGP = null;
-try{
-  const stats = await fetchRouteStatsOSRM(
-    { lat: fromLatLng.lat, lng: fromLatLng.lng },
-    { lat: toLatLng.lat,   lng: toLatLng.lng }
-  );
-  if(stats?.distanceM) priceEGP = estimatePriceEGP(vehicleType, stats.distanceM);
-}catch(e){}
-        try{ passengerProfile = await getUserDoc(user.uid); }catch{}
 
-        const passengerPhone = passengerProfile?.phone || user.phoneNumber || null;
-        const passengerAddress = passengerProfile?.address || null;
-        const passengerName = passengerProfile?.name || null;
 
-        const ridesRef = collection(db, "rides");
-        const docRef = await addDoc(ridesRef, {
-          passengerUid: user.uid,
-          passengerEmail: user.email || null,
-          passengerPhone: passengerPhone || null,
-          passengerAddress: passengerAddress || null,
-          passengerName: passengerName || null,
 
-          governorate,
-          center,
 
-          requestedVehicle: vehicleType,
-          vehicleType,
-          priceEGP: priceEGP,
 
-          fromText: clean(fromText.value),
-          toText: clean(toText.value),
-          from: { lat: fromLatLng.lat, lng: fromLatLng.lng },
-          to:   { lat: toLatLng.lat,   lng: toLatLng.lng },
 
-          passengerLive: meLatLng ? { lat: meLatLng.lat, lng: meLatLng.lng, at: serverTimestamp() } : null,
-          passengerLiveAt: meLatLng ? serverTimestamp() : null,
 
-          status: "open",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
 
-        msg.textContent = "✅ تم إرسال الطلب.";
-        localStorage.setItem("currentRideId", docRef.id);
-        startWatchRide(docRef.id);
         setSheetSnap("min");
         cancelRideBtn.style.display = "inline-flex";
       }catch(e){
@@ -1198,10 +1029,7 @@ if(duid){
           if(!markerTo){
             markerTo = L.marker([tLat,tLng]).addTo(map).bindPopup("الوصول");
           }else markerTo.setLatLng([tLat,tLng]);
-          setChip(toChip, true, "الوصول: تم تحديده ✅");
-        }
 
-        drawRouteFromTo();
 
         if(["completed","canceled","done"].includes(st)){
   stopTracking();
