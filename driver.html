@@ -225,7 +225,7 @@
   </div>
 
   <script type="module">
-    import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
+    import { doc, getDoc, requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
     import {
       collection, query, where, orderBy, onSnapshot,
       doc, updateDoc, serverTimestamp, getDocs, limit
