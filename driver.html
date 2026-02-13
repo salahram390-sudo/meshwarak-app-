@@ -1277,7 +1277,6 @@ cancelTripBtn?.addEventListener("click", async ()=>{
             const snap = await tx.get(rideRef);
             if(!snap.exists()) return { ok:false, msg:"الطلب اختفى." };
             const cur = snap.data();
-
             if(cur.status !== "open") return { ok:false, msg:"الطلب لم يعد مفتوح." };
             if(cur.driverUid) return { ok:false, msg:"تم حجز الطلب بالفعل." };
 
@@ -1354,9 +1353,9 @@ cancelTripBtn?.addEventListener("click", async ()=>{
               return { ok:false, msg:"هذا الطلب محجوز لسائق آخر." };
             }
 
-            if(cur.status !== "open" && cur.status !== "offered"){
-              return { ok:false, msg:"الطلب لم يعد قابل للقبول." };
-            }
+            if(!["open","offered"].includes(cur.status)){
+  return { ok:false, msg:"❌ الطلب لم يعد متاحًا." };
+}
 
             if(clean(cur.governorate) !== gov || clean(cur.center) !== cen){
               return { ok:false, msg:"❌ هذا الطلب خارج منطقتك." };
@@ -1379,7 +1378,7 @@ cancelTripBtn?.addEventListener("click", async ()=>{
               driverPhone,
               driverVehicle: driverVehicle || null,
               driverModel: driverModel || null,
-              driverPlate: driverPlate || null,      // ✅ NEW
+              driverPlif(!["open","offered"].includes(r.status)) return;ate: driverPlate || null,      // ✅ NEW
               priceEGP: finalPrice,
               updatedAt: serverTimestamp()
             });
