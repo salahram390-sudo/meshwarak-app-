@@ -1,13 +1,15 @@
-// app.js — FINAL v16 (Fix: Multi-role switching + Authorized domain friendly)
+// app.js — FINAL (stable exports for all pages) ✅
+// GitHub Pages + Firebase v10 modular CDN
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
-  onAuthStateChanged,
-  signOut,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   setPersistence,
   browserLocalPersistence,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -19,104 +21,240 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-const firebaseConfig = {
+// ===== Firebase Config (زي ما عندك)
+export const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
   storageBucket: "meshwark-8adf8.appspot.com",
-  messagingSenderId: "1059652280517",
-  appId: "1:1059652280517:web:6a9d0b2c0c8b56b9cdb4a5",
+  messagingSenderId: "450060838946",
+  appId: "1:450060838946:web:963cacdd125b253fa1827b",
 };
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-setPersistence(auth, browserLocalPersistence).catch(() => {});
+// ✅ مهم جدًا علشان الجلسة تفضل محفوظة
+try {
+  await setPersistence(auth, browserLocalPersistence);
+} catch {}
 
-const LS_ROLE_KEY = "meshwarak_active_role";
-
-/** role: "passenger" | "driver" */
-export function setActiveRole(role) {
+// ===== أدوات عامة
+export function qs(name) {
   try {
-    if (!role) return;
-    localStorage.setItem(LS_ROLE_KEY, String(role));
-  } catch {}
-}
-
-export function getActiveRole() {
-  try {
-    return localStorage.getItem(LS_ROLE_KEY) || "";
+    return new URL(location.href).searchParams.get(name);
   } catch {
-    return "";
+    return null;
   }
 }
 
+export const ROLE_KEY = "activeRole";
+
+export function setActiveRole(role) {
+  const r = role === "driver" ? "driver" : "passenger";
+  localStorage.setItem(ROLE_KEY, r);
+  return r;
+}
+
+export function getActiveRole() {
+  const r = localStorage.getItem(ROLE_KEY);
+  return r === "driver" || r === "passenger" ? r : "passenger";
+}
+
+// ===== Utils
+const clean = (s) => (s || "").toString().trim().replace(/\s+/g, " ");
+const cleanPhone = (p) => {
+  const x = clean(p);
+  if (!x) return null;
+  // رقم مصري بسيط (مش validation قوي) — بس يمنع الفراغات
+  return x.replace(/[^\d+]/g, "");
+};
+
+export function userRef(uid) {
+  return doc(db, "users", uid);
+}
+
+// ===== Firestore helpers
 export async function getUserDoc(uid) {
-  if (!uid) return null;
-  const ref = doc(db, "users", uid);
+  const ref = userRef(uid);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
 
-async function ensureUserDoc(uid, data) {
-  const ref = doc(db, "users", uid);
+/**
+ * ensureUserDoc:
+ * - ينشئ doc لو مش موجود
+ * - لو موجود: يحدّث patch فقط بدون ما "يمسح" roles أو بيانات قديمة
+ */
+export async function ensureUserDoc(uid, patch = {}) {
+  const ref = userRef(uid);
   const snap = await getDoc(ref);
+
   if (!snap.exists()) {
-    await setDoc(ref, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  } else {
-    await updateDoc(ref, { updatedAt: serverTimestamp() });
+    const base = {
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      roles: { passenger: true, driver: true },
+      activeRole: getActiveRole(),
+      phone: null,
+      address: null,
+      name: null,
+      ...patch,
+    };
+    await setDoc(ref, base, { merge: true });
+    return { ...base, ...patch };
   }
-}
 
-export async function signupAs({ role, name, phone, address, email, password }) {
-  role = role === "driver" ? "driver" : "passenger";
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  const existing = snap.data() || {};
 
-  await ensureUserDoc(cred.user.uid, {
-    role,
-    name: name || "",
-    phone: phone || "",
-    address: address || "",
-    email: email || "",
-  });
+  // ✅ roles: دمج بدل overwrite
+  const rolesMerged = {
+    passenger: true,
+    driver: true,
+    ...(existing.roles || {}),
+    ...(patch.roles || {}),
+  };
 
-  setActiveRole(role);
-  return cred;
-}
+  // ✅ تنظيف phone/address لو موجودين في patch
+  const nextPatch = { ...patch };
+  if ("phone" in nextPatch) nextPatch.phone = cleanPhone(nextPatch.phone);
+  if ("address" in nextPatch) nextPatch.address = clean(nextPatch.address) || null;
+  if ("name" in nextPatch) nextPatch.name = clean(nextPatch.name) || null;
 
-export async function login(email, password) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
-  return cred;
-}
+  const merged = {
+    ...nextPatch,
+    roles: rolesMerged,
+    updatedAt: serverTimestamp(),
+  };
 
-export async function doLogout() {
-  await signOut(auth);
-}
+  await setDoc(ref, merged, { merge: true });
 
-export function onUser(cb) {
-  return onAuthStateChanged(auth, cb);
+  // نرجّع snapshot منطقي
+  return {
+    ...existing,
+    ...nextPatch,
+    roles: rolesMerged,
+  };
 }
 
 /**
- * Require auth AND matching role in Firestore users/{uid}.role
- * If mismatch => throws Error("wrong_role")
+ * saveUserProfile:
+ * - يستخدمه login.html بعد signup/login
+ * - يحفظ phone/address/name + activeRole + roles بشكل آمن
  */
-export async function requireAuthAndRole(requiredRole) {
-  requiredRole = requiredRole === "driver" ? "driver" : "passenger";
+export async function saveUserProfile(uid, payload) {
+  const p = { ...(payload || {}) };
 
-  const user = auth.currentUser;
-  if (!user) throw new Error("not_signed_in");
+  if ("phone" in p) p.phone = cleanPhone(p.phone);
+  if ("address" in p) p.address = clean(p.address) || null;
+  if ("name" in p) p.name = clean(p.name) || null;
 
-  const udoc = await getUserDoc(user.uid);
-  const actual = (udoc && udoc.role) ? String(udoc.role) : "";
+  // ✅ roles merge
+  const existing = await getUserDoc(uid).catch(() => null);
+  const rolesMerged = {
+    passenger: true,
+    driver: true,
+    ...(existing?.roles || {}),
+    ...(p.roles || {}),
+  };
 
-  if (actual !== requiredRole) {
-    const err = new Error("wrong_role");
-    err.actualRole = actual;
-    err.requiredRole = requiredRole;
-    throw err;
+  delete p.roles;
+
+  await setDoc(
+    userRef(uid),
+    {
+      ...p,
+      roles: rolesMerged,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * updateUserProfile:
+ * - تحديث خفيف بدون قراءة doc كامل (مع merge roles إن وجدت)
+ */
+export async function updateUserProfile(uid, payload = {}) {
+  const p = { ...(payload || {}) };
+  if ("phone" in p) p.phone = cleanPhone(p.phone);
+  if ("address" in p) p.address = clean(p.address) || null;
+  if ("name" in p) p.name = clean(p.name) || null;
+
+  // لو فيه roles في update، لازم ندمجها
+  if (p.roles) {
+    const existing = await getUserDoc(uid).catch(() => null);
+    p.roles = {
+      passenger: true,
+      driver: true,
+      ...(existing?.roles || {}),
+      ...(p.roles || {}),
+    };
   }
 
-  return { user, udoc };
+  await updateDoc(userRef(uid), { ...p, updatedAt: serverTimestamp() });
+}
+
+/**
+ * getMyProfile:
+ * - يجيب بروفايل المستخدم الحالي (لو مسجل دخول)
+ */
+export async function getMyProfile() {
+  const u = auth.currentUser;
+  if (!u) return null;
+  return await getUserDoc(u.uid).catch(() => null);
+}
+
+// ===== Auth actions
+export async function emailSignIn(email, password) {
+  return await signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function emailSignUp(email, password) {
+  return await createUserWithEmailAndPassword(auth, email, password);
+}
+
+export async function doLogout() {
+  try {
+    await signOut(auth);
+  } catch {}
+  try {
+    localStorage.removeItem("currentRideId");
+  } catch {}
+  location.href = "./index.html";
+}
+
+/**
+ * requireAuthAndRole(requiredRole):
+ * - يجبر تسجيل الدخول
+ * - يثبت role (لو الصفحة راكب/سائق)
+ * - يضمن users/{uid} موجود وفيه phone/address محفوظين لو اتبعتوا قبل
+ */
+export async function requireAuthAndRole(requiredRole = null) {
+  const user = await new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      unsub();
+      resolve(u || null);
+    });
+  });
+
+  if (!user) {
+    location.href = "./login.html";
+    throw new Error("not-authenticated");
+  }
+
+  if (requiredRole) setActiveRole(requiredRole);
+
+  // ✅ ensure user doc بدون ما يمسح phone/address/name
+  await ensureUserDoc(user.uid, {
+    email: user.email || null,
+    activeRole: getActiveRole(),
+    roles: { passenger: true, driver: true },
+  }).catch(() => {});
+
+  const data = await getUserDoc(user.uid).catch(() => null);
+  const role = requiredRole || getActiveRole();
+
+  return { user, data: { ...(data || {}), role } };
 }
