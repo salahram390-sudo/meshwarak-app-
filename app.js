@@ -24,93 +24,99 @@ const firebaseConfig = {
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
   storageBucket: "meshwark-8adf8.appspot.com",
-  messagingSenderId: "1002370933574",
-  appId: "1:1002370933574:web:7b5ec4a70f13f2a7d8d8a9",
+  messagingSenderId: "1059652280517",
+  appId: "1:1059652280517:web:6a9d0b2c0c8b56b9cdb4a5",
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// =========================
-// Role helpers
-// =========================
-const ROLE_KEY = "meshwarak_active_role";
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+const LS_ROLE_KEY = "meshwarak_active_role";
+
+/** role: "passenger" | "driver" */
 export function setActiveRole(role) {
-  if (!role) return;
-  localStorage.setItem(ROLE_KEY, role);
+  try {
+    if (!role) return;
+    localStorage.setItem(LS_ROLE_KEY, String(role));
+  } catch {}
 }
+
 export function getActiveRole() {
-  return localStorage.getItem(ROLE_KEY) || "";
+  try {
+    return localStorage.getItem(LS_ROLE_KEY) || "";
+  } catch {
+    return "";
+  }
 }
 
-// =========================
-// Auth helpers
-// =========================
-export async function signIn(email, password) {
-  await setPersistence(auth, browserLocalPersistence);
-  return signInWithEmailAndPassword(auth, email, password);
+export async function getUserDoc(uid) {
+  if (!uid) return null;
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : null;
 }
 
-export async function signUp(email, password) {
-  await setPersistence(auth, browserLocalPersistence);
-  return createUserWithEmailAndPassword(auth, email, password);
+async function ensureUserDoc(uid, data) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  } else {
+    await updateDoc(ref, { updatedAt: serverTimestamp() });
+  }
+}
+
+export async function signupAs({ role, name, phone, address, email, password }) {
+  role = role === "driver" ? "driver" : "passenger";
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+  await ensureUserDoc(cred.user.uid, {
+    role,
+    name: name || "",
+    phone: phone || "",
+    address: address || "",
+    email: email || "",
+  });
+
+  setActiveRole(role);
+  return cred;
+}
+
+export async function login(email, password) {
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred;
 }
 
 export async function doLogout() {
-  return signOut(auth);
+  await signOut(auth);
 }
 
 export function onUser(cb) {
   return onAuthStateChanged(auth, cb);
 }
 
-// =========================
-// Users collection
-// =========================
-export async function getUserDoc(uid) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
-}
-
-export async function ensureUserDoc(uid, data) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, { ...data, createdAt: serverTimestamp() });
-  }
-}
-
-export async function updateUserDoc(uid, data) {
-  const ref = doc(db, "users", uid);
-  await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
-}
-
-// =========================
-// Guard: require auth + role
-// =========================
+/**
+ * Require auth AND matching role in Firestore users/{uid}.role
+ * If mismatch => throws Error("wrong_role")
+ */
 export async function requireAuthAndRole(requiredRole) {
+  requiredRole = requiredRole === "driver" ? "driver" : "passenger";
+
   const user = auth.currentUser;
-  if (!user) {
-    // مش داخل — روح للصفحة الرئيسية
-    location.href = "./index.html";
-    throw new Error("not_signed_in");
+  if (!user) throw new Error("not_signed_in");
+
+  const udoc = await getUserDoc(user.uid);
+  const actual = (udoc && udoc.role) ? String(udoc.role) : "";
+
+  if (actual !== requiredRole) {
+    const err = new Error("wrong_role");
+    err.actualRole = actual;
+    err.requiredRole = requiredRole;
+    throw err;
   }
 
-  const u = await getUserDoc(user.uid);
-  const role = (u && (u.role || u.type || u.userType)) ? (u.role || u.type || u.userType) : "";
-
-  if (!role) {
-    location.href = "./index.html";
-    throw new Error("no_role");
-  }
-
-  if (requiredRole && role !== requiredRole) {
-    // دور غلط — روح للصفحة الرئيسية
-    location.href = "./index.html";
-    throw new Error("wrong_role");
-  }
-
-  return { user, role, profile: u || {} };
+  return { user, udoc };
 }
