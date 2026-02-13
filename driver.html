@@ -192,7 +192,7 @@
     import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
     import {
       collection, doc, setDoc, getDoc, updateDoc,
-      query, where, orderBy, limit, onSnapshot, getDocs,
+      query, where,  limit, onSnapshot, getDocs,
       serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -475,13 +475,12 @@
       if(!isOnline) return null;
 
       // أقل شروط علشان يقلّل اللود + يوافق فكرة المنطقة/المركبة
-      let qy = query(collection(db,"rides"), where("status","==","open"), orderBy("createdAt","desc"), limit(30));
+      let qy = query(collection(db,"rides"), where("status","==","open"), limit(30));
 
       // لو عايز فلترة حسب المنطقة/المركبة (مستحسن):
       if(area?.gov) qy = query(collection(db,"rides"),
         where("status","==","open"),
         where("governorate","==", area.gov),
-        orderBy("createdAt","desc"),
         limit(30)
       );
 
