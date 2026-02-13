@@ -137,7 +137,6 @@
     }
     .iconBtn:active{ transform: scale(.985); }
 
-    /* ✅ Driver card */
     .driverCard{
       border:1px solid rgba(255,255,255,0.10);
       background: rgba(10, 16, 32, 0.55);
@@ -190,35 +189,75 @@
       <div class="sectionTitle">منطقتك (لاختيار السائقين)</div>
 
       <div class="grid2">
-  <div class="field" style="margin-top:0">
-    <label>المحافظة</label>
-    <select id="govSelect">
-      <option value="">اختر المحافظة…</option>
-    </select>
-  </div>
+        <div class="field" style="margin-top:0">
+          <label>المحافظة</label>
+          <select id="govSelect">
+            <option value="">اختر المحافظة…</option>
+          </select>
+        </div>
 
-  <div class="field" style="margin-top:0">
-    <label>المركز</label>
-    <select id="centerSelect" disabled>
-      <option value="">اختر المركز…</option>
-    </select>
-  </div>
-</div>
+        <div class="field" style="margin-top:0">
+          <label>المركز</label>
+          <select id="centerSelect" disabled>
+            <option value="">اختر المركز…</option>
+          </select>
+        </div>
+      </div>
 
+      <div class="note">* الطلب سيظهر فقط للسائقين في نفس المحافظة + المركز.</div>
 
+      <div class="sep"></div>
 
+      <div class="sectionTitle">نوع المركبة</div>
+      <div class="pills" id="vehiclePills">
+        <button class="pillBtn" data-type="car" type="button">🚗 ملاكي</button>
+        <button class="pillBtn" data-type="tuktuk" type="button">🛺 توكتوك</button>
+        <button class="pillBtn" data-type="motor_delivery" type="button">🏍️ موتسيكل دليفري</button>
+        <button class="pillBtn" data-type="microbus" type="button">🚌 ميكروباص</button>
+        <button class="pillBtn" data-type="tamanya" type="button">🚐 تمناية</button>
+        <button class="pillBtn" data-type="caboot" type="button">🚚 عربية كابوت</button>
+      </div>
 
+      <div class="sep"></div>
 
+      <div class="sectionTitle">بيانات الرحلة</div>
 
+      <div class="field">
+        <label>مكان القيام</label>
+        <div class="inputRow">
+          <input id="fromText" type="text" placeholder="اكتب مكان القيام" autocomplete="off" />
+          <button class="iconBtn" id="fromSearchBtn" type="button" title="بحث">🔍</button>
+        </div>
+      </div>
 
+      <div class="field">
+        <label>مكان الوصول</label>
+        <div class="inputRow">
+          <input id="toText" type="text" placeholder="اكتب مكان الوصول" autocomplete="off" />
+          <button class="iconBtn" id="toSearchBtn" type="button" title="بحث">🔍</button>
+        </div>
+      </div>
 
+      <div class="miniRow">
+        <span class="miniChip" id="fromChip">القيام: غير محدد</span>
+        <span class="miniChip" id="toChip">الوصول: غير محدد</span>
+      </div>
 
+      <div class="actions">
+        <button class="btn" id="myLocBtn" type="button">📍 موقعي</button>
+        <button class="btn success" id="pickFromMapBtn" type="button">📍 اختيار القيام من الخريطة</button>
+        <button class="btn success" id="pickToMapBtn" type="button">🏁 اختيار الوصول من الخريطة</button>
+      </div>
 
-
+      <div class="actions">
+        <button class="btn primary" id="createRideBtn" type="button" style="width:100%">إرسال الطلب ✅</button>
         <button id="endRideBtn" class="btn danger" type="button" style="width:100%; display:none;">🏁 إنهاء الرحلة</button>
-</div>
+      </div>
 
-</div>
+      <div class="actions">
+        <button class="btn danger" id="cancelRideBtn" type="button" style="width:100%; display:none">⛔ إلغاء المشوار</button>
+      </div>
+
       <div class="sep"></div>
 
       <div class="sectionTitle">المتابعة والتتبع</div>
@@ -228,7 +267,6 @@
       </div>
       <div class="hint" id="trackHint" style="margin-top:10px"></div>
 
-      <!-- ✅ بيانات السائق تظهر للراكب -->
       <div id="driverCard" class="driverCard" style="margin-top:12px; display:none">
         <div class="driverRow">
           <div class="driverName" id="dName">🚗 السائق</div>
@@ -260,32 +298,75 @@
 
     const clean = (s)=> (s||"").trim().replace(/\s+/g," ");
     const safeNum = (x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
-    function dist2(a,b){ const dx=a.lat-b.lat, dy=a.lng-b.lng; return dx*dx+dy*dy; }
     function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
     function debounce(fn, ms){ let t=null; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; }
     function escapeHTML(s){ return String(s ?? "").replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
 
     function vehText(v){
-  v = clean(v);
-  return (v==="tuktuk")?"توكتوك":
-    (v==="motor_delivery")?"موتسيكل دليفري":
-    (v==="car")?"ملاكي":
-    (v==="microbus")?"ميكروباص":
-    (v==="tamanya")?"تمناية":
-    (v==="caboot")?"عربية كابوت": (v||"-");
-}
+      v = clean(v);
+      return (v==="tuktuk")?"توكتوك":
+        (v==="motor_delivery")?"موتسيكل دليفري":
+        (v==="car")?"ملاكي":
+        (v==="microbus")?"ميكروباص":
+        (v==="tamanya")?"تمناية":
+        (v==="caboot")?"عربية كابوت": (v||"-");
+    }
+    function statusText(st){
+      st = clean(st);
+      if(st==="open") return "مفتوح";
+      if(st==="offered") return "تم اقتراح سعر";
+      if(st==="accepted") return "تم القبول";
+      if(st==="arrived") return "السائق وصل";
+      if(st==="started") return "الرحلة بدأت";
+      if(st==="completed"||st==="done") return "انتهت";
+      if(st==="canceled") return "ملغي";
+      return st || "—";
+    }
 
-function statusText(st){
-  st = clean(st);
-  if(st==="open") return "مفتوح";
-  if(st==="offered") return "تم اقتراح سعر";
-  if(st==="accepted") return "تم القبول";
-  if(st==="arrived") return "السائق وصل";
-  if(st==="started") return "الرحلة بدأت";
-  if(st==="completed"||st==="done") return "انتهت";
-  if(st==="canceled") return "ملغي";
-  return st || "—";
-}
+    async function fetchRouteStatsOSRM(a, b){
+      const url = `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const r = data?.routes?.[0];
+      if(!r) return null;
+      return { distanceM: r.distance, durationS: r.duration };
+    }
+
+    function estimatePriceEGP(vehicleType, distanceM){
+      const km = (Number(distanceM) || 0) / 1000;
+      const PRICING = {
+        tuktuk:         { base: 10, perKm: 6 },
+        motor_delivery: { base: 10, perKm: 5 },
+        car:            { base: 15, perKm: 8 },
+        microbus:       { base: 20, perKm: 10 },
+        tamanya:        { base: 25, perKm: 12 },
+        caboot:         { base: 18, perKm: 9 },
+      };
+      const p = PRICING[vehicleType] || PRICING.car;
+      const price = p.base + (km * p.perKm);
+      return Math.max(p.base, Math.round(price));
+    }
+
+    // ===== Auth
+    setActiveRole("passenger");
+    const { user } = await requireAuthAndRole("passenger");
+    document.getElementById("who").textContent = user.email || user.phoneNumber || "-";
+    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+
+    let passengerProfile = null;
+    try{ passengerProfile = await getUserDoc(user.uid); }catch{ passengerProfile=null; }
+
+    const msg = document.getElementById("msg");
+    const fromChip = document.getElementById("fromChip");
+    const toChip = document.getElementById("toChip");
+    const trackHint = document.getElementById("trackHint");
+
+    const driverCard = document.getElementById("driverCard");
+    const dName = document.getElementById("dName");
+    const dState = document.getElementById("dState");
+    const dMeta = document.getElementById("dMeta");
+    const callDriverBtn = document.getElementById("callDriverBtn");
+    const navDriverBtn = document.getElementById("navDriverBtn");
 
     // ===== Leaflet
     let map, markerFrom=null, markerTo=null, meMarker=null, driverMarker=null, routeLine=null;
@@ -423,6 +504,7 @@ function statusText(st){
       "الإسكندرية": ["سيدي جابر","سموحة","محرم بك","ميامي","العصافرة","المنتزه","الدخيلة","العجمي"],
       "الدقهلية": ["المنصورة","طلخا","ميت غمر","السنبلاوين","أجا","المنزلة"],
       "الشرقية": ["الزقازيق","بلبيس","منيا القمح","فاقوس","أبو كبير","الحسينية"],
+      "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة"],
       "المنوفية": ["شبين الكوم","منوف","السادات","الباجور","قويسنا"],
       "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
       "بني سويف": ["بني سويف","ناصر","إهناسيا","سمسطا","الفشن"],
@@ -471,157 +553,148 @@ function statusText(st){
     });
 
     // ===== Vehicle pills
-    // ===== Vehicle pills
-let vehicleType = "car";
-const pillsWrap = document.getElementById("vehiclePills");
-
-function setVehicle(v){
-  vehicleType = v;
-  [...pillsWrap.querySelectorAll(".pillBtn")].forEach(b=>{
-    b.classList.toggle("active", b.dataset.type === v);
-  });
-}
-
-pillsWrap.addEventListener("click", (e)=>{
-  const btn = e.target.closest(".pillBtn");
-  if(!btn) return;
-  setVehicle(btn.dataset.type);
-});
-
-setVehicle("car");
+    let vehicleType = "car";
+    const pillsWrap = document.getElementById("vehiclePills");
+    function setVehicle(v){
+      vehicleType = v;
+      [...pillsWrap.querySelectorAll(".pillBtn")].forEach(b=>{
+        b.classList.toggle("active", b.dataset.type === v);
+      });
+    }
+    pillsWrap.addEventListener("click", (e)=>{
+      const btn = e.target.closest(".pillBtn");
+      if(!btn) return;
+      setVehicle(btn.dataset.type);
+    });
+    setVehicle("car");
 
     // ======================================================
-    // ✅ Geocoding
+    // ✅ Geocoding (Nominatim)
     // ======================================================
-    // ======================================================
-// ✅ Geocoding (Nominatim)
-// ======================================================
-let lastGeoAt = 0;
+    let lastGeoAt = 0;
 
-async function geocodeNominatim(q, { governorate="", near=null } = {}){
-  const now = Date.now();
-  if(now - lastGeoAt < 650){
-    await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
-  }
-  lastGeoAt = Date.now();
+    async function geocodeNominatim(q, { governorate="", near=null } = {}){
+      const now = Date.now();
+      if(now - lastGeoAt < 650) await new Promise(r=>setTimeout(r, 650 - (now - lastGeoAt)));
+      lastGeoAt = Date.now();
 
-  const text = clean(q);
-  if(text.length < 2) return null;
+      const text = clean(q);
+      if(text.length < 2) return null;
 
-  const wantGov = clean(governorate);
-  const queryText = wantGov ? `${text}, ${wantGov}, Egypt` : `${text}, Egypt`;
+      const wantGov = clean(governorate);
+      const queryText = wantGov ? `${text}, ${wantGov}, Egypt` : `${text}, Egypt`;
 
-  let params =
-    `format=json` +
-    `&q=${encodeURIComponent(queryText)}` +
-    `&countrycodes=eg` +
-    `&limit=10` +
-    `&addressdetails=1` +
-    `&accept-language=ar`;
+      let params =
+        `format=json` +
+        `&q=${encodeURIComponent(queryText)}` +
+        `&countrycodes=eg` +
+        `&limit=10` +
+        `&addressdetails=1` +
+        `&accept-language=ar`;
 
-  if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
-    const d = 0.35;
-    const left   = (near.lng - d);
-    const right  = (near.lng + d);
-    const top    = (near.lat + d);
-    const bottom = (near.lat - d);
-    params += `&viewbox=${left},${top},${right},${bottom}`;
-  }
+      if(near && Number.isFinite(near.lat) && Number.isFinite(near.lng)){
+        const d = 0.35;
+        const left   = (near.lng - d);
+        const right  = (near.lng + d);
+        const top    = (near.lat + d);
+        const bottom = (near.lat - d);
+        params += `&viewbox=${left},${top},${right},${bottom}`;
+      }
 
-  const url = `https://nominatim.openstreetmap.org/search?${params}`;
-  const res = await fetch(url, { headers: { "Accept": "application/json" }});
-  if(!res.ok) throw new Error("geocode_failed");
+      const url = `https://nominatim.openstreetmap.org/search?${params}`;
+      const res = await fetch(url, { headers: { "Accept": "application/json" }});
+      if(!res.ok) throw new Error("geocode_failed");
 
-  const data = await res.json();
-  if(!data || !data.length) return null;
+      const data = await res.json();
+      if(!data || !data.length) return null;
 
-  const mapped = data.map(it=>{
-    const lat = Number(it.lat);
-    const lng = Number(it.lon);
-    const addr = it.address || {};
-    const state = clean(addr.state || addr.county || addr.city || addr.town || "");
+      const mapped = data.map(it=>{
+        const lat = Number(it.lat);
+        const lng = Number(it.lon);
+        const addr = it.address || {};
 
-    const scoreGov = (wantGov && state && (state.includes(wantGov) || wantGov.includes(state))) ? 1 : 0;
+        const state = clean(addr.state || addr.county || addr.city || addr.town || "");
+        const scoreGov = (wantGov && state && (state.includes(wantGov) || wantGov.includes(state))) ? 1 : 0;
 
-    const scoreDist = (near && Number.isFinite(lat) && Number.isFinite(lng))
-      ? ((lat - near.lat)**2 + (lng - near.lng)**2)
-      : 999999;
+        const scoreDist = (near && Number.isFinite(lat) && Number.isFinite(lng))
+          ? ((lat - near.lat)**2 + (lng - near.lng)**2)
+          : 999999;
 
-    return { lat, lng, name: it.display_name || text, scoreGov, scoreDist };
-  }).filter(x=>Number.isFinite(x.lat) && Number.isFinite(x.lng));
+        return { lat, lng, name: it.display_name || text, scoreGov, scoreDist };
+      }).filter(x=>Number.isFinite(x.lat) && Number.isFinite(x.lng));
 
-  if(!mapped.length) return null;
+      if(!mapped.length) return null;
 
-  mapped.sort((a,b)=>{
-    if(b.scoreGov !== a.scoreGov){
-      const distRatio = (a.scoreDist + 1) / (b.scoreDist + 1);
-      if(distRatio > 6) return a.scoreDist - b.scoreDist;
-      return b.scoreGov - a.scoreGov;
-    }
-    return a.scoreDist - b.scoreDist;
-  });
+      mapped.sort((a,b)=>{
+        if(b.scoreGov !== a.scoreGov){
+          const distRatio = (a.scoreDist + 1) / (b.scoreDist + 1);
+          if(distRatio > 6) return a.scoreDist - b.scoreDist;
+          return b.scoreGov - a.scoreGov;
+        }
+        return a.scoreDist - b.scoreDist;
+      });
 
-  return mapped[0];
-}
-
-const fromText = document.getElementById("fromText");
-const toText = document.getElementById("toText");
-const fromSearchBtn = document.getElementById("fromSearchBtn");
-const toSearchBtn = document.getElementById("toSearchBtn");
-
-async function applyGeocode(kind, q, { silent=false } = {}){
-  const text = clean(q);
-  if(text.length < 3){
-    if(!silent) msg.textContent = "⚠️ اكتب 3 أحرف على الأقل.";
-    return false;
-  }
-
-  if(!silent) msg.textContent = "🔎 جارٍ البحث عن أقرب مكان…";
-
-  try{
-    const gov = govSelect.value || "";
-    const r = await geocodeNominatim(text, { governorate: gov, near: meLatLng });
-    if(!r){
-      if(!silent) msg.textContent = "⚠️ لم يتم العثور على مكان قريب مطابق.";
-      return false;
+      return mapped[0];
     }
 
-    const ll = L.latLng(r.lat, r.lng);
+    const fromText = document.getElementById("fromText");
+    const toText = document.getElementById("toText");
+    const fromSearchBtn = document.getElementById("fromSearchBtn");
+    const toSearchBtn = document.getElementById("toSearchBtn");
 
-    if(kind === "from"){
-      fromLatLng = ll;
-      if(markerFrom) markerFrom.remove();
-      markerFrom = L.marker(ll).addTo(map).bindPopup("القيام").openPopup();
-      setChip(fromChip, true, "القيام: تم تحديده ✅");
-    }else{
-      toLatLng = ll;
-      if(markerTo) markerTo.remove();
-      markerTo = L.marker(ll).addTo(map).bindPopup("الوصول").openPopup();
-      setChip(toChip, true, "الوصول: تم تحديده ✅");
+    async function applyGeocode(kind, q, { silent=false } = {}){
+      const text = clean(q);
+      if(text.length < 3){
+        if(!silent) msg.textContent = "⚠️ اكتب 3 أحرف على الأقل.";
+        return false;
+      }
+
+      if(!silent) msg.textContent = "🔎 جارٍ البحث عن أقرب مكان…";
+
+      try{
+        const gov = govSelect.value || "";
+        const r = await geocodeNominatim(text, { governorate: gov, near: meLatLng });
+        if(!r){
+          if(!silent) msg.textContent = "⚠️ لم يتم العثور على مكان قريب مطابق.";
+          return false;
+        }
+
+        const ll = L.latLng(r.lat, r.lng);
+
+        if(kind === "from"){
+          fromLatLng = ll;
+          if(markerFrom) markerFrom.remove();
+          markerFrom = L.marker(ll).addTo(map).bindPopup("القيام").openPopup();
+          setChip(fromChip, true, "القيام: تم تحديده ✅");
+        }else{
+          toLatLng = ll;
+          if(markerTo) markerTo.remove();
+          markerTo = L.marker(ll).addTo(map).bindPopup("الوصول").openPopup();
+          setChip(toChip, true, "الوصول: تم تحديده ✅");
+        }
+
+        drawRouteFromTo();
+        fitFromTo();
+        if(!silent) msg.textContent = "✅ تم تحديد أقرب مكان على الخريطة.";
+        return true;
+      }catch(e){
+        console.error(e);
+        if(!silent) msg.textContent = "❌ تعذر البحث الآن. جرّب تاني.";
+        return false;
+      }
     }
 
-    drawRouteFromTo();
-    fitFromTo();
-    if(!silent) msg.textContent = "✅ تم تحديد أقرب مكان على الخريطة.";
-    return true;
-  }catch(e){
-    console.error(e);
-    if(!silent) msg.textContent = "❌ تعذر البحث الآن. جرّب تاني.";
-    return false;
-  }
-}
+    const debFrom = debounce(()=> applyGeocode("from", fromText.value, { silent:true }), 700);
+    const debTo   = debounce(()=> applyGeocode("to", toText.value, { silent:true }), 700);
 
-const debFrom = debounce(()=> applyGeocode("from", fromText.value, { silent:true }), 700);
-const debTo   = debounce(()=> applyGeocode("to", toText.value, { silent:true }), 700);
+    fromText.addEventListener("input", debFrom);
+    toText.addEventListener("input", debTo);
 
-fromText.addEventListener("input", debFrom);
-toText.addEventListener("input", debTo);
+    fromText.addEventListener("blur", ()=> applyGeocode("from", fromText.value));
+    toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
 
-fromText.addEventListener("blur", ()=> applyGeocode("from", fromText.value));
-toText.addEventListener("blur", ()=> applyGeocode("to", toText.value));
-
-fromSearchBtn.addEventListener("click", ()=> applyGeocode("from", fromText.value));
-toSearchBtn.addEventListener("click", ()=> applyGeocode("to", toText.value));
+    fromSearchBtn.addEventListener("click", ()=> applyGeocode("from", fromText.value));
+    toSearchBtn.addEventListener("click", ()=> applyGeocode("to", toText.value));
 
     // ======================================================
     // ✅ Route (OSRM)
@@ -665,16 +738,17 @@ toSearchBtn.addEventListener("click", ()=> applyGeocode("to", toText.value));
         console.error(e);
       }
     }
-    
+
     // ===== Pick from map
-const createRideBtn = document.getElementById("createRideBtn");
-const cancelRideBtn = document.getElementById("cancelRideBtn");
-const endRideBtn    = document.getElementById("endRideBtn");
+    const createRideBtn = document.getElementById("createRideBtn");
+    const cancelRideBtn = document.getElementById("cancelRideBtn");
+    const endRideBtn    = document.getElementById("endRideBtn");
+
     document.getElementById("pickFromMapBtn").onclick = ()=>{
-  pickMode = "from";
-  msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
-  setSheetSnap("mid");
-};
+      pickMode = "from";
+      msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
+      setSheetSnap("mid");
+    };
     document.getElementById("pickToMapBtn").onclick = ()=>{
       pickMode = "to";
       msg.textContent = "🏁 اضغط على الخريطة لتحديد مكان الوصول.";
@@ -689,59 +763,87 @@ const endRideBtn    = document.getElementById("endRideBtn");
 
       if(!governorate || !center){
         msg.textContent = "❌ اختر المحافظة والمركز.";
+        return;
+      }
+      if(!clean(fromText.value) || !clean(toText.value)){
+        msg.textContent = "❌ اكتب مكان القيام ومكان الوصول.";
+        return;
+      }
 
+      if(!fromLatLng){
+        const ok = await applyGeocode("from", fromText.value);
+        if(!ok) return;
+      }
+      if(!toLatLng){
+        const ok = await applyGeocode("to", toText.value);
+        if(!ok) return;
+      }
 
+      if(!fromLatLng || !toLatLng){
+        msg.textContent = "❌ لازم يتحدد القيام والوصول على الخريطة.";
+        return;
+      }
 
+      createRideBtn.disabled = true;
+      msg.textContent = "جارٍ إرسال الطلب…";
 
+      let priceEGP = null;
+      try{
+        const stats = await fetchRouteStatsOSRM(
+          { lat: fromLatLng.lat, lng: fromLatLng.lng },
+          { lat: toLatLng.lat,   lng: toLatLng.lng }
+        );
+        if(stats?.distanceM) priceEGP = estimatePriceEGP(vehicleType, stats.distanceM);
+      }catch(e){}
 
+      try{
+        try{ passengerProfile = await getUserDoc(user.uid); }catch{}
 
+        const passengerPhone = passengerProfile?.phone || user.phoneNumber || null;
+        const passengerAddress = passengerProfile?.address || null;
+        const passengerName = passengerProfile?.name || null;
 
+        const ridesRef = collection(db, "rides");
+        const docRef = await addDoc(ridesRef, {
+          passengerUid: user.uid,
+          passengerEmail: user.email || null,
+          passengerPhone: passengerPhone || null,
+          passengerAddress: passengerAddress || null,
+          passengerName: passengerName || null,
 
+          governorate,
+          center,
 
+          requestedVehicle: vehicleType,
+          vehicleType,
+          priceEGP: priceEGP,
 
+          fromText: clean(fromText.value),
+          toText: clean(toText.value),
+          from: { lat: fromLatLng.lat, lng: fromLatLng.lng },
+          to:   { lat: toLatLng.lat,   lng: toLatLng.lng },
 
+          passengerLive: meLatLng ? { lat: meLatLng.lat, lng: meLatLng.lng, at: serverTimestamp() } : null,
+          passengerLiveAt: meLatLng ? serverTimestamp() : null,
 
+          status: "open",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        msg.textContent = "✅ تم إرسال الطلب.";
+        localStorage.setItem("currentRideId", docRef.id);
+        startWatchRide(docRef.id);
         setSheetSnap("min");
         cancelRideBtn.style.display = "inline-flex";
       }catch(e){
         console.error(e);
         msg.textContent = "❌ حصل خطأ أثناء إرسال الطلب.";
       }finally{
-  createRideBtn.disabled = false;
-}
-    function clearCurrentRideUI(){
-  localStorage.removeItem("currentRideId");
-  currentRideId = null;
+        createRideBtn.disabled = false;
+      }
+    };
 
-  if(unsubRide){ try{unsubRide();}catch{} unsubRide=null; }
-  rideRef = null;
-  currentDriverUid = null;
-
-  try{ hideDriverCard(); }catch(e){}
-  cancelRideBtn.style.display = "none";
-  endRideBtn.style.display = "none";
-}
-
-cancelRideBtn.addEventListener("click", async ()=>{
-  if(!currentRideId) return;
-
-  cancelRideBtn.disabled = true;
-  try{
-    await updateDoc(doc(db, "rides", currentRideId), {
-      status: "canceled",
-      canceledBy: "passenger",
-      updatedAt: serverTimestamp(),
-    });
-
-    msg.textContent = "🛑 تم إلغاء الرحلة.";
-    clearCurrentRideUI();
-  }catch(e){
-    console.error(e);
-    msg.textContent = "⚠️ خطأ أثناء الإلغاء.";
-  }finally{
-    cancelRideBtn.disabled = false;
-  }
-});
     // ======================================================
     // ✅ Draggable Bottom Sheet
     // ======================================================
@@ -808,7 +910,7 @@ cancelRideBtn.addEventListener("click", async ()=>{
     window.addEventListener("resize", ()=> setSheetSnap(currentSnap));
 
     // ======================================================
-    // ✅ LIVE TRACKING
+    // ✅ LIVE TRACKING + WATCH RIDE
     // ======================================================
     const trackBtn = document.getElementById("trackBtn");
     const focusBtn = document.getElementById("focusBtn");
@@ -887,7 +989,6 @@ cancelRideBtn.addEventListener("click", async ()=>{
       else await startTracking();
     });
 
-    // fallback: driver_status
     function watchDriverStatusFallback(uid){
       if(unsubDriverStatus){ try{unsubDriverStatus()}catch{} unsubDriverStatus=null; }
       if(!uid) return;
@@ -936,17 +1037,18 @@ cancelRideBtn.addEventListener("click", async ()=>{
       const plate = clean(driver?.plate) || "";
       const email = clean(driver?.email) || "";
       const stText = statusText(status);
+
       dName.textContent = `🚗 ${name}`;
       dState.textContent = stText;
 
       dState.classList.remove("ok","bad");
       const okStates = ["offered","accepted","arrived","started"];
       dState.classList.add(okStates.includes(clean(status)) ? "ok" : "bad");
-      
+
       const parts = [];
-if(driver?.priceTxt){
-  parts.push(`<b>💰 السعر:</b> ${escapeHTML(driver.priceTxt)}`);
-}
+      if(driver?.priceTxt){
+        parts.push(`<b>💰 السعر:</b> ${escapeHTML(driver.priceTxt)}`);
+      }
       if(vehicle || model) parts.push(`<b>المركبة:</b> ${escapeHTML(vehText(vehicle))}${model ? ` • ${escapeHTML(model)}` : ""}`);
       if(plate) parts.push(`<b>اللوحة:</b> ${escapeHTML(plate)}`);
       if(phone) parts.push(`<b>الهاتف:</b> ${escapeHTML(phone)}`);
@@ -972,23 +1074,53 @@ if(driver?.priceTxt){
       if(driverMarker){ try{ map.removeLayer(driverMarker); }catch{} driverMarker=null; }
     }
 
+    function clearCurrentRideUI(){
+      localStorage.removeItem("currentRideId");
+      currentRideId = null;
+
+      if(unsubRide){ try{unsubRide();}catch{} unsubRide=null; }
+      rideRef = null;
+      currentDriverUid = null;
+
+      try{ hideDriverCard(); }catch(e){}
+      cancelRideBtn.style.display = "none";
+      endRideBtn.style.display = "none";
+    }
+
+    cancelRideBtn.addEventListener("click", async ()=>{
+      if(!currentRideId) return;
+
+      cancelRideBtn.disabled = true;
+      try{
+        await updateDoc(doc(db, "rides", currentRideId), {
+          status: "canceled",
+          canceledBy: "passenger",
+          updatedAt: serverTimestamp(),
+        });
+
+        msg.textContent = "🛑 تم إلغاء الرحلة.";
+        clearCurrentRideUI();
+      }catch(e){
+        console.error(e);
+        msg.textContent = "⚠️ خطأ أثناء الإلغاء.";
+      }finally{
+        cancelRideBtn.disabled = false;
+      }
+    });
+
     function startWatchRide(id){
-  currentRideId = id;
+      currentRideId = id;
 
-  // اقفل الاشتراك القديم
-  if(unsubRide){
-    try{ unsubRide(); }catch(e){}
-    unsubRide = null;
-  }
+      if(unsubRide){
+        try{ unsubRide(); }catch(e){}
+        unsubRide = null;
+      }
 
-  // صفّر القديم
-  rideRef = null;
-  currentDriverUid = null;
+      rideRef = null;
+      currentDriverUid = null;
 
-  // اعمل ref جديد
-  rideRef = doc(db, "rides", id);
+      rideRef = doc(db, "rides", id);
 
-  // افتح snapshot
       unsubRide = onSnapshot(rideRef, async (snap)=>{
         if(!snap.exists()){
           msg.textContent = "⚠️ الطلب غير موجود.";
@@ -997,10 +1129,10 @@ if(driver?.priceTxt){
         }
         const r = snap.data();
         const st = r.status || "-";
-        // ✅ إظهار زر إنهاء الرحلة فقط لما الرحلة تبدأ
-if (endRideBtn) {
-  endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
-}
+
+        if (endRideBtn) {
+          endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
+        }
 
         const duid = r.driverUid || null;
 
@@ -1016,22 +1148,23 @@ if (endRideBtn) {
         if(dLat!=null && dLng!=null){
           setDriverOnMap(dLat, dLng, { name: driverName || null });
         }
-const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
-const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
 
-if(duid){
-  showDriverCard({
-    name: r.driverName || "سائق",
-    phone: r.driverPhone || "",
-    vehicle: r.driverVehicle || "",
-    model: r.driverModel || "",
-    plate: r.driverPlate || "",
-    priceTxt,
-    email: r.driverEmail || ""
-  }, st);
-}else{
-  hideDriverCard();
-}
+        const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
+        const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
+
+        if(duid){
+          showDriverCard({
+            name: r.driverName || "سائق",
+            phone: r.driverPhone || "",
+            vehicle: r.driverVehicle || "",
+            model: r.driverModel || "",
+            plate: r.driverPlate || "",
+            priceTxt,
+            email: r.driverEmail || ""
+          }, st);
+        }else{
+          hideDriverCard();
+        }
 
         const shouldAutoTrack = !!duid && ["accepted","arrived","started"].includes(st);
         if(shouldAutoTrack && !trackingOn){
@@ -1056,29 +1189,31 @@ if(duid){
           if(!markerTo){
             markerTo = L.marker([tLat,tLng]).addTo(map).bindPopup("الوصول");
           }else markerTo.setLatLng([tLat,tLng]);
+          setChip(toChip, true, "الوصول: تم تحديده ✅");
+        }
 
+        drawRouteFromTo();
 
         if(["completed","canceled","done"].includes(st)){
-  stopTracking();
+          stopTracking();
 
-  if(st === "canceled"){
-    msg.textContent = "🛑 تم إلغاء الرحلة.";
-  }else{
-    msg.textContent = "✅ تم إنهاء الرحلة.";
-  }
+          if(st === "canceled"){
+            msg.textContent = "🛑 تم إلغاء الرحلة.";
+          }else{
+            msg.textContent = "✅ تم إنهاء الرحلة.";
+          }
 
-  clearCurrentRideUI();
-  return;
-}
-}); // ✅ قفل onSnapshot
-}  // ✅ قفل startWatchRide
+          clearCurrentRideUI();
+          return;
+        }
+      });
+    }
 
-// ✅ init watch (برا الدوال)
-// ✅ init watch (برا الدوال)
-if(currentRideId){
-  cancelRideBtn.style.display = "inline-flex";
-  setTimeout(()=> startWatchRide(currentRideId), 700);
-}
+    // ✅ init watch
+    if(currentRideId){
+      cancelRideBtn.style.display = "inline-flex";
+      setTimeout(()=> startWatchRide(currentRideId), 700);
+    }
   </script>
 </body>
 </html>
