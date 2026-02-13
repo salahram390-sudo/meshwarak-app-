@@ -411,7 +411,7 @@ function estimatePriceEGP(vehicleType, distanceM){
       const pts = [];
       if(fromLatLng) pts.push([fromLatLng.lat, fromLatLng.lng]);
       if(toLatLng) pts.push([toLatLng.lat, toLatLng.lng]);
-      if(pts.length === 1){ح
+      if(pts.length === 1){
         map.setView(pts[0], 15, { animate:false });
         return;
       }
@@ -593,8 +593,7 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
   let params =
     `format=json` +
     `&q=${encodeURIComponent(queryText)}` +
-    `&countrycodes=eg` +and 
-    
+    `&countrycodes=eg` +
     `&limit=10` +
     `&addressdetails=1` +
     `&accept-language=ar`;
@@ -747,74 +746,11 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
         console.error(e);
       }
     }
-
+    
     // ===== Pick from map
-    const createRideBtn = document.getElementById("createRideBtn");
+const createRideBtn = document.getElementById("createRideBtn");
 const cancelRideBtn = document.getElementById("cancelRideBtn");
-    const endRideBtn = document.getElementById("endRideBtn");
-    if (currentRideId) {
-  cancelRideBtn.style.display = "inline-flex";
-  setTimeout(() => startWatchRide(currentRideId), 700);
-}
-    cancelRideBtn?.addEventListener("click", async ()=>{
-  if(!currentRideId) return;
-  if(!confirm("تأكيد إلغاء الطلب؟")) return;
-
-  cancelRideBtn.disabled = true;
-  cancelRideBtn.textContent = "⏳ جاري الإلغاء...";
-
-  try{
-    await updateDoc(doc(db, "rides", currentRideId), {
-      status: "canceled",
-      canceledBy: "passenger",
-      canceledAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    msg.textContent = "🛑 تم إلغاء الطلب.";
-    clearCurrentRideUI(); // ✅ يرجّع الواجهة للوضع الطبيعي
-  }catch(e){
-    console.error(e);
-    msg.textContent = "⚠️ حصل خطأ أثناء الإلغاء.";
-  }finally{
-    cancelRideBtn.disabled = false;
-    cancelRideBtn.textContent = "🛑 إلغاء الطلب";
-  }
-});
-    const createRideBtn = document.getElementById("createRideBtn");
-const cancelRideBtn = document.getElementById("cancelRideBtn");
-const endRideBtn = document.getElementById("endRideBtn");
-
-// كود زر الإلغاء عندك هنا (اللي عملناه قبل كدا)
-cancelRideBtn?.addEventListener("click", async ()=>{
-  ...
-});
-
-// ✅ هنا تحط رقم (ب)
-endRideBtn?.addEventListener("click", async ()=>{
-  if(!currentRideId) return;
-  if(!confirm("تأكيد إنهاء الرحلة؟")) return;
-
-  endRideBtn.disabled = true;
-  endRideBtn.textContent = "⏳ جاري الإنهاء...";
-  try{
-    await updateDoc(doc(db,"rides", currentRideId), {
-      status: "completed",
-      completedBy: "passenger",
-      completedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    msg.textContent = "✅ تم إنهاء الرحلة.";
-    clearCurrentRideUI();
-  }catch(e){
-    console.error(e);
-    msg.textContent = "⚠️ حصل خطأ أثناء الإنهاء.";
-  }finally{
-    endRideBtn.disabled = false;
-    endRideBtn.textContent = "✅ إنهاء الرحلة";
-  }
-});
+const endRideBtn    = document.getElementById("endRideBtn");;
     document.getElementById("pickFromMapBtn").onclick = ()=>{
   pickMode = "from";
   msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
