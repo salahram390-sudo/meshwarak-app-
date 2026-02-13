@@ -725,7 +725,7 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
 
     // ===== Pick from map
     const createRideBtn = document.getElementById("createRideBtn");
-
+const cancelRideBtn = document.getElementById("cancelRideBtn");
     document.getElementById("pickFromMapBtn").onclick = ()=>{
   pickMode = "from";
   msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
@@ -807,6 +807,7 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
         localStorage.setItem("currentRideId", docRef.id);
         startWatchRide(docRef.id);
         setSheetSnap("min");
+        cancelRideBtn.style.display = "inline-flex";
       }catch(e){
         console.error(e);
         msg.textContent = "❌ حصل خطأ أثناء إرسال الطلب.";
