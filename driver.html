@@ -725,11 +725,11 @@
 
       try{
         if(act === "openOnMap"){
-          const snap = await getDocs(query(collection(db,"rides"), where("__name__","==", rideId), limit(1)));
-          const doc1 = snap.docs[0];
-          if(doc1) await drawRideOnMap(doc1.data());
-          return;
-        }
+  if(!rideId) return;
+  const snap = await getDoc(doc(db, "rides", rideId));
+  if(snap.exists()) await drawRideOnMap(snap.data());
+  return;
+}
         if(act === "offer") return await sendOffer(rideId);
         if(act === "accept") return await acceptRide(rideId);
         if(act === "cancel") return await cancelRideAsDriver(rideId);
