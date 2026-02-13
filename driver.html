@@ -140,6 +140,7 @@
         <div class="actions">
           <button class="btn primary" id="onlineBtn" type="button">Go Online</button>
           <button class="btn" id="myLocBtn" type="button">📍 موقعي</button>
+          <button class="btn danger" id="cancelTripBtn">🛑 إلغاء الرحلة</button>
           <button class="btn" id="refreshBtn" type="button">🔄 تحديث</button>
         </div>
         <div class="pills">
@@ -842,6 +843,9 @@
         await pushTripLive(false);
 
         if(["completed","canceled","done"].includes(status)){
+  clearCurrentTripUI();
+  return;
+}
           currentTripCard.style.display="block";
           currentTripCard.innerHTML=`<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
           setDoc(statusRef, { available: !!isOnline, currentTripId: null, lastSeenAt: serverTimestamp() }, { merge:true }).catch(()=>{});
@@ -892,6 +896,39 @@
         `;
 
         const tripMsg = currentTripCard.querySelector("#tripMsg");
+        const cancelTripBtn = currentTripCard.querySelector("#cancelTripBtn");
+
+function clearCurrentTripUI(){
+  currentTripId = null;
+  localStorage.removeItem("currentTripId");
+  currentTripCard.style.display = "none";
+  try{ ridesList.innerHTML = ""; }catch{}
+}
+
+cancelTripBtn?.addEventListener("click", async ()=>{
+  if(!currentTripId) return;
+  if(!confirm("تأكيد إلغاء الرحلة؟")) return;
+
+  cancelTripBtn.disabled = true;
+  cancelTripBtn.textContent = "⏳ جاري الإلغاء...";
+
+  try{
+    await updateDoc(doc(db, "rides", currentTripId), {
+      status: "canceled",
+      canceledBy: "driver",
+      updatedAt: serverTimestamp(),
+    });
+
+    tripMsg.textContent = "🛑 تم إلغاء الرحلة.";
+    clearCurrentTripUI(); // ✅ كده السائق يقدر يقبل طلب تاني
+  }catch(e){
+    console.error(e);
+    tripMsg.textContent = "⚠️ حصل خطأ أثناء الإلغاء.";
+  }finally{
+    cancelTripBtn.disabled = false;
+    cancelTripBtn.textContent = "🛑 إلغاء الرحلة";
+  }
+});
         currentTripCard.querySelector("#navPickupBtn")?.addEventListener("click", ()=> openGoogleMapsNav(pickupLat, pickupLng));
         currentTripCard.querySelector("#navToBtn")?.addEventListener("click", ()=> openGoogleMapsNav(toLat, toLng));
 
@@ -1191,9 +1228,9 @@
 
         try{
           if(currentTripId){
-            m.textContent = "❌ لديك رحلة حالية. أنهِ الرحلة أولاً.";
-            return;
-          }
+  m.textContent = "❌ أنهِ/ألغِ الرحلة الحالية أولاً.";
+  return;
+}
 
           const v = Number((el.querySelector(`#offerInput_${r.id}`)?.value||"").trim());
           if(!Number.isFinite(v) || v<15 || v>300){
@@ -1269,9 +1306,9 @@
           m.textContent = "جارٍ القبول…";
 
           if(currentTripId){
-            m.textContent = "❌ لديك رحلة حالية. أنهِ الرحلة أولاً.";
-            return;
-          }
+  m.textContent = "❌ أنهِ/ألغِ الرحلة الحالية أولاً.";
+  return;
+}
 
           const d = driverProfile || await getUserDoc(user.uid);
           const driverName  = d?.name || "سائق";
