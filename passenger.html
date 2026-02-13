@@ -793,7 +793,15 @@ const cancelRideBtn = document.getElementById("cancelRideBtn");
       createRideBtn.disabled = true;
       msg.textContent = "جارٍ إرسال الطلب…";
 
-      try{
+        // ✅ احسب سعر تقديري واحفظه في الرحلة
+let priceEGP = null;
+try{
+  const stats = await fetchRouteStatsOSRM(
+    { lat: fromLatLng.lat, lng: fromLatLng.lng },
+    { lat: toLatLng.lat,   lng: toLatLng.lng }
+  );
+  if(stats?.distanceM) priceEGP = estimatePriceEGP(vehicleType, stats.distanceM);
+}catch(e){}
         try{ passengerProfile = await getUserDoc(user.uid); }catch{}
 
         const passengerPhone = passengerProfile?.phone || user.phoneNumber || null;
@@ -813,6 +821,7 @@ const cancelRideBtn = document.getElementById("cancelRideBtn");
 
           requestedVehicle: vehicleType,
           vehicleType,
+          priceEGP: priceEGP,
 
           fromText: clean(fromText.value),
           toText: clean(toText.value),
