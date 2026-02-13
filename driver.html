@@ -890,6 +890,7 @@
             <button class="btn ${canArrive ? "primary" : ""}" id="arrivedBtn" ${canArrive ? "" : "disabled"} type="button">📍 وصلت</button>
             <button class="btn ${canStart ? "primary" : ""}" id="startBtn" ${canStart ? "" : "disabled"} type="button">▶️ بدء الرحلة</button>
             <button class="btn danger" id="endBtn" ${canEnd ? "" : "disabled"} type="button">⛔ إنهاء الرحلة</button>
+            <button class="btn danger" id="cancelTripBtn" ${canEnd ? "" : ""} type="button">🛑 إلغاء الرحلة</button>
           </div>
 
           <div class="hint" id="tripMsg" style="margin-top:10px"></div>
@@ -957,20 +958,51 @@ cancelTripBtn?.addEventListener("click", async ()=>{
         });
 
         currentTripCard.querySelector("#endBtn")?.addEventListener("click", async ()=>{
-          try{
-            tripMsg.textContent="جارٍ إنهاء الرحلة…";
-            await ensureNotificationPermission();
-            await updateDoc(rideRef, { status:"completed", completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-            tripMsg.textContent="✅ تم إنهاء الرحلة.";
-            await setDoc(statusRef, { currentTripId:null, available:!!isOnline, lastSeenAt:serverTimestamp() }, {merge:true}).catch(()=>{});
-            setLiveTripRef(null);
-          }catch(e){
-            console.error(e);
-            tripMsg.textContent="❌ فشل.";
-          }
-        });
-      });
-    }
+  if(!currentTripId) return;
+  if(!confirm("تأكيد إنهاء الرحلة؟")) return;
+
+  const endBtn = currentTripCard.querySelector("#endBtn");
+  endBtn.disabled = true;
+  try{
+    await updateDoc(doc(db, "rides", currentTripId), {
+      status: "completed",
+      completedBy: "driver",
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+cancelTripBtn?.addEventListener("click", async ()=>{
+  if(!currentTripId) return;
+  if(!confirm("تأكيد إلغاء الرحلة؟")) return;
+
+  cancelTripBtn.disabled = true;
+  cancelTripBtn.textContent = "⏳ جاري الإلغاء...";
+  try{
+    await updateDoc(doc(db, "rides", currentTripId), {
+      status: "canceled",
+      canceledBy: "driver",
+      canceledAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    tripMsg.textContent = "🛑 تم إلغاء الرحلة.";
+    clearCurrentTripUI(); // ✅ ده اللي بيخلي السائق يقدر يقبل مشوار تاني
+  }catch(e){
+    console.error(e);
+    tripMsg.textContent = "⚠️ حصل خطأ أثناء الإلغاء.";
+  }finally{
+    cancelTripBtn.disabled = false;
+    cancelTripBtn.textContent = "🛑 إلغاء الرحلة";
+  }
+});
+    tripMsg.textContent = "✅ تم إنهاء الرحلة.";
+    clearCurrentTripUI(); // ✅ يفتح قبول مشوار جديد
+  }catch(e){
+    console.error(e);
+    tripMsg.textContent = "⚠️ حصل خطأ أثناء إنهاء الرحلة.";
+  }finally{
+    endBtn.disabled = false;
+  }
+});
 
     // ✅ لو أنت أرسلت عرض والراكب وافق => افتح الرحلة تلقائيًا
     function watchMyOfferedAndAccepted(){
