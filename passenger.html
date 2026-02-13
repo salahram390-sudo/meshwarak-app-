@@ -750,7 +750,7 @@ async function geocodeNominatim(q, { governorate="", near=null } = {}){
     // ===== Pick from map
 const createRideBtn = document.getElementById("createRideBtn");
 const cancelRideBtn = document.getElementById("cancelRideBtn");
-const endRideBtn    = document.getElementById("endRideBtn");;
+const endRideBtn    = document.getElementById("endRideBtn");
     document.getElementById("pickFromMapBtn").onclick = ()=>{
   pickMode = "from";
   msg.textContent = "📍 اضغط على الخريطة لتحديد مكان القيام.";
@@ -846,15 +846,21 @@ try{
         console.error(e);
         msg.textContent = "❌ حصل خطأ أثناء إرسال الطلب.";
       }finally{
-  cancelRideBtn.disabled = false;
-  cancelRideBtn.textContent = "🛑 إلغاء الرحلة";
+  createRideBtn.disabled = false;
 }
     };
 function clearCurrentRideUI(){
   localStorage.removeItem("currentRideId");
   currentRideId = null;
+
+  // ✅ ضيف دول هنا
+  if(unsubRide){ try{unsubRide();}catch{} unsubRide=null; }
+  rideRef = null;
+  currentDriverUid = null;
+
   try{ hideDriverCard(); }catch(e){}
   cancelRideBtn.style.display = "none";
+  endRideBtn.style.display = "none";
 }
 
 cancelRideBtn.addEventListener("click", async ()=>{
