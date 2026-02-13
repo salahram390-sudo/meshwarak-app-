@@ -848,12 +848,10 @@ try{
       }finally{
   createRideBtn.disabled = false;
 }
-    };
-function clearCurrentRideUI(){
+    function clearCurrentRideUI(){
   localStorage.removeItem("currentRideId");
   currentRideId = null;
 
-  // ✅ ضيف دول هنا
   if(unsubRide){ try{unsubRide();}catch{} unsubRide=null; }
   rideRef = null;
   currentDriverUid = null;
