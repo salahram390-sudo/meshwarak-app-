@@ -190,8 +190,20 @@
       <div class="sectionTitle">منطقتك (لاختيار السائقين)</div>
 
       <div class="grid2">
-        <div class="field" style="margin-top:0">
-          <label>المحافظة</label>
+  <div class="field" style="margin-top:0">
+    <label>المحافظة</label>
+    <select id="govSelect">
+      <option value="">اختر المحافظة…</option>
+    </select>
+  </div>
+
+  <div class="field" style="margin-top:0">
+    <label>المركز</label>
+    <select id="centerSelect" disabled>
+      <option value="">اختر المركز…</option>
+    </select>
+  </div>
+</div>
 
 
 
@@ -254,18 +266,26 @@
     function escapeHTML(s){ return String(s ?? "").replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
 
     function vehText(v){
-      v = clean(v);
-      return (v==="tuktuk")?"توكتوك":
-        (v==="motor_delivery")?"موتسيكل دليفري":
-        (v==="car")?"ملاكي":
-        (v==="microbus")?"ميكروباص":
+  v = clean(v);
+  return (v==="tuktuk")?"توكتوك":
+    (v==="motor_delivery")?"موتسيكل دليفري":
+    (v==="car")?"ملاكي":
+    (v==="microbus")?"ميكروباص":
+    (v==="tamanya")?"تمناية":
+    (v==="caboot")?"عربية كابوت": (v||"-");
+}
 
-
-
-
-
-
-    const navDriverBtn = document.getElementById("navDriverBtn");
+function statusText(st){
+  st = clean(st);
+  if(st==="open") return "مفتوح";
+  if(st==="offered") return "تم اقتراح سعر";
+  if(st==="accepted") return "تم القبول";
+  if(st==="arrived") return "السائق وصل";
+  if(st==="started") return "الرحلة بدأت";
+  if(st==="completed"||st==="done") return "انتهت";
+  if(st==="canceled") return "ملغي";
+  return st || "—";
+}
 
     // ===== Leaflet
     let map, markerFrom=null, markerTo=null, meMarker=null, driverMarker=null, routeLine=null;
@@ -454,9 +474,11 @@
     let vehicleType = "car";
     const pillsWrap = document.getElementById("vehiclePills");
     function setVehicle(v){
-      vehicleType = v;
-        b.classList.toggle("active", b.dataset.type === v);
-      });
+  vehicleType = v;
+  [...pillsWrap.querySelectorAll(".pillBtn")].forEach(b=>{
+    b.classList.toggle("active", b.dataset.type === v);
+  });
+}
     }
     pillsWrap.addEventListener("click", (e)=>{
       const btn = e.target.closest(".pillBtn");
