@@ -1077,7 +1077,7 @@ cancelRideBtn.addEventListener("click", async ()=>{
       dState.classList.remove("ok","bad");
       const okStates = ["offered","accepted","arrived","started"];
       dState.classList.add(okStates.includes(clean(status)) ? "ok" : "bad");
-
+      
       const parts = [];
 if(driver?.priceTxt){
   parts.push(`<b>💰 السعر:</b> ${escapeHTML(driver.priceTxt)}`);
