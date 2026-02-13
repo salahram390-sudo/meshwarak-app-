@@ -814,6 +814,7 @@
 
       const rideRef = doc(db, "rides", tripId);
       unsubTrip = onSnapshot(rideRef, async (snap)=>{
+        
         if(!snap.exists()){
           currentTripCard.style.display="block";
           currentTripCard.innerHTML=`<div class="hint">⚠️ الرحلة غير موجودة.</div>`;
@@ -822,7 +823,10 @@
 
         const r = snap.data();
         const status = r.status || "-";
-
+if (["canceled", "completed", "done"].includes(status)) {
+  clearCurrentTripUI();
+  return;
+}
         await tripNotify(status);
 
         const fromLat = safeNum(r.from?.lat);
@@ -841,17 +845,6 @@
 
         await drawRoutesReal({withDropoff:true});
         await pushTripLive(false);
-
-        if(["completed","canceled","done"].includes(status)){
-  clearCurrentTripUI();
-  return;
-}
-          currentTripCard.style.display="block";
-          currentTripCard.innerHTML=`<div class="hint">✅ الرحلة انتهت (${status}).</div>`;
-          setDoc(statusRef, { available: !!isOnline, currentTripId: null, lastSeenAt: serverTimestamp() }, { merge:true }).catch(()=>{});
-          setLiveTripRef(null);
-          return;
-        }
 
         // ✅ بيانات الراكب كاملة
         const pName = r.passengerName || "راكب";
