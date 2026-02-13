@@ -1,4 +1,4 @@
-// app.js — FINAL (Multi-role + GitHub Pages friendly)
+// app.js — FINAL v16 (Fix: Multi-role switching + Authorized domain friendly)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
@@ -6,6 +6,8 @@ import {
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -17,172 +19,98 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// =====================
-// ✅ Firebase Config
-// =====================
 const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
   projectId: "meshwark-8adf8",
   storageBucket: "meshwark-8adf8.appspot.com",
-  messagingSenderId: "1027810072175",
-  appId: "1:1027810072175:web:1a8e4b1a5b2d5f0c123456",
+  messagingSenderId: "1002370933574",
+  appId: "1:1002370933574:web:7b5ec4a70f13f2a7d8d8a9",
 };
 
 const app = initializeApp(firebaseConfig);
-
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// =====================
-// Helpers
-// =====================
-function clean(s) {
-  return (s || "").toString().trim();
-}
-
-function cleanPhone(s) {
-  const x = clean(s).replace(/[^\d+]/g, "");
-  return x || null;
-}
-
-const LS_ROLE = "activeRole";
-
+// =========================
+// Role helpers
+// =========================
+const ROLE_KEY = "meshwarak_active_role";
 export function setActiveRole(role) {
-  const r = clean(role);
-  if (!r) return;
-  localStorage.setItem(LS_ROLE, r);
+  if (!role) return;
+  localStorage.setItem(ROLE_KEY, role);
 }
-
 export function getActiveRole() {
-  return localStorage.getItem(LS_ROLE) || "passenger";
+  return localStorage.getItem(ROLE_KEY) || "";
 }
 
-// =====================
-// Users
-// =====================
-function userRef(uid) {
-  return doc(db, "users", uid);
+// =========================
+// Auth helpers
+// =========================
+export async function signIn(email, password) {
+  await setPersistence(auth, browserLocalPersistence);
+  return signInWithEmailAndPassword(auth, email, password);
 }
 
-export async function getUserDoc(uid) {
-  const snap = await getDoc(userRef(uid));
-  return snap.exists() ? snap.data() : null;
-}
-
-export async function ensureUserDoc(uid, patch = {}) {
-  const ref = userRef(uid);
-  const snap = await getDoc(ref);
-
-  const base = {
-    uid,
-    email: patch.email || null,
-    roles: { passenger: true, driver: true },
-    activeRole: patch.activeRole || getActiveRole(),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-
-  if (!snap.exists()) {
-    await setDoc(ref, { ...base, ...patch });
-    return;
-  }
-
-  // ✅ ما نمسحش بيانات موجودة (name/phone/address)
-  const old = snap.data() || {};
-  const merged = {
-    ...patch,
-    roles: {
-      passenger: true,
-      driver: true,
-      ...(old.roles || {}),
-      ...(patch.roles || {}),
-    },
-    activeRole: patch.activeRole || old.activeRole || getActiveRole(),
-    updatedAt: serverTimestamp(),
-  };
-
-  await updateDoc(ref, merged);
-}
-
-export async function updateMyProfile(patch = {}) {
-  const u = auth.currentUser;
-  if (!u) throw new Error("not-authenticated");
-
-  const p = { ...patch };
-  if ("phone" in p) p.phone = cleanPhone(p.phone);
-  if ("address" in p) p.address = clean(p.address) || null;
-  if ("name" in p) p.name = clean(p.name) || null;
-
-  // لو فيه roles لازم ندمجها
-  if (p.roles) {
-    const existing = await getUserDoc(u.uid).catch(() => null);
-    p.roles = {
-      passenger: true,
-      driver: true,
-      ...(existing?.roles || {}),
-      ...(p.roles || {}),
-    };
-  }
-
-  await updateDoc(userRef(u.uid), { ...p, updatedAt: serverTimestamp() });
-}
-
-export async function getMyProfile() {
-  const u = auth.currentUser;
-  if (!u) return null;
-  return await getUserDoc(u.uid).catch(() => null);
-}
-
-// =====================
-// Auth actions
-// =====================
-export async function emailSignIn(email, password) {
-  return await signInWithEmailAndPassword(auth, email, password);
-}
-
-export async function emailSignUp(email, password) {
-  return await createUserWithEmailAndPassword(auth, email, password);
+export async function signUp(email, password) {
+  await setPersistence(auth, browserLocalPersistence);
+  return createUserWithEmailAndPassword(auth, email, password);
 }
 
 export async function doLogout() {
-  try {
-    await signOut(auth);
-  } catch {}
-  try {
-    localStorage.removeItem("currentRideId");
-  } catch {}
-  location.href = "./index.html";
+  return signOut(auth);
 }
 
-// =====================
-// ✅ Require Auth + Role
-// =====================
-export async function requireAuthAndRole(requiredRole = null) {
-  const user = await new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      unsub();
-      resolve(u || null);
-    });
-  });
+export function onUser(cb) {
+  return onAuthStateChanged(auth, cb);
+}
 
+// =========================
+// Users collection
+// =========================
+export async function getUserDoc(uid) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function ensureUserDoc(uid, data) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+  }
+}
+
+export async function updateUserDoc(uid, data) {
+  const ref = doc(db, "users", uid);
+  await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+}
+
+// =========================
+// Guard: require auth + role
+// =========================
+export async function requireAuthAndRole(requiredRole) {
+  const user = auth.currentUser;
   if (!user) {
-    // ✅ لو مش مسجل دخول — روح لصفحة تسجيل الدخول
-    location.href = "./login.html";
-    throw new Error("not-authenticated");
+    // مش داخل — روح للصفحة الرئيسية
+    location.href = "./index.html";
+    throw new Error("not_signed_in");
   }
 
-  if (requiredRole) setActiveRole(requiredRole);
+  const u = await getUserDoc(user.uid);
+  const role = (u && (u.role || u.type || u.userType)) ? (u.role || u.type || u.userType) : "";
 
-  // ✅ ensure user doc موجود
-  await ensureUserDoc(user.uid, {
-    email: user.email || null,
-    activeRole: getActiveRole(),
-    roles: { passenger: true, driver: true },
-  }).catch(() => {});
+  if (!role) {
+    location.href = "./index.html";
+    throw new Error("no_role");
+  }
 
-  const data = await getUserDoc(user.uid).catch(() => null);
-  const role = requiredRole || getActiveRole();
+  if (requiredRole && role !== requiredRole) {
+    // دور غلط — روح للصفحة الرئيسية
+    location.href = "./index.html";
+    throw new Error("wrong_role");
+  }
 
-  return { user, data: { ...(data || {}), role } };
+  return { user, role, profile: u || {} };
 }
