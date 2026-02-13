@@ -1139,7 +1139,8 @@ if (endRideBtn) {
         if(dLat!=null && dLng!=null){
           setDriverOnMap(dLat, dLng, { name: driverName || null });
         }
-
+const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
+const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
         if(duid){
           showDriverCard({
             name: r.driverName || "سائق",
