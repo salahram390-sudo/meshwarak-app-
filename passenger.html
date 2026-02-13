@@ -815,7 +815,33 @@ const cancelRideBtn = document.getElementById("cancelRideBtn");
         createRideBtn.disabled = false;
       }
     };
+function clearCurrentRideUI(){
+  localStorage.removeItem("currentRideId");
+  currentRideId = null;
+  try{ hideDriverCard(); }catch(e){}
+  cancelRideBtn.style.display = "none";
+}
 
+cancelRideBtn.addEventListener("click", async ()=>{
+  if(!currentRideId) return;
+
+  cancelRideBtn.disabled = true;
+  try{
+    await updateDoc(doc(db, "rides", currentRideId), {
+      status: "canceled",
+      canceledBy: "passenger",
+      updatedAt: serverTimestamp(),
+    });
+
+    msg.textContent = "🛑 تم إلغاء الرحلة.";
+    clearCurrentRideUI();
+  }catch(e){
+    console.error(e);
+    msg.textContent = "⚠️ خطأ أثناء الإلغاء.";
+  }finally{
+    cancelRideBtn.disabled = false;
+  }
+});
     // ======================================================
     // ✅ Draggable Bottom Sheet
     // ======================================================
