@@ -1141,21 +1141,20 @@ if (endRideBtn) {
         }
 const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
 const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
-        const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
-const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
-        if(duid){
-          showDriverCard({
-            name: r.driverName || "سائق",
-            phone: r.driverPhone || "",
-            vehicle: r.driverVehicle || "",
-            model: r.driverModel || "",
-            plate: r.driverPlate || "",   // ✅ هتظهر تلقائي لما نضيفها في driver.html
-            
-            email: r.driverEmail || ""
-          }, st);
-        }else{
-          hideDriverCard();
-        }
+
+if(duid){
+  showDriverCard({
+    name: r.driverName || "سائق",
+    phone: r.driverPhone || "",
+    vehicle: r.driverVehicle || "",
+    model: r.driverModel || "",
+    plate: r.driverPlate || "",
+    priceTxt,
+    email: r.driverEmail || ""
+  }, st);
+}else{
+  hideDriverCard();
+}
 
         const shouldAutoTrack = !!duid && ["accepted","arrived","started"].includes(st);
         if(shouldAutoTrack && !trackingOn){
