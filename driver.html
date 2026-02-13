@@ -938,18 +938,6 @@ cancelTripBtn?.addEventListener("click", async ()=>{
           }
         });
 
-        currentTripCard.querySelector("#startBtn")?.addEventListener("click", async ()=>{
-          try{
-            tripMsg.textContent="جارٍ بدء الرحلة…";
-            await ensureNotificationPermission();
-            await updateDoc(rideRef, { status:"started", startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-            tripMsg.textContent="✅ بدأت الرحلة.";
-          }catch(e){
-            console.error(e);
-            tripMsg.textContent="❌ فشل.";
-          }
-        });
-
         currentTripCard.querySelector("#endBtn")?.addEventListener("click", async ()=>{
   if(!currentTripId) return;
   if(!confirm("تأكيد إنهاء الرحلة؟")) return;
@@ -969,7 +957,7 @@ cancelTripBtn?.addEventListener("click", async ()=>{
     });
 
     tripMsg.textContent = "✅ تم إنهاء الرحلة.";
-    clearCurrentTripUI(); // ✅ يفتح للسائق يقبل مشاوير تانية + يخفيها فورًا
+    clearCurrentTripUI(); // ✅ يخلي السائق يقدر يقبل مشوار تاني فورًا
   }catch(e){
     console.error(e);
     tripMsg.textContent = "⚠️ حصل خطأ أثناء إنهاء الرحلة.";
@@ -977,6 +965,7 @@ cancelTripBtn?.addEventListener("click", async ()=>{
     endBtn.disabled = false;
   }
 });
+
     // ✅ لو أنت أرسلت عرض والراكب وافق => افتح الرحلة تلقائيًا
     function watchMyOfferedAndAccepted(){
       if(unsubMyOffers) { try{unsubMyOffers()}catch{} unsubMyOffers=null; }
