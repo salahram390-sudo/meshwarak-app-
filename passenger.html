@@ -323,7 +323,31 @@
       if(st==="canceled") return "ملغي";
       return st || "—";
     }
+async function fetchRouteStatsOSRM(a, b){
+  const url = `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const r = data?.routes?.[0];
+  if(!r) return null;
+  return { distanceM: r.distance, durationS: r.duration };
+}
 
+function estimatePriceEGP(vehicleType, distanceM){
+  const km = (Number(distanceM) || 0) / 1000;
+
+  const PRICING = {
+    tuktuk:        { base: 10, perKm: 6 },
+    motor_delivery:{ base: 10, perKm: 5 },
+    car:           { base: 15, perKm: 8 },
+    microbus:      { base: 20, perKm: 10 },
+    tamanya:       { base: 25, perKm: 12 },
+    caboot:        { base: 18, perKm: 9 },
+  };
+
+  const p = PRICING[vehicleType] || PRICING.car;
+  const price = p.base + (km * p.perKm);
+  return Math.max(p.base, Math.round(price));
+}
     // ===== Auth
     setActiveRole("passenger");
     const { user } = await requireAuthAndRole("passenger");
