@@ -468,23 +468,28 @@
     }
 
     function buildRidesQuery(){
-      const area = loadArea();
-      // لو مش Online: ما نعرضش طلبات
-      if(!isOnline) return null;
+  const area = loadArea();
 
-      // أقل شروط علشان يقلّل اللود + يوافق فكرة المنطقة/المركبة
-      let qy = query(collection(db,"rides"), where("status","==","open"), limit(30));
+  // ما نعرضش طلبات لو السائق Offline
+  if(!isOnline) return null;
 
-      // لو عايز فلترة حسب المنطقة/المركبة (مستحسن):
-      if(area?.gov) qy = query(collection(db,"rides"),
-        where("status","==","open"),
-        where("governorate","==", area.gov),
-        limit(30)
-      );
+  // لو السائق مختار محافظة: فلترة عليها + status=open فقط
+  if(area?.gov){
+    return query(
+      collection(db,"rides"),
+      where("status","==","open"),
+      where("governorate","==", area.gov),
+      limit(30)
+    );
+  }
 
-      // المركز والمركبة ممكن يحتاجوا Index إضافي—لو حصل خطأ في الكونسول هنبسطهم.
-      return qy;
-    }
+  // لو مش مختار محافظة: اعرض كل الطلبات المفتوحة فقط
+  return query(
+    collection(db,"rides"),
+    where("status","==","open"),
+    limit(30)
+  );
+}
 
     function resubscribeRides(force=false){
   if(unsubRides){ unsubRides(); unsubRides=null; }
