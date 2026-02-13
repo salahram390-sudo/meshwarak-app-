@@ -1186,6 +1186,10 @@ if(priceText){
         }
         const r = snap.data();
         const st = r.status || "-";
+        // ✅ إظهار زر إنهاء الرحلة فقط لما الرحلة تبدأ
+if (endRideBtn) {
+  endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
+}
 
         const duid = r.driverUid || null;
 
