@@ -956,39 +956,20 @@ cancelTripBtn?.addEventListener("click", async ()=>{
 
   const endBtn = currentTripCard.querySelector("#endBtn");
   endBtn.disabled = true;
+
   try{
+    tripMsg.textContent = "⏳ جاري إنهاء الرحلة...";
+    await ensureNotificationPermission();
+
     await updateDoc(doc(db, "rides", currentTripId), {
       status: "completed",
       completedBy: "driver",
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-cancelTripBtn?.addEventListener("click", async ()=>{
-  if(!currentTripId) return;
-  if(!confirm("تأكيد إلغاء الرحلة؟")) return;
 
-  cancelTripBtn.disabled = true;
-  cancelTripBtn.textContent = "⏳ جاري الإلغاء...";
-  try{
-    await updateDoc(doc(db, "rides", currentTripId), {
-      status: "canceled",
-      canceledBy: "driver",
-      canceledAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    tripMsg.textContent = "🛑 تم إلغاء الرحلة.";
-    clearCurrentTripUI(); // ✅ ده اللي بيخلي السائق يقدر يقبل مشوار تاني
-  }catch(e){
-    console.error(e);
-    tripMsg.textContent = "⚠️ حصل خطأ أثناء الإلغاء.";
-  }finally{
-    cancelTripBtn.disabled = false;
-    cancelTripBtn.textContent = "🛑 إلغاء الرحلة";
-  }
-});
     tripMsg.textContent = "✅ تم إنهاء الرحلة.";
-    clearCurrentTripUI(); // ✅ يفتح قبول مشوار جديد
+    clearCurrentTripUI(); // ✅ يفتح للسائق يقبل مشاوير تانية + يخفيها فورًا
   }catch(e){
     console.error(e);
     tripMsg.textContent = "⚠️ حصل خطأ أثناء إنهاء الرحلة.";
@@ -996,7 +977,6 @@ cancelTripBtn?.addEventListener("click", async ()=>{
     endBtn.disabled = false;
   }
 });
-
     // ✅ لو أنت أرسلت عرض والراكب وافق => افتح الرحلة تلقائيًا
     function watchMyOfferedAndAccepted(){
       if(unsubMyOffers) { try{unsubMyOffers()}catch{} unsubMyOffers=null; }
