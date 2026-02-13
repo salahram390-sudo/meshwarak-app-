@@ -360,6 +360,9 @@ function estimatePriceEGP(vehicleType, distanceM){
     try{ passengerProfile = await getUserDoc(user.uid); }catch{ passengerProfile=null; }
 
     const msg = document.getElementById("msg");
+    const createRideBtn = document.getElementById("createRideBtn");
+const cancelRideBtn = document.getElementById("cancelRideBtn");
+const endRideBtn    = document.getElementById("endRideBtn");
     const fromChip = document.getElementById("fromChip"); 
     const toChip = document.getElementById("toChip");
     const trackHint = document.getElementById("trackHint");
