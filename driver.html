@@ -528,19 +528,6 @@
   );
 }
 
-      unsubRides = onSnapshot(qy, (snap)=>{
-        if(snap.empty){
-          msgEl.textContent = "لا توجد طلبات الآن.";
-          return;
-        }
-        const docs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-        ridesList.innerHTML = docs.map(rideCardHTML).join("");
-      }, (err)=>{
-        console.error(err);
-        msgEl.textContent = "❌ خطأ في تحميل الطلبات (قد تحتاج Index).";
-      });
-    }
-
     ridesList.addEventListener("click", async (e)=>{
       const btn = e.target.closest("button[data-act]");
       if(!btn) return;
