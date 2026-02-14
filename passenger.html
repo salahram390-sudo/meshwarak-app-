@@ -1131,11 +1131,11 @@ const tLng = safeNum(r.to?.lng);
 
         drawRouteFromTo();
 
-        if(["completed","canceled","done"].includes(st)){
-          msg.textContent = (st === "canceled") ? "🛑 تم إلغاء الرحلة." : "✅ تم إنهاء الرحلة.";
-          clearCurrentRideUI();
-          return;
-        }
+        if (st === "completed" || st === "canceled" || st === "done") {
+  msg.textContent = (st === "canceled") ? "🔴 تم إلغاء الرحلة." : "✅ تم إنهاء الرحلة.";
+  clearCurrentRideUI();
+  return;
+}
       });
     }
 
