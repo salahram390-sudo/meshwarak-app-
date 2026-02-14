@@ -431,10 +431,10 @@ function rideCardHTML(r){
       if(pickupMarker){ map.removeLayer(pickupMarker); pickupMarker=null; }
       if(toMarker){ map.removeLayer(toMarker); toMarker=null; }
 
-      const pLat = r.pickupLat ?? r.fromLat ?? null;
-      const pLng = r.pickupLng ?? r.fromLng ?? null;
-      const tLat = r.toLat ?? null;
-      const tLng = r.toLng ?? null;
+      const pLat = safeNum(r.from?.lat);
+const pLng = safeNum(r.from?.lng);
+const tLat = safeNum(r.to?.lat);
+const tLng = safeNum(r.to?.lng);
 
       if(pLat!=null && pLng!=null){
         pickupMarker = L.marker([pLat,pLng]).addTo(map).bindPopup("مكان الراكب").openPopup();
@@ -492,20 +492,56 @@ function rideCardHTML(r){
     }
     
     
-    async function rejectRide(rideId){
-      // إلغاء الطلب من طرف السائق (سيظهر للراكب أنه تم إلغاء الطلب)
-      await updateDoc(doc(db,"rides",rideId), {
-        status: "canceled",
-        canceledBy: "driver",
-        canceledByUid: user.uid,
-        canceledAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      msgEl.textContent = "❌ تم رفض/إلغاء الطلب.";
-    }
-);
+    async function sendOffer(rideId){
+  // اقرأ سعر العرض من نفس الكارت
+  const card = ridesList.querySelector(`.card[data-id="${rideId}"]`);
+  const inp = card ? card.querySelector(".offerInput") : null;
+  const n = safeNum(inp?.value);
 
-  msgEl.textContent = "❌ تم رفض الطلب.";
+  // حمّل بروفايل السائق (مرة) عشان نرسل بياناته للراكب
+  const d = driverProfile || (await getUserDoc(user.uid).catch(()=>null)) || {};
+  driverProfile = d;
+
+  const payload = {
+    status: "offered",
+    driverUid: user.uid,
+
+    offerPriceEGP: (n ?? null),
+    offerPrice: (n ?? null),
+
+    driverName: d.name || null,
+    driverPhone: d.phone || null,
+    driverEmail: (user.email || d.email || null),
+    driverVehicle: d.vehicleType || null,
+    driverPlate: d.vehiclePlate || null,
+
+    offeredAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await updateDoc(doc(db,"rides",rideId), payload);
+  msgEl.textContent = "✅ تم إرسال عرض السعر للراكب.";
+}
+
+async function acceptRide(rideId){
+  await updateDoc(doc(db,"rides",rideId), {
+    status: "accepted",
+    driverUid: user.uid,
+    acceptedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  msgEl.textContent = "✅ تم قبول الرحلة.";
+}
+
+async function rejectRide(rideId){
+  await updateDoc(doc(db,"rides",rideId), {
+    status: "canceled",
+    canceledBy: "driver",
+    canceledByUid: user.uid,
+    canceledAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  msgEl.textContent = "❌ تم رفض/إلغاء الطلب.";
 }
     
 function buildRidesQuery(){
