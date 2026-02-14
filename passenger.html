@@ -218,6 +218,17 @@
         <button class="pillBtn" data-type="caboot" type="button">🚚 عربية كابوت</button>
       </div>
 
+      <div class="sectionTitle">السعر (اختياري)</div>
+      <div class="field" style="margin-top:0">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="muted">اسحب لتحديد السعر</div>
+          <div style="font-weight:900"><span id="priceVal">—</span> ج.م</div>
+        </div>
+        <input id="priceRange" type="range" min="15" max="3000" step="5" value="50" />
+        <div class="muted" id="priceHint" style="margin-top:6px">* يمكنك تركه كما هو، وسيظهر للسائق كسعر مقترح.</div>
+      </div>
+
+
       <div class="sep"></div>
 
       <div class="sectionTitle">بيانات الرحلة</div>
@@ -639,6 +650,24 @@
     const fromSearchBtn = document.getElementById("fromSearchBtn");
     const toSearchBtn = document.getElementById("toSearchBtn");
 
+    // price slider (15..3000)
+    const priceRange = document.getElementById("priceRange");
+    const priceVal = document.getElementById("priceVal");
+    const priceHint = document.getElementById("priceHint");
+    let priceTouched = false;
+
+    function setPriceUI(v, markTouched=false){
+      const n = Math.max(15, Math.min(3000, Number(v)||0));
+      if(priceRange) priceRange.value = String(n);
+      if(priceVal) priceVal.textContent = String(n);
+      if(markTouched) priceTouched = true;
+    }
+    if(priceRange){
+      setPriceUI(priceRange.value, false);
+      priceRange.addEventListener("input", ()=> setPriceUI(priceRange.value, true));
+    }
+
+
     async function applyGeocode(kind, q, { silent=false } = {}){
       const text = clean(q);
       if(text.length < 3){
@@ -850,15 +879,23 @@
       createRideBtn.disabled = true;
       msg.textContent = "جارٍ إرسال الطلب…";
 
-      // تقدير سعر
-      let priceEGP = null;
+      // تقدير سعر (للاقتراح فقط)
+      let suggestedPrice = null;
       try{
         const stats = await fetchRouteStatsOSRM(
           { lat: fromLatLng.lat, lng: fromLatLng.lng },
           { lat: toLatLng.lat,   lng: toLatLng.lng }
         );
-        if(stats?.distanceM) priceEGP = estimatePriceEGP(vehicleType, stats.distanceM);
+        if(stats?.distanceM) suggestedPrice = estimatePriceEGP(vehicleType, stats.distanceM);
       }catch(e){}
+
+      // لو المستخدم ما لمسش السلايدر: خلي السعر = المقترح
+      if(!priceTouched && suggestedPrice!=null){
+        setPriceUI(suggestedPrice, false);
+        if(priceHint) priceHint.textContent = `* سعر مقترح حسب المسافة: ${suggestedPrice} ج.م (يمكنك تغييره بالسحب)`;
+      }
+
+      const priceEGP = priceRange ? Number(priceRange.value) : (suggestedPrice ?? null);
 
       try{ passengerProfile = await getUserDoc(user.uid); }catch{}
 
@@ -881,6 +918,7 @@
           requestedVehicle: vehicleType,
           vehicleType,
           priceEGP: priceEGP,
+          price: priceEGP,
 
           fromText: clean(fromText.value),
           toText: clean(toText.value),
