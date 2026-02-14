@@ -127,9 +127,30 @@
         <input id="phone" type="tel" placeholder="01*********" autocomplete="tel" inputmode="tel" required />
       </div>
 
-      <div class="field">
-        <label>العنوان</label>
-        <input id="address" type="text" placeholder="مثال: شارع ********" autocomplete="street-address" />
+      
+      <div id="driverOnlyFields" style="display:none">
+        <div class="field">
+          <label>العنوان (للسائق فقط)</label>
+          <input id="address" type="text" placeholder="مثال: شارع ********" autocomplete="street-address" />
+        </div>
+
+        <div class="field">
+          <label>نوع المركبة (للسائق)</label>
+          <select id="driverVehicleType">
+            <option value="">اختر نوع المركبة…</option>
+            <option value="tuktuk">🛺 توكتوك</option>
+            <option value="motor_delivery">🏍️ توصيل/موتور</option>
+            <option value="car">🚗 ملاكي</option>
+            <option value="microbus">🚐 ميكروباص</option>
+            <option value="tamanya">🚐 تمنية</option>
+            <option value="caboot">🚚 كابوت</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>رقم/كود المركبة (للسائق)</label>
+          <input id="driverVehiclePlate" type="text" placeholder="مثال: ABC-123 أو ١٢٣٤" autocomplete="off" />
+        </div>
       </div>
 
       <div class="field">
@@ -176,6 +197,10 @@
       roleHint.textContent = (role==="passenger") ? "✅ وضع الراكب مفعل" : "✅ وضع السائق مفعل";
       msg.textContent = "";
       msg.className = "msg";
+    
+
+      const dOnly = $("driverOnlyFields");
+      if(dOnly) dOnly.style.display = (role==="driver") ? "block" : "none";
     }
 
     const urlRole = (qs("role") || "").toLowerCase();
@@ -196,10 +221,15 @@
       $("signupBtn").disabled = b;
     }
 
+    
     async function postProfile(){
       const name = clean($("name").value);
       const phone = clean($("phone").value);
-      const address = clean($("address").value);
+
+      // driver-only fields (may be hidden)
+      const address = clean($("address")?.value);
+      const driverVehicleType = ($("driverVehicleType")?.value || "").trim();
+      const driverVehiclePlate = clean($("driverVehiclePlate")?.value);
 
       if(!name || name.length < 2){
         msg.className="msg bad";
@@ -212,16 +242,36 @@
         throw new Error("phone_required");
       }
 
+      // لو الدور سائق لازم نوع المركبة + رقمها
+      if(role === "driver"){
+        if(!driverVehicleType){
+          msg.className="msg bad";
+          msg.textContent="❌ اختر نوع المركبة.";
+          throw new Error("vehicle_type_required");
+        }
+        if(!driverVehiclePlate || driverVehiclePlate.length < 2){
+          msg.className="msg bad";
+          msg.textContent="❌ اكتب رقم/كود المركبة.";
+          throw new Error("vehicle_plate_required");
+        }
+      }
+
       const u = auth.currentUser;
       if(!u) return;
 
       await saveUserProfile(u.uid, {
         role,
         name,
+        email: (u.email || clean($("email").value) || null),
         phone,
-        address: address || null
+        // address للـ driver فقط
+        address: (role === "driver") ? (address || null) : null,
+        // بيانات المركبة للـ driver فقط
+        vehicleType: (role === "driver") ? (driverVehicleType || null) : null,
+        vehiclePlate: (role === "driver") ? (driverVehiclePlate || null) : null,
       }).catch(()=>{});
     }
+
 
     async function doLogin(){
       const email = clean($("email").value);
