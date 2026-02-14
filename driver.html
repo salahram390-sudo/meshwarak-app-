@@ -545,6 +545,7 @@
         }
         if(act === "offer") return await sendOffer(rideId);
         if(act === "accept") return await acceptRide(rideId);
+        if(act === "reject") return await rejectRide(rideId);
       }catch(err){
         console.error(err);
         msgEl.textContent = "❌ حصل خطأ، افتح Console وابعتلي الرسالة.";
