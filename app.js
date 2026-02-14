@@ -1,27 +1,27 @@
-// app.js — FINAL (stable exports for all pages) ✅
-// GitHub Pages + Firebase v10 modular CDN
+// app.js — FINAL ✅ (Firestore Rules compatible + GitHub Pages friendly)
+// Firebase v10 modular CDN
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getAuth,
   setPersistence,
   browserLocalPersistence,
+  onAuthStateChanged,
+  signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
 import {
   getFirestore,
   doc,
   getDoc,
   setDoc,
-  updateDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// ===== Firebase Config (زي ما عندك)
+// =====================
+// ✅ Firebase Config (كما في مشروعك)
+// =====================
 export const firebaseConfig = {
   apiKey: "AIzaSyDA9pP-Y3PEvl6675f4pHDyXzayzzmihhI",
   authDomain: "meshwark-8adf8.firebaseapp.com",
@@ -35,178 +35,129 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// ✅ مهم جدًا علشان الجلسة تفضل محفوظة
+// ✅ يحافظ على الجلسة على GitHub Pages / الموبايل
 try {
   await setPersistence(auth, browserLocalPersistence);
 } catch {}
 
-// ===== أدوات عامة
+// =====================
+// Helpers
+// =====================
 export function qs(name) {
-  try {
-    return new URL(location.href).searchParams.get(name);
-  } catch {
-    return null;
-  }
+  try { return new URL(location.href).searchParams.get(name); } catch { return null; }
 }
+const clean = (s) => (s ?? "").toString().trim().replace(/\s+/g, " ");
+const cleanPhone = (p) => {
+  const x = clean(p);
+  if (!x) return null;
+  return x.replace(/[^\d+]/g, "");
+};
 
+// =====================
+// Role local storage
+// =====================
 export const ROLE_KEY = "activeRole";
-
 export function setActiveRole(role) {
   const r = role === "driver" ? "driver" : "passenger";
   localStorage.setItem(ROLE_KEY, r);
   return r;
 }
-
 export function getActiveRole() {
   const r = localStorage.getItem(ROLE_KEY);
-  return r === "driver" || r === "passenger" ? r : "passenger";
+  return (r === "driver" || r === "passenger") ? r : "passenger";
 }
 
-// ===== Utils
-const clean = (s) => (s || "").toString().trim().replace(/\s+/g, " ");
-const cleanPhone = (p) => {
-  const x = clean(p);
-  if (!x) return null;
-  // رقم مصري بسيط (مش validation قوي) — بس يمنع الفراغات
-  return x.replace(/[^\d+]/g, "");
-};
-
+// =====================
+// Firestore users/{uid} (Rules-compatible)
+// allowed keys only:
+// role,name,phone,address,governorate,center,vehicleType,vehicleModel,vehiclePlate,createdAt,updatedAt
+// =====================
 export function userRef(uid) {
   return doc(db, "users", uid);
 }
 
-// ===== Firestore helpers
 export async function getUserDoc(uid) {
-  const ref = userRef(uid);
-  const snap = await getDoc(ref);
+  const snap = await getDoc(userRef(uid));
   return snap.exists() ? snap.data() : null;
+}
+
+function sanitizeUserPatch(patch = {}) {
+  const p = { ...(patch || {}) };
+
+  // Normalize allowed fields
+  if ("role" in p) p.role = (p.role === "driver") ? "driver" : "passenger";
+  if ("name" in p) p.name = clean(p.name) || null;
+  if ("phone" in p) p.phone = cleanPhone(p.phone);
+  if ("address" in p) p.address = clean(p.address) || null;
+  if ("governorate" in p) p.governorate = clean(p.governorate) || null;
+  if ("center" in p) p.center = clean(p.center) || null;
+  if ("vehicleType" in p) p.vehicleType = clean(p.vehicleType) || null;
+  if ("vehicleModel" in p) p.vehicleModel = clean(p.vehicleModel) || null;
+  if ("vehiclePlate" in p) p.vehiclePlate = clean(p.vehiclePlate) || null;
+
+  // Drop anything not allowed by rules
+  const allowed = new Set([
+    "role","name","phone","address",
+    "governorate","center",
+    "vehicleType","vehicleModel","vehiclePlate",
+    "createdAt","updatedAt"
+  ]);
+  for (const k of Object.keys(p)) {
+    if (!allowed.has(k)) delete p[k];
+  }
+  return p;
 }
 
 /**
  * ensureUserDoc:
- * - ينشئ doc لو مش موجود
- * - لو موجود: يحدّث patch فقط بدون ما "يمسح" roles أو بيانات قديمة
+ * - Creates the doc if not exists
+ * - Updates allowed fields only
  */
 export async function ensureUserDoc(uid, patch = {}) {
   const ref = userRef(uid);
   const snap = await getDoc(ref);
+  const p = sanitizeUserPatch(patch);
 
   if (!snap.exists()) {
     const base = {
+      role: p.role ?? getActiveRole(),
+      name: p.name ?? null,
+      phone: p.phone ?? null,
+      address: p.address ?? null,
+      governorate: p.governorate ?? null,
+      center: p.center ?? null,
+      vehicleType: p.vehicleType ?? null,
+      vehicleModel: p.vehicleModel ?? null,
+      vehiclePlate: p.vehiclePlate ?? null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      roles: { passenger: true, driver: true },
-      activeRole: getActiveRole(),
-      phone: null,
-      address: null,
-      name: null,
-      ...patch,
     };
     await setDoc(ref, base, { merge: true });
-    return { ...base, ...patch };
+    return base;
   }
 
-  const existing = snap.data() || {};
-
-  // ✅ roles: دمج بدل overwrite
-  const rolesMerged = {
-    passenger: true,
-    driver: true,
-    ...(existing.roles || {}),
-    ...(patch.roles || {}),
-  };
-
-  // ✅ تنظيف phone/address لو موجودين في patch
-  const nextPatch = { ...patch };
-  if ("phone" in nextPatch) nextPatch.phone = cleanPhone(nextPatch.phone);
-  if ("address" in nextPatch) nextPatch.address = clean(nextPatch.address) || null;
-  if ("name" in nextPatch) nextPatch.name = clean(nextPatch.name) || null;
-
-  const merged = {
-    ...nextPatch,
-    roles: rolesMerged,
+  const update = {
+    ...p,
     updatedAt: serverTimestamp(),
   };
-
-  await setDoc(ref, merged, { merge: true });
-
-  // نرجّع snapshot منطقي
-  return {
-    ...existing,
-    ...nextPatch,
-    roles: rolesMerged,
-  };
+  await setDoc(ref, update, { merge: true });
+  return { ...(snap.data() || {}), ...p };
 }
 
 /**
  * saveUserProfile:
- * - يستخدمه login.html بعد signup/login
- * - يحفظ phone/address/name + activeRole + roles بشكل آمن
+ * Used by login.html after sign-up / sign-in.
+ * Always safe with your Firestore Rules.
  */
-export async function saveUserProfile(uid, payload) {
-  const p = { ...(payload || {}) };
-
-  if ("phone" in p) p.phone = cleanPhone(p.phone);
-  if ("address" in p) p.address = clean(p.address) || null;
-  if ("name" in p) p.name = clean(p.name) || null;
-
-  // ✅ roles merge
-  const existing = await getUserDoc(uid).catch(() => null);
-  const rolesMerged = {
-    passenger: true,
-    driver: true,
-    ...(existing?.roles || {}),
-    ...(p.roles || {}),
-  };
-
-  delete p.roles;
-
-  await setDoc(
-    userRef(uid),
-    {
-      ...p,
-      roles: rolesMerged,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+export async function saveUserProfile(uid, payload = {}) {
+  const p = sanitizeUserPatch(payload);
+  // createdAt only on first time (ensureUserDoc handles)
+  return await ensureUserDoc(uid, p);
 }
 
-/**
- * updateUserProfile:
- * - تحديث خفيف بدون قراءة doc كامل (مع merge roles إن وجدت)
- */
-export async function updateUserProfile(uid, payload = {}) {
-  const p = { ...(payload || {}) };
-  if ("phone" in p) p.phone = cleanPhone(p.phone);
-  if ("address" in p) p.address = clean(p.address) || null;
-  if ("name" in p) p.name = clean(p.name) || null;
-
-  // لو فيه roles في update، لازم ندمجها
-  if (p.roles) {
-    const existing = await getUserDoc(uid).catch(() => null);
-    p.roles = {
-      passenger: true,
-      driver: true,
-      ...(existing?.roles || {}),
-      ...(p.roles || {}),
-    };
-  }
-
-  await updateDoc(userRef(uid), { ...p, updatedAt: serverTimestamp() });
-}
-
-/**
- * getMyProfile:
- * - يجيب بروفايل المستخدم الحالي (لو مسجل دخول)
- */
-export async function getMyProfile() {
-  const u = auth.currentUser;
-  if (!u) return null;
-  return await getUserDoc(u.uid).catch(() => null);
-}
-
-// ===== Auth actions
+// =====================
+// Auth actions
+// =====================
 export async function emailSignIn(email, password) {
   return await signInWithEmailAndPassword(auth, email, password);
 }
@@ -216,27 +167,20 @@ export async function emailSignUp(email, password) {
 }
 
 export async function doLogout() {
-  try {
-    await signOut(auth);
-  } catch {}
-  try {
-    localStorage.removeItem("currentRideId");
-  } catch {}
+  try { await signOut(auth); } catch {}
+  try { localStorage.removeItem("currentRideId"); } catch {}
   location.href = "./index.html";
 }
 
 /**
  * requireAuthAndRole(requiredRole):
- * - يجبر تسجيل الدخول
- * - يثبت role (لو الصفحة راكب/سائق)
- * - يضمن users/{uid} موجود وفيه phone/address محفوظين لو اتبعتوا قبل
+ * - Enforce login (redirect to login.html)
+ * - Sets active role for this page (passenger/driver)
+ * - Ensures users/{uid} exists with allowed fields only
  */
 export async function requireAuthAndRole(requiredRole = null) {
   const user = await new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      unsub();
-      resolve(u || null);
-    });
+    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u || null); });
   });
 
   if (!user) {
@@ -246,15 +190,10 @@ export async function requireAuthAndRole(requiredRole = null) {
 
   if (requiredRole) setActiveRole(requiredRole);
 
-  // ✅ ensure user doc بدون ما يمسح phone/address/name
-  await ensureUserDoc(user.uid, {
-    email: user.email || null,
-    activeRole: getActiveRole(),
-    roles: { passenger: true, driver: true },
-  }).catch(() => {});
+  // ✅ Create/update users/{uid} safely (Rules compatible)
+  await ensureUserDoc(user.uid, { role: getActiveRole() }).catch(() => {});
 
   const data = await getUserDoc(user.uid).catch(() => null);
   const role = requiredRole || getActiveRole();
-
   return { user, data: { ...(data || {}), role } };
 }
