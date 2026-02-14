@@ -467,7 +467,16 @@
       });
       msgEl.textContent = "✅ تم قبول الرحلة.";
     }
+    
+    async function rejectRide(rideId){
+  await updateDoc(doc(db,"rides",rideId), {
+    status: "rejected",
+    rejectedBy: user.uid,
+    rejectedAt: serverTimestamp()
+  });
 
+  msgEl.textContent = "❌ تم رفض الطلب.";
+}
     function buildRidesQuery(){
   const area = loadArea();
 
