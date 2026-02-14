@@ -146,26 +146,9 @@
 
         <div style="height:10px"></div>
 
-        <div class="row">
-          <div style="flex:1">
-            <div class="muted" style="margin-bottom:6px">نوع المركبة</div>
-            <select class="small" id="vehSel">
-              <option value="">اختر...</option>
-              <option value="tuktuk">توك توك</option>
-              <option value="motor_delivery">موتوسيكل دليفري</option>
-              <option value="car">سيارة</option>
-              <option value="microbus">ميكروباص</option>
-              <option value="tamanya">تمنية</option>
-              <option value="caboot">كابوت</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <div class="muted" style="margin-bottom:6px">سعر العرض (اختياري)</div>
-            <input class="small" id="offerPrice" placeholder="مثال: 25" inputmode="numeric" />
-          </div>
-        </div>
-
-        <div style="height:10px"></div>
+        
+        <div class="note" id="vehNote">* نوع المركبة يتم تحديده أثناء التسجيل (في صفحة تسجيل الدخول).</div>
+<div style="height:10px"></div>
 
         <div class="actions">
           <button class="btn primary" id="saveAreaBtn" type="button">💾 حفظ المنطقة</button>
@@ -213,8 +196,9 @@
 
     const govSel = $("govSel");
     const cenInput = $("cenInput");
-    const vehSel = $("vehSel");
-    const offerPrice = $("offerPrice");
+    // vehicleType is saved in the driver profile at registration (login.html)
+    const vehSel = null;
+    const offerPrice = null;
 
     $("logoutBtn").addEventListener("click", doLogout);
 
@@ -394,15 +378,21 @@
       ridesList.innerHTML = "";
     }
 
-    function rideCardHTML(r){
+    
+function rideCardHTML(r){
       const from = clean(r.fromText || "");
       const to = clean(r.toText || "");
-      const price = r.price != null ? `${r.price} EG` : "—";
       const gov = r.governorate || "-";
       const cen = r.center || "-";
-      const veh = r.vehicleType || "-";
+      const veh = (r.requestedVehicle || r.vehicleType || "-");
       const st = r.status || "-";
       const id = r.id;
+
+      const passengerPrice = Number.isFinite(Number(r.priceEGP)) ? Number(r.priceEGP)
+                          : (Number.isFinite(Number(r.price)) ? Number(r.price) : null);
+
+      // اقتراح للسائق: لو الراكب محدد سعر استخدمه كبداية
+      const suggested = passengerPrice != null ? passengerPrice : 30;
 
       return `
         <div class="card" data-id="${id}">
@@ -410,19 +400,27 @@
             <div style="font-weight:900">طلب #${id.slice(0,6)}</div>
             <div class="muted">${st}</div>
           </div>
+
           <div class="muted" style="margin-top:6px">
             <div><b>من:</b> ${from || "-"}</div>
             <div><b>إلى:</b> ${to || "-"}</div>
-            <div><b>السعر:</b> ${price}</div>
             <div><b>المنطقة:</b> ${gov} / ${cen}</div>
-            <div><b>المركبة:</b> ${veh}</div>
+            <div><b>المركبة المطلوبة:</b> ${veh}</div>
+            <div><b>سعر الراكب:</b> ${passengerPrice != null ? (passengerPrice + " ج.م") : "—"}</div>
+          </div>
+
+          <div class="row" style="gap:10px;margin-top:10px">
+            <div style="flex:1">
+              <div class="muted" style="margin-bottom:6px">سعر عرضك (مقترح: ${suggested} ج.م)</div>
+              <input class="small offerInput" placeholder="اكتب سعرك…" inputmode="numeric" value="${suggested}" />
+            </div>
           </div>
 
           <div class="inlineActions">
             <button class="btn" data-act="openOnMap" type="button">🗺️ على الخريطة</button>
-            <button class="btn" data-act="offer" type="button">💰 عرض</button>
+            <button class="btn" data-act="offer" type="button">💰 إرسال عرض</button>
             <button class="btn primary" data-act="accept" type="button">✅ قبول</button>
-            <button class="btn danger" data-act="reject" type="button">❌ رفض</button>
+            <button class="btn danger" data-act="reject" type="button">❌ رفض / إلغاء</button>
           </div>
         </div>
       `;
@@ -447,15 +445,40 @@
       }
     }
 
+    
     async function sendOffer(rideId){
-      const n = safeNum(offerPrice.value);
-      // Firestore Rules عندك: السائق يقدر يحول open -> offered
-      await updateDoc(doc(db,"rides",rideId), {
+      // اقرأ سعر العرض من نفس الكارت
+      const card = ridesList.querySelector(`.card[data-id="${rideId}"]`);
+      const inp = card ? card.querySelector(".offerInput") : null;
+      const n = safeNum(inp?.value);
+
+      // حمّل بروفايل السائق (مرة) عشان نرسل بياناته للراكب
+      const d = driverProfile || (await getUserDoc(user.uid).catch(()=>null)) || {};
+      driverProfile = d;
+
+      const payload = {
         status: "offered",
         driverUid: user.uid,
-        offerPrice: n ?? null,
-        offeredAt: serverTimestamp()
-      });
+
+        // أسعار (نحتفظ باسمين للتوافق)
+        offerPriceEGP: (n ?? null),
+        offerPrice: (n ?? null),
+
+        // بيانات السائق عشان تظهر للراكب
+        driverName: d.name || null,
+        driverPhone: d.phone || null,
+        driverEmail: (user.email || d.email || null),
+        driverVehicle: d.vehicleType || null,
+        driverPlate: d.vehiclePlate || null,
+
+        offeredAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(doc(db,"rides",rideId), payload);
+      msgEl.textContent = "✅ تم إرسال عرض السعر للراكب.";
+    }
+);
       msgEl.textContent = "✅ تم إرسال عرض.";
     }
 
@@ -468,40 +491,45 @@
       msgEl.textContent = "✅ تم قبول الرحلة.";
     }
     
+    
     async function rejectRide(rideId){
-  await updateDoc(doc(db,"rides",rideId), {
-    status: "rejected",
-    rejectedBy: user.uid,
-    rejectedAt: serverTimestamp()
-  });
+      // إلغاء الطلب من طرف السائق (سيظهر للراكب أنه تم إلغاء الطلب)
+      await updateDoc(doc(db,"rides",rideId), {
+        status: "canceled",
+        canceledBy: "driver",
+        canceledByUid: user.uid,
+        canceledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      msgEl.textContent = "❌ تم رفض/إلغاء الطلب.";
+    }
+);
 
   msgEl.textContent = "❌ تم رفض الطلب.";
 }
-    function buildRidesQuery(){
+    
+function buildRidesQuery(){
   const area = loadArea();
 
   // ما نعرضش طلبات لو السائق Offline
   if(!isOnline) return null;
 
-  // لو السائق مختار محافظة: فلترة عليها + status=open فقط
+  // نجيب طلبات open حسب المحافظة (+ المركز لو موجود)
   if(area?.gov){
-    return query(
-      collection(db,"rides"),
+    const cons = [
       where("status","==","open"),
       where("governorate","==", area.gov),
-      limit(30)
-    );
+    ];
+    if(area?.center){
+      cons.push(where("center","==", area.center));
+    }
+    return query(collection(db,"rides"), ...cons, limit(30));
   }
 
-  // لو مش مختار محافظة: اعرض كل الطلبات المفتوحة فقط
-  return query(
-    collection(db,"rides"),
-    where("status","==","open"),
-    limit(30)
-  );
+  // لو مش مختار محافظة: اعرض طلبات open فقط (وبعدين هنفلتر محليًا)
+  return query(collection(db,"rides"), where("status","==","open"), limit(30));
 }
-
-    function resubscribeRides(force=false){
+function resubscribeRides(force=false){
   if(unsubRides){ unsubRides(); unsubRides=null; }
   msgEl.textContent = "";
 
@@ -521,8 +549,14 @@
         return;
       }
 
+      
       msgEl.textContent = "";
-      const docs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+
+      // فلترة حسب نوع مركبة السائق (من البروفايل)
+      const myVeh = (driverProfile?.vehicleType || "").toString();
+      const docs = myVeh ? all.filter(r => String(r.requestedVehicle || r.vehicleType || "") === myVeh) : all;
+
       ridesList.innerHTML = docs.map(rideCardHTML).join("");
     },
     (err)=>{
