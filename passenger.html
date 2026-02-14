@@ -1046,102 +1046,107 @@
     });
 
     function startWatchRide(id){
-      currentRideId = id;
+  currentRideId = id;
 
-      if(unsubRide){
-        try{ unsubRide(); }catch(e){}
-        unsubRide = null;
-      }
-
-      rideRef = doc(db, "rides", id);
-
-      unsubRide = onSnapshot(rideRef, async (snap)=>{
-  if(!snap.exists()){
-    msg.textContent = "⚠ الطلب غير موجود.";
-    hideDriverCard();
-    return;
+  if(unsubRide){
+    try{ unsubRide(); }catch(e){}
+    unsubRide = null;
   }
 
-  const r = snap.data();
-  const st = r.status || "-";
+  rideRef = doc(db, "rides", id);
 
-  // ✅ لو السائق رفض الطلب
-  if(st === "rejected"){
-    msg.textContent = "❌ تم رفض الطلب من قبل السائق.";
-    hideDriverCard();
-    clearCurrentRideUI();
-    return;
-  }
+  unsubRide = onSnapshot(rideRef, async (snap)=>{
+    if(!snap.exists()){
+      msg.textContent = "⚠ الطلب غير موجود.";
+      hideDriverCard();
+      return;
+    }
 
-  // وبعد كده يكمل طبيعي...
-        endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
+    const r = snap.data();
+    const st = r.status || "-";
 
-        const duid = r.driverUid || null;
-        if(duid && duid !== currentDriverUid){
-          currentDriverUid = duid;
-          watchDriverStatusFallback(duid);
-        }
+    // ✅ لو السائق رفض الطلب
+    if(st === "rejected"){
+      msg.textContent = "❌ تم رفض الطلب من قبل السائق.";
+      hideDriverCard();
+      clearCurrentRideUI();
+      return;
+    }
 
-        const dLat = safeNum(r.driverLive?.lat);
-        const dLng = safeNum(r.driverLive?.lng);
-        const driverName = clean(r.driverName || "");
-        if(dLat!=null && dLng!=null) setDriverOnMap(dLat, dLng, { name: driverName || null });
+    // وبعد كده يكمل طبيعي...
+    endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
 
-        const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
-        const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
+    const duid = r.driverUid || null;
+    if(duid && duid !== currentDriverUid){
+      currentDriverUid = duid;
+      watchDriverStatusFallback(duid);
+    }
 
-        if(duid){
-          showDriverCard({
-            name: r.driverName || "سائق",
-            phone: r.driverPhone || "",
-            vehicle: r.driverVehicle || "",
-            model: r.driverModel || "",
-            plate: r.driverPlate || "",
-            priceTxt,
-            email: r.driverEmail || ""
-          }, st);
-        }else{
-          hideDriverCard();
-        }
+    const dLat = safeNum(r.driverLive?.lat);
+    const dLng = safeNum(r.driverLive?.lng);
+    const driverName = clean(r.driverName || "");
+    if(dLat!=null && dLng!=null) setDriverOnMap(dLat, dLng, { name: driverName || null });
 
-        trackHint.textContent = `حالة الطلب: ${statusText(st)}${duid ? " • تم تعيين سائق ✅" : ""}`;
+    const priceEGP = Number(r.offerPriceEGP ?? r.priceEGP ?? r.fareEGP);
+    const priceTxt = Number.isFinite(priceEGP) ? `${Math.round(priceEGP)} ج.م` : null;
 
-        const pLat = safeNum(r.from?.lat);
-const pLng = safeNum(r.from?.lng);
+    if(duid){
+      showDriverCard({
+        name: r.driverName || "سائق",
+        phone: r.driverPhone || "",
+        vehicle: r.driverVehicle || "",
+        model: r.driverModel || "",
+        plate: r.driverPlate || "",
+        priceTxt,
+        email: r.driverEmail || ""
+      }, st);
+    }else{
+      hideDriverCard();
+    }
 
-const tLat = safeNum(r.to?.lat);
-const tLng = safeNum(r.to?.lng);
+    trackHint.textContent = `حالة الطلب: ${statusText(st)}${duid ? " • تم تعيين سائق ✅" : ""}`;
 
-        if(pLat!=null && pLng!=null && map){
-          fromLatLng = L.latLng(pLat,pLng);
-          if(!markerFrom) markerFrom = L.marker([pLat,pLng]).addTo(map).bindPopup("القيام");
-          else markerFrom.setLatLng([pLat,pLng]);
-          setChip(fromChip, true, "القيام: تم تحديده ✅");
-        }
+    const pLat = safeNum(r.from?.lat);
+    const pLng = safeNum(r.from?.lng);
 
-        if(tLat!=null && tLng!=null && map){
-          toLatLng = L.latLng(tLat,tLng);
-          if(!markerTo) markerTo = L.marker([tLat,tLng]).addTo(map).bindPopup("الوصول");
-          else markerTo.setLatLng([tLat,tLng]);
-          setChip(toChip, true, "الوصول: تم تحديده ✅");
-        }
+    const tLat = safeNum(r.to?.lat);
+    const tLng = safeNum(r.to?.lng);
 
-        drawRouteFromTo();
+    if(pLat!=null && pLng!=null && map){
+      fromLatLng = L.latLng(pLat,pLng);
+      if(!markerFrom) markerFrom = L.marker([pLat,pLng]).addTo(map).bindPopup("القيام");
+      else markerFrom.setLatLng([pLat,pLng]);
+      setChip(fromChip, true, "القيام: تم تحديده ✅");
+    }
 
-if (st === "completed" || st === "canceled" || st === "done") {
-  msg.textContent = (st === "canceled") ? "🔴 تم إنهاء الرحلة." : "✅ تم إنهاء الرحلة.";
-  clearCurrentRideUI();
-  return;
-}
+    if(tLat!=null && tLng!=null && map){
+      toLatLng = L.latLng(tLat,tLng);
+      if(!markerTo) markerTo = L.marker([tLat,tLng]).addTo(map).bindPopup("الوصول");
+      else markerTo.setLatLng([tLat,tLng]);
+      setChip(toChip, true, "الوصول: تم تحديده ✅");
+    }
 
-if (currentRideId) {
-  cancelRideBtn.style.display = "inline-flex";
-  setTimeout(() => startWatchRide(currentRideId), 700);
-}
-  <!-- Debug Panel -->
+    drawRouteFromTo();
+
+    if (st === "completed" || st === "canceled" || st === "done") {
+      msg.textContent = (st === "canceled") ? "🔴 تم إنهاء الرحلة." : "✅ تم إنهاء الرحلة.";
+      clearCurrentRideUI();
+      return;
+    }
+
+    if (currentRideId) {
+      cancelRideBtn.style.display = "inline-flex";
+      setTimeout(() => startWatchRide(currentRideId), 700);
+    }
+  }); // ✅ قفل onSnapshot
+} // ✅ قفل startWatchRide
+</script>
+
+<!-- Debug Panel -->
 <div id="debugPanel" style="position:fixed; left:10px; right:10px; bottom:10px; z-index:999999;
   background:rgba(0,0,0,.85); color:#fff; padding:10px; border-radius:12px;
   font:12px/1.4 monospace; max-height:40vh; overflow:auto; display:none;">
 </div>
+
 </body>
 </html>
