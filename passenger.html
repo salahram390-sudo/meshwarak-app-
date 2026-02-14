@@ -1148,37 +1148,5 @@ const tLng = safeNum(r.to?.lng);
 </div>
 
 <script>
-(function(){
-  const panel = document.getElementById("debugPanel");
-
-  function show(msg){
-    panel.style.display = "block";
-    const time = new Date().toLocaleTimeString();
-    panel.innerHTML += `
-      <div style="margin:6px 0; border-bottom:1px solid rgba(255,255,255,.15); padding-bottom:6px;">
-        <div style="color:#9ad;">[${time}]</div>
-        <pre style="margin:0; white-space:pre-wrap; word-break:break-word;">${escapeHtml(msg)}</pre>
-      </div>`;
-  }
-
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-    }[m]));
-  }
-
-  window.addEventListener("error", (e)=>{
-    show("JS Error: " + (e.message||"unknown") +
-         "\nFile: " + (e.filename||"") +
-         "\nLine: " + (e.lineno||"") + ":" + (e.colno||""));
-  });
-
-  window.addEventListener("unhandledrejection", (e)=>{
-    show("Promise Rejection: " + (e.reason?.message || e.reason || "unknown"));
-  });
-
-  show("✅ Debug panel ready");
-})();
-</script>
 </body>
 </html>
