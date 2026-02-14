@@ -1145,17 +1145,25 @@ const tLng = safeNum(r.to?.lng);
       setTimeout(()=> startWatchRide(currentRideId), 700);
     }
   </script>
-  <!-- Debug Panel (أخطاء على الشاشة) -->
+<!-- Debug Panel (لأخطاء على الشاشة) -->
+<div id="debugPanel" style="
+  position:fixed; left:10px; right:10px; bottom:10px; z-index:999999;
+  background:rgba(0,0,0,.85); color:#fff; padding:10px; border-radius:12px;
+  font:12px/1.4 monospace; max-height:40vh; overflow:auto; display:none;">
+</div>
+
+<script>
 (function(){
   const panel = document.getElementById("debugPanel");
 
   function show(msg){
     panel.style.display = "block";
     const time = new Date().toLocaleTimeString();
-    panel.innerHTML += `<div style="margin:6px 0; border-bottom:1px solid rgba(255,255,255,.15); padding-bottom:6px;">
-      <div style="color:#9ad;">[${time}]</div>
-      <pre style="margin:0; white-space:pre-wrap; word-break:break-word;">${escapeHtml(msg)}</pre>
-    </div>`;
+    panel.innerHTML += `
+      <div style="margin:6px 0; border-bottom:1px solid rgba(255,255,255,.15); padding-bottom:6px;">
+        <div style="color:#9ad;">[${time}]</div>
+        <pre style="margin:0; white-space:pre-wrap; word-break:break-word;">${escapeHtml(msg)}</pre>
+      </div>`;
   }
 
   function escapeHtml(s){
@@ -1164,30 +1172,17 @@ const tLng = safeNum(r.to?.lng);
     }[m]));
   }
 
-  // أي خطأ JS
   window.addEventListener("error", (e)=>{
-    show("JS Error: " + (e.message || "unknown") +
-         "\nFile: " + (e.filename || "") +
-         "\nLine: " + (e.lineno || "") + ":" + (e.colno || "") +
-         (e.error && e.error.stack ? "\n\n" + e.error.stack : ""));
+    show("JS Error: " + (e.message||"unknown") +
+         "\nFile: " + (e.filename||"") +
+         "\nLine: " + (e.lineno||"") + ":" + (e.colno||""));
   });
 
-  // أي Promise رفضت (Firebase/Fetch كثيرًا)
   window.addEventListener("unhandledrejection", (e)=>{
-    const reason = e.reason;
-    show("Unhandled Promise Rejection:\n" +
-      (reason?.message || String(reason)) +
-      (reason?.stack ? "\n\n" + reason.stack : ""));
+    show("Promise Rejection: " + (e.reason?.message || e.reason || "unknown"));
   });
 
-  // اختياري: عرض console.log على الشاشة
-  const oldLog = console.log;
-  console.log = function(...args){
-    oldLog.apply(console, args);
-    try{ show("LOG: " + args.map(a=> typeof a==="string"?a:JSON.stringify(a)).join(" ")); }catch{}
-  };
-
-  show("Debug panel ready ✅ افتح الصفحة وجرّب تاني.");
+  show("✅ Debug panel ready");
 })();
 </script>
 </body>
