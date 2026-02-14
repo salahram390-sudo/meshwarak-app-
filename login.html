@@ -242,7 +242,6 @@
         await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم تسجيل الدخول.";
-        goNext();
       }catch(e){
         console.error(e);
         if(String(e?.message||"").includes("name_required") || String(e?.message||"").includes("phone_required")){
