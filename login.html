@@ -213,15 +213,11 @@
       if(!u) return;
 
       await saveUserProfile(u.uid, {
-        name,
-        email: u.email || null,
-        phone,
-        address: address || null,
-        activeRole: role,
-        roles: { passenger:true, driver:true },
-        updatedAt: Date.now()
-      }).catch(()=>{});
-    }
+  role,
+  name,
+  phone,
+  address: address || null
+}).catch(()=>{});
 
     function setBusy(b){
       $("loginBtn").disabled = b;
