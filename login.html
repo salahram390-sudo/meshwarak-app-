@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
+  <script>eruda.init();</script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>مشوارك — تسجيل الدخول</title>
@@ -106,7 +106,6 @@
         </div>
       </div>
 
-      <!-- ✅ ممنوع تغيير IDs/classes هنا -->
       <div class="roleRow">
         <button class="roleBtn" id="rolePassenger" type="button">
           <span class="ico">🚕</span> <span>راكب</span>
@@ -118,7 +117,6 @@
 
       <div class="miniNote" id="roleHint">—</div>
 
-      <!-- ✅ مشتركة للاتنين + إلزامية -->
       <div class="field">
         <label>الاسم (إلزامي)</label>
         <input id="name" type="text" placeholder="اسمك هنا" autocomplete="name" required />
@@ -193,6 +191,11 @@
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
     }
 
+    function setBusy(b){
+      $("loginBtn").disabled = b;
+      $("signupBtn").disabled = b;
+    }
+
     async function postProfile(){
       const name = clean($("name").value);
       const phone = clean($("phone").value);
@@ -213,15 +216,11 @@
       if(!u) return;
 
       await saveUserProfile(u.uid, {
-  role,
-  name,
-  phone,
-  address: address || null
-}).catch(()=>{});
-    }
-    function setBusy(b){
-      $("loginBtn").disabled = b;
-      $("signupBtn").disabled = b;
+        role,
+        name,
+        phone,
+        address: address || null
+      }).catch(()=>{});
     }
 
     async function doLogin(){
@@ -247,7 +246,6 @@
       }catch(e){
         console.error(e);
         if(String(e?.message||"").includes("name_required") || String(e?.message||"").includes("phone_required")){
-          // الرسالة اتعرضت بالفعل
         }else{
           msg.className="msg bad";
           msg.textContent="❌ فشل تسجيل الدخول. تأكد من الإيميل/كلمة المرور.";
