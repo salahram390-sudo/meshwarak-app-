@@ -1056,14 +1056,27 @@
       rideRef = doc(db, "rides", id);
 
       unsubRide = onSnapshot(rideRef, async (snap)=>{
-        if(!snap.exists()){
-          msg.textContent = "⚠️ الطلب غير موجود.";
-          hideDriverCard();
-          return;
-        }
-        const r = snap.data();
-        const st = r.status || "-";
+  if(!snap.exists()){
+    msg.textContent = "⚠ الطلب غير موجود.";
+    hideDriverCard();
+    return;
+  }
 
+  const r = snap.data();
+  const st = r.status || "-";
+
+  // ✅ لو السائق رفض الطلب
+  if(st === "rejected"){
+    msg.textContent = "❌ تم رفض الطلب من قبل السائق.";
+    hideDriverCard();
+    clearCurrentRideUI();
+    return;
+  }
+
+  // وبعد كده يكمل طبيعي...
+  endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
+  // ...
+});
         endRideBtn.style.display = (st === "started") ? "inline-flex" : "none";
 
         const duid = r.driverUid || null;
