@@ -1128,24 +1128,20 @@ const tLng = safeNum(r.to?.lng);
 
         drawRouteFromTo();
 
-        if (st === "completed" || st === "canceled" || st === "done") {
+if (st === "completed" || st === "canceled" || st === "done") {
   msg.textContent = (st === "canceled") ? "🔴 تم إنهاء الرحلة." : "✅ تم إنهاء الرحلة.";
   clearCurrentRideUI();
   return;
-    }
+}
 
-    // ✅ init watch
-    if(currentRideId){
-      cancelRideBtn.style.display = "inline-flex";
-      setTimeout(()=> startWatchRide(currentRideId), 700);
-    }
-  </script>
-<!-- Debug Panel (لأخطاء على الشاشة) -->
-<div id="debugPanel" style="
-  position:fixed; left:10px; right:10px; bottom:10px; z-index:999999;
+if (currentRideId) {
+  cancelRideBtn.style.display = "inline-flex";
+  setTimeout(() => startWatchRide(currentRideId), 700);
+}
+  <!-- Debug Panel -->
+<div id="debugPanel" style="position:fixed; left:10px; right:10px; bottom:10px; z-index:999999;
   background:rgba(0,0,0,.85); color:#fff; padding:10px; border-radius:12px;
   font:12px/1.4 monospace; max-height:40vh; overflow:auto; display:none;">
 </div>
-<script>
 </body>
 </html>
