@@ -1109,8 +1109,11 @@
 
         trackHint.textContent = `حالة الطلب: ${statusText(st)}${duid ? " • تم تعيين سائق ✅" : ""}`;
 
-        const pLat = safeNum(r.from?.lat), pLng = safeNum(r.from?.lng);
-        const tLat = safeNum(r.to?.lat),   tLng = safeNum(r.to?.lng);
+        const pLat = safeNum(r.from?.lat);
+const pLng = safeNum(r.from?.lng);
+
+const tLat = safeNum(r.to?.lat);
+const tLng = safeNum(r.to?.lng);
 
         if(pLat!=null && pLng!=null && map){
           fromLatLng = L.latLng(pLat,pLng);
