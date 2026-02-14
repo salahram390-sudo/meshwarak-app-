@@ -70,7 +70,7 @@ export function getActiveRole() {
 // =====================
 // Firestore users/{uid} (Rules-compatible)
 // allowed keys only:
-// role,name,phone,address,governorate,center,vehicleType,vehicleModel,vehiclePlate,createdAt,updatedAt
+// role,name,email,phone,address,governorate,center,vehicleType,vehicleModel,vehiclePlate,createdAt,updatedAt
 // =====================
 export function userRef(uid) {
   return doc(db, "users", uid);
@@ -87,6 +87,7 @@ function sanitizeUserPatch(patch = {}) {
   // Normalize allowed fields
   if ("role" in p) p.role = (p.role === "driver") ? "driver" : "passenger";
   if ("name" in p) p.name = clean(p.name) || null;
+  if ("email" in p) p.email = clean(p.email).toLowerCase() || null;
   if ("phone" in p) p.phone = cleanPhone(p.phone);
   if ("address" in p) p.address = clean(p.address) || null;
   if ("governorate" in p) p.governorate = clean(p.governorate) || null;
@@ -97,7 +98,7 @@ function sanitizeUserPatch(patch = {}) {
 
   // Drop anything not allowed by rules
   const allowed = new Set([
-    "role","name","phone","address",
+    "role","name","email","phone","address",
     "governorate","center",
     "vehicleType","vehicleModel","vehiclePlate",
     "createdAt","updatedAt"
