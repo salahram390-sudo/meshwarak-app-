@@ -14,13 +14,8 @@
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Eruda (Console للموبايل) -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
-
-  <style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
     body.page{ min-height:100vh; display:flex; flex-direction:column; overflow:hidden; }
     .topbar{ position:sticky; top:0; z-index:60; background:rgba(5,11,22,.72); backdrop-filter:blur(10px); border-bottom:1px solid rgba(255,255,255,.06); }
     .topbar-inner{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; }
@@ -171,483 +166,440 @@
     </div>
   </div>
 
-  <script type="module">
-    import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
-    import {
-      collection, doc, setDoc, getDoc, updateDoc,
-      query, where,  limit, onSnapshot, getDocs,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  
+<script type="module">
+  import { requireAuthAndRole, doLogout, db, setActiveRole, getUserDoc } from "./app.js";
+  import {
+    collection, doc, setDoc, getDoc, updateDoc,
+    query, where, limit, onSnapshot,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    const $ = (id)=>document.getElementById(id);
-    const clean = (s)=>String(s??"").trim().replace(/\s+/g," ");
-    const safeNum = (x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
+  const $ = (id)=>document.getElementById(id);
+  const clean = (s)=>String(s??"").trim().replace(/\s+/g," ");
+  const safeNum = (x)=>{ const n=Number(x); return Number.isFinite(n)?n:null; };
 
-    // ---- UI
-    const whoEl = $("who");
-    const msgEl = $("msg");
-    const setupMsg = $("setupMsg");
-    const ridesList = $("ridesList");
+  // ---- UI
+  const whoEl = $("who");
+  const msgEl = $("msg");
+  const setupMsg = $("setupMsg");
+  const ridesList = $("ridesList");
 
-    const gpsChip = $("gpsChip");
-    const statusChip = $("statusChip");
-    const locChip = $("locChip");
-    const vehChip = $("vehChip");
+  const gpsChip = $("gpsChip");
+  const statusChip = $("statusChip");
+  const locChip = $("locChip");
+  const vehChip = $("vehChip");
 
-    const govSel = $("govSel");
-    const cenInput = $("cenInput");
-    // vehicleType is saved in the driver profile at registration (login.html)
-    const vehSel = null;
-    const offerPrice = null;
+  const govSel = $("govSel");
+  const cenInput = $("cenInput");
 
-    $("logoutBtn").addEventListener("click", doLogout);
+  $("logoutBtn").addEventListener("click", doLogout);
 
-    // ---- Role + Auth
-    setActiveRole("driver");
-    const { user } = await requireAuthAndRole("driver");
-    whoEl.textContent = user.email || user.phoneNumber || "—";
+  // ---- Role + Auth
+  setActiveRole("driver");
+  const { user } = await requireAuthAndRole("driver");
+  whoEl.textContent = user.email || user.phoneNumber || "—";
 
-    // ---- Load saved area
-    let driverProfile = null;
-    try{ driverProfile = await getUserDoc(user.uid); }catch(e){ driverProfile=null; }
+  // ---- Load driver profile (vehicle info comes from registration)
+  let driverProfile = null;
+  try{ driverProfile = await getUserDoc(user.uid); }catch(e){ driverProfile=null; }
 
-    const LS_KEY = "mesh_driver_area";
-    function loadArea(){
-      const raw = localStorage.getItem(LS_KEY);
-      if(!raw) return null;
-      try{ return JSON.parse(raw); }catch{ return null; }
+  const myVeh = clean(driverProfile?.vehicleType || driverProfile?.requestedVehicle || "");
+  vehChip.textContent = "مركبة: " + (myVeh || "-");
+
+  // ---- Area (gov + center only)
+  const LS_KEY = "mesh_driver_area_v2";
+  function loadArea(){
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return null;
+    try{ return JSON.parse(raw); }catch{ return null; }
+  }
+  function saveAreaToLS(area){
+    localStorage.setItem(LS_KEY, JSON.stringify(area));
+  }
+  function applyAreaUI(area){
+    if(!area) return;
+    govSel.value = area.gov || "";
+    cenInput.value = area.cen || "";
+    locChip.textContent = "المنطقة: " + ((area.gov||"-") + " / " + (area.cen||"-"));
+  }
+
+  const area0 = loadArea();
+  if(area0) applyAreaUI(area0);
+
+  $("saveAreaBtn").addEventListener("click", async ()=>{
+    const area = {
+      gov: clean(govSel.value),
+      cen: clean(cenInput.value),
+      updatedAt: Date.now()
+    };
+    if(!area.gov || !area.cen){
+      setupMsg.textContent = "لازم تختار محافظة + تكتب مركز/مدينة.";
+      return;
     }
-    function saveAreaToLS(area){
-      localStorage.setItem(LS_KEY, JSON.stringify(area));
+    if(!myVeh){
+      setupMsg.textContent = "نوع المركبة غير مسجل في حسابك. ارجع لصفحة التسجيل وسجله.";
+      return;
     }
-    function applyAreaUI(area){
-      if(!area) return;
-      govSel.value = area.gov || "";
-      cenInput.value = area.cen || "";
-      vehSel.value = area.veh || "";
-      locChip.textContent = "المنطقة: " + ((area.gov||"-") + " / " + (area.cen||"-"));
-      vehChip.textContent = "مركبة: " + (area.veh||"-");
-    }
-    const area0 = loadArea();
-    applyAreaUI(area0);
 
-    $("saveAreaBtn").addEventListener("click", async ()=>{
-      const area = {
-        gov: clean(govSel.value),
-        cen: clean(cenInput.value),
-        veh: clean(vehSel.value),
-        updatedAt: Date.now()
-      };
-      if(!area.gov || !area.cen || !area.veh){
-        setupMsg.textContent = "لازم تختار محافظة + تكتب مركز + تختار مركبة.";
-        return;
-      }
-      saveAreaToLS(area);
-      applyAreaUI(area);
-      setupMsg.textContent = "✅ تم حفظ المنطقة.";
-      // لو تحب تخزنها في Firestore كمان:
-      try{
-        await setDoc(doc(db,"driver_status",user.uid), {
-          areaGov: area.gov,
-          areaCen: area.cen,
-          vehicleType: area.veh,
-          updatedAt: serverTimestamp()
-        }, { merge:true });
-      }catch(e){}
-      resubscribeRides();
+    saveAreaToLS(area);
+    applyAreaUI(area);
+    setupMsg.textContent = "✅ تم حفظ المنطقة.";
+
+    // Store in Firestore driver_status (optional but useful)
+    try{
+      await setDoc(doc(db,"driver_status",user.uid), {
+        uid: user.uid,
+        areaGov: area.gov,
+        areaCen: area.cen,
+        vehicleType: myVeh,
+        updatedAt: serverTimestamp()
+      }, { merge:true });
+    }catch(e){}
+    resubscribeRides(true);
+  });
+
+  $("clearAreaBtn").addEventListener("click", ()=>{
+    localStorage.removeItem(LS_KEY);
+    govSel.value = "";
+    cenInput.value = "";
+    setupMsg.textContent = "تم المسح.";
+    locChip.textContent = "المنطقة: -";
+    resubscribeRides(true);
+  });
+
+  // ---- Map
+  let map, meMarker=null, pickupMarker=null, toMarker=null;
+  let meLat=null, meLng=null;
+
+  function initMap(){
+    if(!window.L){
+      // Leaflet not ready yet
+      setTimeout(initMap, 50);
+      return;
+    }
+    map = L.map("map",{ zoomControl:true });
+    map.setView([30.0444,31.2357], 12); // القاهرة افتراضي
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    setTimeout(()=>map.invalidateSize(true), 250);
+  }
+
+  function setMeMarker(lat,lng){
+    meLat=lat; meLng=lng;
+    gpsChip.textContent = "GPS: ✅";
+    gpsChip.classList.add("ok");
+    gpsChip.classList.remove("bad");
+    if(!meMarker){
+      meMarker = L.marker([lat,lng]).addTo(map).bindPopup("موقعي");
+    }else{
+      meMarker.setLatLng([lat,lng]);
+    }
+  }
+
+  async function getMyLocation(){
+    return new Promise((resolve,reject)=>{
+      if(!navigator.geolocation) return reject(new Error("no_geolocation"));
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>resolve(pos.coords),
+        (err)=>reject(err),
+        { enableHighAccuracy:true, timeout:15000, maximumAge:5000 }
+      );
     });
+  }
 
-    $("clearAreaBtn").addEventListener("click", ()=>{
-      localStorage.removeItem(LS_KEY);
-      govSel.value = "";
-      cenInput.value = "";
-      vehSel.value = "";
-      setupMsg.textContent = "تم المسح.";
-      locChip.textContent = "المنطقة: -";
-      vehChip.textContent = "مركبة: -";
-      resubscribeRides();
-    });
-
-    // ---- Map
-    let map, meMarker=null, pickupMarker=null, toMarker=null, routeLine=null;
-    let meLat=null, meLng=null;
-
-    function initMap(){
-      map = L.map("map",{ zoomControl:true });
-      map.setView([30.0444,31.2357], 12); // القاهرة افتراضي
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
-
-      setTimeout(()=>map.invalidateSize(true), 250);
+  async function goMyLocation(){
+    try{
+      const c = await getMyLocation();
+      setMeMarker(c.latitude, c.longitude);
+      map.setView([c.latitude,c.longitude], 16, { animate:true });
+    }catch(e){
+      gpsChip.textContent = "GPS: ❌";
+      gpsChip.classList.add("bad");
+      msgEl.textContent = "فشل تحديد الموقع. فعّل GPS واسمح بالتصريح.";
+      throw e;
     }
+  }
 
-    function setMeMarker(lat,lng){
-      meLat=lat; meLng=lng;
-      gpsChip.textContent = "GPS: ✅";
-      gpsChip.classList.add("ok");
-      if(!meMarker){
-        meMarker = L.marker([lat,lng]).addTo(map).bindPopup("موقعي");
-      }else{
-        meMarker.setLatLng([lat,lng]);
-      }
-    }
+  // ---- Online status
+  let isOnline = false;
 
-    async function getMyLocation(){
-      return new Promise((resolve,reject)=>{
-        if(!navigator.geolocation) return reject(new Error("no_geolocation"));
-        navigator.geolocation.getCurrentPosition(
-          (pos)=>resolve(pos.coords),
-          (err)=>reject(err),
-          { enableHighAccuracy:true, timeout:15000, maximumAge:5000 }
-        );
-      });
-    }
-
-    async function goMyLocation(){
-      try{
-        const c = await getMyLocation();
-        setMeMarker(c.latitude, c.longitude);
-        map.setView([c.latitude,c.longitude], 16, { animate:true });
-      }catch(e){
-        gpsChip.textContent = "GPS: ❌";
-        gpsChip.classList.add("bad");
-        msgEl.textContent = "فشل تحديد الموقع. فعّل GPS واسمح بالتصريح.";
-      }
-    }
-
-    // ---- Online status
-    let isOnline = false;
-
-    async function pushDriverStatus(extra={}){
-      try{
-        const area = loadArea();
-        await setDoc(doc(db,"driver_status",user.uid), {
-          uid: user.uid,
-          online: !!isOnline,
-          lat: meLat ?? null,
-          lng: meLng ?? null,
-          areaGov: area?.gov || null,
-          areaCen: area?.cen || null,
-          vehicleType: area?.veh || null,
-          updatedAt: serverTimestamp(),
-          ...extra
-        }, { merge:true });
-      }catch(e){}
-    }
-
-    function setOnlineUI(v){
-      isOnline = v;
-      statusChip.textContent = v ? "Online" : "Offline";
-      statusChip.className = "miniChip " + (v ? "ok" : "bad");
-    }
-
-    $("goOnlineBtn").addEventListener("click", async ()=>{
+  async function pushDriverStatus(extra={}){
+    try{
       const area = loadArea();
-      if(!area?.gov || !area?.cen || !area?.veh){
-        msgEl.textContent = "لازم تحفظ المنطقة (محافظة/مركز/مركبة) قبل ما تشتغل أونلاين.";
-        return;
-      }
-      await goMyLocation();
-      setOnlineUI(true);
-      await pushDriverStatus();
-      msgEl.textContent = "✅ أنت Online";
-      resubscribeRides();
-    });
+      await setDoc(doc(db,"driver_status",user.uid), {
+        uid: user.uid,
+        online: !!isOnline,
+        lat: meLat ?? null,
+        lng: meLng ?? null,
+        areaGov: area?.gov || null,
+        areaCen: area?.cen || null,
+        vehicleType: myVeh || null,
+        updatedAt: serverTimestamp(),
+        ...extra
+      }, { merge:true });
+    }catch(e){}
+  }
 
-    $("stopOnlineBtn").addEventListener("click", async ()=>{
-      setOnlineUI(false);
-      await pushDriverStatus({ online:false });
-      msgEl.textContent = "أنت Offline";
-      clearRides();
-    });
+  function setOnlineUI(v){
+    isOnline = v;
+    statusChip.textContent = v ? "Online" : "Offline";
+    statusChip.className = "miniChip " + (v ? "ok" : "bad");
+  }
 
-    $("myLocBtn").addEventListener("click", async ()=>{
+  $("goOnlineBtn").addEventListener("click", async ()=>{
+    const area = loadArea();
+    if(!area?.gov || !area?.cen){
+      msgEl.textContent = "لازم تحفظ المنطقة (محافظة/مركز) قبل ما تشتغل أونلاين.";
+      return;
+    }
+    if(!myVeh){
+      msgEl.textContent = "نوع المركبة غير مسجل. ارجع لصفحة التسجيل وسجله.";
+      return;
+    }
+    await goMyLocation();
+    setOnlineUI(true);
+    await pushDriverStatus();
+    msgEl.textContent = "✅ أنت Online";
+    resubscribeRides(true);
+  });
+
+  $("stopOnlineBtn").addEventListener("click", async ()=>{
+    setOnlineUI(false);
+    await pushDriverStatus({ online:false });
+    msgEl.textContent = "أنت Offline";
+    clearRides();
+    if(unsubRides){ unsubRides(); unsubRides=null; }
+  });
+
+  $("myLocBtn").addEventListener("click", async ()=>{
+    try{
       await goMyLocation();
       if(isOnline) await pushDriverStatus();
-    });
+    }catch(e){}
+  });
 
-    $("refreshBtn").addEventListener("click", ()=>{
-      resubscribeRides(true);
-    });
+  $("refreshBtn").addEventListener("click", ()=>{
+    resubscribeRides(true);
+  });
 
-    // ---- Rides list subscription
-    let unsubRides = null;
+  // ---- Rides list subscription
+  let unsubRides = null;
 
-    function clearRides(){
-      ridesList.innerHTML = "";
-    }
+  function clearRides(){
+    ridesList.innerHTML = "";
+  }
 
-    
-function rideCardHTML(r){
-      const from = clean(r.fromText || "");
-      const to = clean(r.toText || "");
-      const gov = r.governorate || "-";
-      const cen = r.center || "-";
-      const veh = (r.requestedVehicle || r.vehicleType || "-");
-      const st = r.status || "-";
-      const id = r.id;
+  function rideCardHTML(r){
+    const from = clean(r.fromText || "");
+    const to = clean(r.toText || "");
+    const gov = r.governorate || "-";
+    const cen = r.center || "-";
+    const veh = (r.requestedVehicle || r.vehicleType || "-");
+    const st = r.status || "-";
+    const id = r.id;
 
-      const passengerPrice = Number.isFinite(Number(r.priceEGP)) ? Number(r.priceEGP)
-                          : (Number.isFinite(Number(r.price)) ? Number(r.price) : null);
+    const passengerPrice = Number.isFinite(Number(r.priceEGP)) ? Number(r.priceEGP)
+                      : (Number.isFinite(Number(r.price)) ? Number(r.price) : null);
 
-      // اقتراح للسائق: لو الراكب محدد سعر استخدمه كبداية
-      const suggested = passengerPrice != null ? passengerPrice : 30;
+    const suggested = passengerPrice != null ? passengerPrice : 30;
 
-      return `
-        <div class="card" data-id="${id}">
-          <div class="row">
-            <div style="font-weight:900">طلب #${id.slice(0,6)}</div>
-            <div class="muted">${st}</div>
-          </div>
+    return `
+      <div class="card" data-id="${id}">
+        <div class="row">
+          <div style="font-weight:900">طلب #${id.slice(0,6)}</div>
+          <div class="muted">${st}</div>
+        </div>
 
-          <div class="muted" style="margin-top:6px">
-            <div><b>من:</b> ${from || "-"}</div>
-            <div><b>إلى:</b> ${to || "-"}</div>
-            <div><b>المنطقة:</b> ${gov} / ${cen}</div>
-            <div><b>المركبة المطلوبة:</b> ${veh}</div>
-            <div><b>سعر الراكب:</b> ${passengerPrice != null ? (passengerPrice + " ج.م") : "—"}</div>
-          </div>
+        <div class="muted" style="margin-top:6px">
+          <div><b>من:</b> ${from || "-"}</div>
+          <div><b>إلى:</b> ${to || "-"}</div>
+          <div><b>المنطقة:</b> ${gov} / ${cen}</div>
+          <div><b>المركبة المطلوبة:</b> ${veh}</div>
+          <div><b>سعر الراكب:</b> ${passengerPrice != null ? (passengerPrice + " ج.م") : "—"}</div>
+        </div>
 
-          <div class="row" style="gap:10px;margin-top:10px">
-            <div style="flex:1">
-              <div class="muted" style="margin-bottom:6px">سعر عرضك (مقترح: ${suggested} ج.م)</div>
-              <input class="small offerInput" placeholder="اكتب سعرك…" inputmode="numeric" value="${suggested}" />
-            </div>
-          </div>
-
-          <div class="inlineActions">
-            <button class="btn" data-act="openOnMap" type="button">🗺️ على الخريطة</button>
-            <button class="btn" data-act="offer" type="button">💰 إرسال عرض</button>
-            <button class="btn primary" data-act="accept" type="button">✅ قبول</button>
-            <button class="btn danger" data-act="reject" type="button">❌ رفض / إلغاء</button>
+        <div class="row" style="gap:10px;margin-top:10px">
+          <div style="flex:1">
+            <div class="muted" style="margin-bottom:6px">سعر عرضك (مقترح: ${suggested} ج.م)</div>
+            <input class="small offerInput" placeholder="اكتب سعرك…" inputmode="numeric" value="${suggested}" />
           </div>
         </div>
-      `;
-    }
 
-    async function drawRideOnMap(r){
-      // تنظيف القديم
-      if(pickupMarker){ map.removeLayer(pickupMarker); pickupMarker=null; }
-      if(toMarker){ map.removeLayer(toMarker); toMarker=null; }
-
-      const pLat = safeNum(r.from?.lat);
-const pLng = safeNum(r.from?.lng);
-const tLat = safeNum(r.to?.lat);
-const tLng = safeNum(r.to?.lng);
-
-      if(pLat!=null && pLng!=null){
-        pickupMarker = L.marker([pLat,pLng]).addTo(map).bindPopup("مكان الراكب").openPopup();
-        map.setView([pLat,pLng], 15, { animate:true });
-      }
-      if(tLat!=null && tLng!=null){
-        toMarker = L.marker([tLat,tLng]).addTo(map).bindPopup("الوجهة");
-      }
-    }
-
-    
-    async function sendOffer(rideId){
-      // اقرأ سعر العرض من نفس الكارت
-      const card = ridesList.querySelector(`.card[data-id="${rideId}"]`);
-      const inp = card ? card.querySelector(".offerInput") : null;
-      const n = safeNum(inp?.value);
-
-      // حمّل بروفايل السائق (مرة) عشان نرسل بياناته للراكب
-      const d = driverProfile || (await getUserDoc(user.uid).catch(()=>null)) || {};
-      driverProfile = d;
-
-      const payload = {
-        status: "offered",
-        driverUid: user.uid,
-
-        // أسعار (نحتفظ باسمين للتوافق)
-        offerPriceEGP: (n ?? null),
-        offerPrice: (n ?? null),
-
-        // بيانات السائق عشان تظهر للراكب
-        driverName: d.name || null,
-        driverPhone: d.phone || null,
-        driverEmail: (user.email || d.email || null),
-        driverVehicle: d.vehicleType || null,
-        driverPlate: d.vehiclePlate || null,
-
-        offeredAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      await updateDoc(doc(db,"rides",rideId), payload);
-      msgEl.textContent = "✅ تم إرسال عرض السعر للراكب.";
-    }
-);
-      msgEl.textContent = "✅ تم إرسال عرض.";
-    }
-
-    async function acceptRide(rideId){
-      await updateDoc(doc(db,"rides",rideId), {
-        status: "accepted",
-        driverUid: user.uid,
-        acceptedAt: serverTimestamp()
-      });
-      msgEl.textContent = "✅ تم قبول الرحلة.";
-    }
-    
-    
-    async function sendOffer(rideId){
-  // اقرأ سعر العرض من نفس الكارت
-  const card = ridesList.querySelector(`.card[data-id="${rideId}"]`);
-  const inp = card ? card.querySelector(".offerInput") : null;
-  const n = safeNum(inp?.value);
-
-  // حمّل بروفايل السائق (مرة) عشان نرسل بياناته للراكب
-  const d = driverProfile || (await getUserDoc(user.uid).catch(()=>null)) || {};
-  driverProfile = d;
-
-  const payload = {
-    status: "offered",
-    driverUid: user.uid,
-
-    offerPriceEGP: (n ?? null),
-    offerPrice: (n ?? null),
-
-    driverName: d.name || null,
-    driverPhone: d.phone || null,
-    driverEmail: (user.email || d.email || null),
-    driverVehicle: d.vehicleType || null,
-    driverPlate: d.vehiclePlate || null,
-
-    offeredAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-
-  await updateDoc(doc(db,"rides",rideId), payload);
-  msgEl.textContent = "✅ تم إرسال عرض السعر للراكب.";
-}
-
-async function acceptRide(rideId){
-  await updateDoc(doc(db,"rides",rideId), {
-    status: "accepted",
-    driverUid: user.uid,
-    acceptedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  msgEl.textContent = "✅ تم قبول الرحلة.";
-}
-
-async function rejectRide(rideId){
-  await updateDoc(doc(db,"rides",rideId), {
-    status: "canceled",
-    canceledBy: "driver",
-    canceledByUid: user.uid,
-    canceledAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  msgEl.textContent = "❌ تم رفض/إلغاء الطلب.";
-}
-    
-function buildRidesQuery(){
-  const area = loadArea();
-
-  // ما نعرضش طلبات لو السائق Offline
-  if(!isOnline) return null;
-
-  // نجيب طلبات open حسب المحافظة (+ المركز لو موجود)
-  if(area?.gov){
-    const cons = [
-      where("status","==","open"),
-      where("governorate","==", area.gov),
-    ];
-    if(area?.center){
-      cons.push(where("center","==", area.center));
-    }
-    return query(collection(db,"rides"), ...cons, limit(30));
+        <div class="inlineActions">
+          <button class="btn" data-act="openOnMap" type="button">🗺️ على الخريطة</button>
+          <button class="btn" data-act="offer" type="button">💰 إرسال عرض</button>
+          <button class="btn primary" data-act="accept" type="button">✅ قبول</button>
+          <button class="btn danger" data-act="reject" type="button">❌ رفض / إلغاء</button>
+        </div>
+      </div>
+    `;
   }
 
-  // لو مش مختار محافظة: اعرض طلبات open فقط (وبعدين هنفلتر محليًا)
-  return query(collection(db,"rides"), where("status","==","open"), limit(30));
-}
-function resubscribeRides(force=false){
-  if(unsubRides){ unsubRides(); unsubRides=null; }
-  msgEl.textContent = "";
+  async function drawRideOnMap(r){
+    if(!map) return;
 
-  const qy = buildRidesQuery();
-  if(!qy){
-    msgEl.textContent = "أنت Offline.";
-    return;
+    if(pickupMarker){ map.removeLayer(pickupMarker); pickupMarker=null; }
+    if(toMarker){ map.removeLayer(toMarker); toMarker=null; }
+
+    const pLat = safeNum(r.from?.lat);
+    const pLng = safeNum(r.from?.lng);
+    const tLat = safeNum(r.to?.lat);
+    const tLng = safeNum(r.to?.lng);
+
+    if(pLat!=null && pLng!=null){
+      pickupMarker = L.marker([pLat,pLng]).addTo(map).bindPopup("مكان الراكب").openPopup();
+      map.setView([pLat,pLng], 15, { animate:true });
+    }
+    if(tLat!=null && tLng!=null){
+      toMarker = L.marker([tLat,tLng]).addTo(map).bindPopup("الوجهة");
+    }
   }
 
-  // متفضيش القائمة قبل ما الداتا توصل
-  unsubRides = onSnapshot(
-    qy,
-    (snap)=>{
-      if(snap.empty){
-        ridesList.innerHTML = "";
-        msgEl.textContent = "لا توجد طلبات الآن.";
-        return;
+  async function sendOffer(rideId){
+    const card = ridesList.querySelector(`.card[data-id="${rideId}"]`);
+    const inp = card ? card.querySelector(".offerInput") : null;
+    const n = safeNum(inp?.value);
+
+    const d = driverProfile || (await getUserDoc(user.uid).catch(()=>null)) || {};
+    driverProfile = d;
+
+    const payload = {
+      status: "offered",
+      driverUid: user.uid,
+
+      offerPriceEGP: (n ?? null),
+      offerPrice: (n ?? null),
+
+      driverName: d.name || null,
+      driverPhone: d.phone || null,
+      driverEmail: (user.email || d.email || null),
+      driverVehicle: d.vehicleType || myVeh || null,
+      driverPlate: d.vehiclePlate || d.vehicleCode || null,
+
+      offeredAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    await updateDoc(doc(db,"rides",rideId), payload);
+    msgEl.textContent = "✅ تم إرسال عرض السعر للراكب.";
+  }
+
+  async function acceptRide(rideId){
+    await updateDoc(doc(db,"rides",rideId), {
+      status: "accepted",
+      driverUid: user.uid,
+      acceptedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    msgEl.textContent = "✅ تم قبول الرحلة.";
+  }
+
+  async function rejectRide(rideId){
+    await updateDoc(doc(db,"rides",rideId), {
+      status: "canceled",
+      canceledBy: "driver",
+      canceledByUid: user.uid,
+      canceledAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    msgEl.textContent = "❌ تم رفض/إلغاء الطلب.";
+  }
+
+  function buildRidesQuery(){
+    const area = loadArea();
+    if(!isOnline) return null;
+
+    // Filter by area if selected
+    if(area?.gov){
+      const cons = [
+        where("status","==","open"),
+        where("governorate","==", area.gov),
+      ];
+      if(area?.cen){
+        cons.push(where("center","==", area.cen));
       }
-
-      
-      msgEl.textContent = "";
-      const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-
-      // فلترة حسب نوع مركبة السائق (من البروفايل)
-      const myVeh = (driverProfile?.vehicleType || "").toString();
-      const docs = myVeh ? all.filter(r => String(r.requestedVehicle || r.vehicleType || "") === myVeh) : all;
-
-      ridesList.innerHTML = docs.map(rideCardHTML).join("");
-    },
-    (err)=>{
-      console.error(err);
-
-      // متفضيش القائمة عند الخطأ
-      msgEl.textContent = "⚠️ حصل خطأ مؤقت في تحميل الطلبات.. جرّب تحديث.";
-
-      setTimeout(()=> {
-        try { resubscribeRides(true); } catch(e){}
-      }, 1500);
+      return query(collection(db,"rides"), ...cons, limit(30));
     }
-  );
-}
+    return query(collection(db,"rides"), where("status","==","open"), limit(30));
+  }
 
-    ridesList.addEventListener("click", async (e)=>{
-      const btn = e.target.closest("button[data-act]");
-      if(!btn) return;
-      const card = e.target.closest(".card");
-      const rideId = card?.dataset?.id;
-      if(!rideId) return;
+  function resubscribeRides(){
+    if(unsubRides){ unsubRides(); unsubRides=null; }
+    msgEl.textContent = "";
 
-      const act = btn.dataset.act;
-      try{
-        if(act === "openOnMap"){
-          const snap = await getDoc(doc(db,"rides",rideId));
-          if(snap.exists()) await drawRideOnMap(snap.data());
+    const qy = buildRidesQuery();
+    if(!qy){
+      msgEl.textContent = "أنت Offline.";
+      clearRides();
+      return;
+    }
+
+    unsubRides = onSnapshot(
+      qy,
+      (snap)=>{
+        const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+        // Filter locally by vehicle type to guarantee correctness
+        const docs = myVeh ? all.filter(r => clean(r.requestedVehicle || r.vehicleType || "") === myVeh) : all;
+
+        if(docs.length === 0){
+          ridesList.innerHTML = "";
+          msgEl.textContent = "لا توجد طلبات الآن.";
           return;
         }
-        if(act === "offer") return await sendOffer(rideId);
-        if(act === "accept") return await acceptRide(rideId);
-        if(act === "reject") return await rejectRide(rideId);
-      }catch(err){
+        msgEl.textContent = "";
+        ridesList.innerHTML = docs.map(rideCardHTML).join("");
+      },
+      (err)=>{
         console.error(err);
-        msgEl.textContent = "❌ حصل خطأ، افتح Console وابعتلي الرسالة.";
+        msgEl.textContent = "⚠️ حصل خطأ في تحميل الطلبات.. جرّب تحديث.";
       }
-    });
+    );
+  }
 
-    // ---- init
-    initMap();
-    setOnlineUI(false);
+  ridesList.addEventListener("click", async (e)=>{
+    const btn = e.target.closest("button[data-act]");
+    if(!btn) return;
+    const card = e.target.closest(".card");
+    const rideId = card?.dataset?.id;
+    if(!rideId) return;
+
+    const act = btn.dataset.act;
+    try{
+      if(act === "openOnMap"){
+        const snap = await getDoc(doc(db,"rides",rideId));
+        if(snap.exists()) await drawRideOnMap(snap.data());
+        return;
+      }
+      if(act === "offer") return await sendOffer(rideId);
+      if(act === "accept") return await acceptRide(rideId);
+      if(act === "reject") return await rejectRide(rideId);
+    }catch(err){
+      console.error(err);
+      msgEl.textContent = "❌ حصل خطأ، افتح Console وابعتلي الرسالة.";
+    }
+  });
+
+  // ---- init
+  initMap();
+  setOnlineUI(false);
+
+  try{
     await goMyLocation();
-    await pushDriverStatus({ online:false });
+  }catch(e){}
+  await pushDriverStatus({ online:false });
 
-    // كل 30 ثانية لو Online: تحديث الحالة
-    setInterval(async ()=>{
-      if(isOnline){
-        try{
-          await goMyLocation();
-          await pushDriverStatus();
-        }catch(e){}
-      }
-    }, 30000);
+  setInterval(async ()=>{
+    if(isOnline){
+      try{
+        await goMyLocation();
+        await pushDriverStatus();
+      }catch(e){}
+    }
+  }, 30000);
 
-    // أول تحميل: ما نجيبش طلبات إلا بعد Go Online
-  </script>
+</script>
+
 </body>
 </html>
