@@ -146,7 +146,7 @@
       <div id="driverOnlyFields" style="display:none">
         <div class="field">
           <label>العنوان (للسائق فقط)</label>
-          <input id="address" type="text" placeholder="مثال: شارع ********" autocomplete="street-address" />
+          <input id="driverAddress" type="text" placeholder="مثال: شارع ********" autocomplete="street-address" />
         </div>
 
 
@@ -232,13 +232,6 @@
 
       const dOnly = $("driverOnlyFields");
       if(dOnly) dOnly.style.display = (role==="driver") ? "block" : "none";
-
-      // عند تفعيل السائق: جهز المحافظات/المراكز
-      if(role==="driver"){
-        fillGovs();
-        const g = govSel?.value || "";
-        if(g) fillCenters(g);
-      }
     }
 
     const urlRole = (qs("role") || "").toLowerCase();
@@ -257,13 +250,10 @@ const GOVS = [
   "قنا","شمال سيناء","سوهاج"
 ];
 
-// ملاحظة: المراكز هنا تغطية عملية. لو محافظة مش موجودة/قائمتها ناقصة،
-// المستخدم يكتب المركز يدويًا في خانة (اكتب المركز/الحي).
 const CENTERS = {
   "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","عين شمس","المرج","العباسية","وسط البلد"],
   "الجيزة": ["الهرم","الدقي","العجوزة","إمبابة","بولاق الدكرور","6 أكتوبر","الشيخ زايد","كرداسة","أوسيم","البدرشين","العياط","الصف","أطفيح","منشأة القناطر"],
   "الإسكندرية": ["المنتزه","الرمل","سيدي جابر","مينا البصل","العجمي","العامرية","برج العرب"],
-  "الدقهلية": ["المنصورة","طلخا","ميت غمر","دكرنس","منية النصر","السنبلاوين","أجا","بلقاس","نبروه","تمي الأمديد","بني عبيد","شربين"],
   "الشرقية": ["الزقازيق","العاشر من رمضان","بلبيس","منيا القمح","فاقوس","أبو حماد","أبو كبير","الحسينية","ههيا","الإبراهيمية","كفر صقر","مشتول السوق","أولاد صقر"],
   "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة","بسيون","قطور","سمنود"],
   "المنوفية": ["شبين الكوم","منوف","تلا","أشمون","قويسنا","بركة السبع","سرس الليان","الشهداء"],
@@ -329,9 +319,7 @@ if(govSel){
       const phone = clean($("phone").value);
 
       // driver-only fields (may be hidden)
-      const address = clean($("address")?.value);
-      const driverGov = clean($("driverGov")?.value);
-      const driverCenter = clean($("driverCenter")?.value) || clean($("driverCenterOther")?.value);
+      const address = clean($("driverAddress")?.value);
       const driverVehicleType = ($("driverVehicleType")?.value || "").trim();
       const driverVehiclePlate = clean($("driverVehiclePlate")?.value);
 
@@ -346,18 +334,8 @@ if(govSel){
         throw new Error("phone_required");
       }
 
-      // لو الدور سائق لازم المحافظة + المركز + نوع المركبة + رقمها
+      // لو الدور سائق لازم نوع المركبة + رقمها
       if(role === "driver"){
-        if(!driverGov){
-          msg.className="msg bad";
-          msg.textContent="❌ اختر المحافظة.";
-          throw new Error("driver_gov_required");
-        }
-        if(!driverCenter){
-          msg.className="msg bad";
-          msg.textContent="❌ اختر/اكتب المركز أو الحي.";
-          throw new Error("driver_center_required");
-        }
         if(!driverVehicleType){
           msg.className="msg bad";
           msg.textContent="❌ اختر نوع المركبة.";
@@ -380,9 +358,6 @@ if(govSel){
         phone,
         // address للـ driver فقط
         address: (role === "driver") ? (address || null) : null,
-        // منطقة السائق للفلترة
-        governorate: (role === "driver") ? (driverGov || null) : null,
-        center: (role === "driver") ? (driverCenter || null) : null,
         // بيانات المركبة للـ driver فقط
         vehicleType: (role === "driver") ? (driverVehicleType || null) : null,
         vehiclePlate: (role === "driver") ? (driverVehiclePlate || null) : null,
