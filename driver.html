@@ -418,35 +418,27 @@ $("logoutBtn").addEventListener("click", doLogout);
   }
 
   function buildRidesQuery(){
-    if(!isOnline) return null;
+  if(!isOnline) return null;
 
-    // Area/vehicle are taken from the driver's registration profile (no UI here)
-    if(!myGov || !myCen){
-      msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز (في تسجيل السائق) ثم أعد تسجيل الدخول.";
-      return null;
-    }
-    if(!myVeh){
-      msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
-      return null;
-    }
-
-    if(!myVeh){
-      msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
-      return null;
-    }
-
-    const cons = [
-      where("status","==","open"),
-      where("governorate","==", myGov),
-      where("center","==", myCen),
-    ];
-
-    // filter by vehicle type (must match passenger selection)
-    cons.push(where("requestedVehicle","==", myVeh));
-
-    return query(collection(db,"rides"), ...cons, limit(30));
+  // بيانات السائق من البروفايل (بدون UI هنا)
+  if(!myGov || !myCen){
+    msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز (في تسجيل السائق) ثم أعد تسجيل الدخول.";
+    return null;
+  }
+  if(!myVeh){
+    msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
+    return null;
   }
 
+  const cons = [
+    where("status","==","open"),
+    where("governorate","==", myGov),
+    where("center","==", myCen),
+    where("requestedVehicle","==", myVeh),
+  ];
+
+  return query(collection(db,"rides"), ...cons, limit(30));
+}
   function resubscribeRides(){
     if(unsubRides){ unsubRides(); unsubRides=null; }
     msgEl.textContent = "";
