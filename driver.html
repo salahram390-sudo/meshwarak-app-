@@ -123,6 +123,35 @@
 
   // ---- UI
   const whoEl = $("who");
+// normalize vehicle type for matching
+const VEH_ALIASES = {
+  "ملاكي": "car",
+  "سيارة": "car",
+  "توك توك": "tuktuk",
+  "تكتك": "tuktuk",
+  "توكتوك": "tuktuk",
+  "دليفري": "motor_delivery",
+  "موتوسيكل": "motor_delivery",
+  "موتوسيكل دليفري": "motor_delivery",
+  "ميكروباص": "microbus",
+  "ميكروباص 14": "microbus",
+  "تمناية": "tamanya",
+  "كابوت": "caboot",
+  "كابوتو": "caboot",
+};
+
+function normVeh(v){
+  const s = clean(v).toLowerCase();
+  if(!s) return "";
+  // direct code values
+  if(["tuktuk","motor_delivery","car","microbus","tamanya","caboot"].includes(s)) return s;
+  // try alias map (Arabic labels)
+  const a = VEH_ALIASES[clean(v)] || VEH_ALIASES[s] || "";
+  if(a) return a;
+  // fallback normalize: keep letters/numbers/underscore
+  return s.replace(/[^a-z0-9_]+/g,"_").replace(/_+/g,"_").replace(/^_+|_+$/g,"");
+}
+
   const msgEl = $("msg");
   const ridesList = $("ridesList");
 
@@ -142,7 +171,7 @@ $("logoutBtn").addEventListener("click", doLogout);
   try{ driverProfile = await getUserDoc(user.uid); }catch(e){ driverProfile=null; }
 
   const myVeh = clean(driverProfile?.vehicleType || driverProfile?.requestedVehicle || "");
-  vehChip.textContent = "مركبة: " + (myVeh || "-");
+  vehChip.textContent = "مركبة: " + (driverProfile?.vehicleType || myVeh || "-");
 
   // ---- Area (from registration profile)
   const myGov = clean(driverProfile?.governorate || "");
@@ -393,7 +422,11 @@ $("logoutBtn").addEventListener("click", doLogout);
 
     // Area is taken from the driver's registration profile (no UI here)
     if(!myGov || !myCen){
-      msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز في صفحة التسجيل ثم أعد تسجيل الدخول.";
+      msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز (في تسجيل السائق) ثم أعد تسجيل الدخول.";
+      return null;
+    }
+    if(!myVeh){
+      msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
       return null;
     }
 
@@ -404,7 +437,7 @@ $("logoutBtn").addEventListener("click", doLogout);
     ];
 
     // filter by vehicle type (must match passenger selection)
-    if(myVeh) cons.push(where("requestedVehicle","==", myVeh));
+    cons.push(where("requestedVehicle","==", myVeh));
 
     return query(collection(db,"rides"), ...cons, limit(30));
   }
