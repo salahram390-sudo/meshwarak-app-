@@ -403,6 +403,9 @@ $("logoutBtn").addEventListener("click", doLogout);
       where("center","==", myCen),
     ];
 
+    // filter by vehicle type (must match passenger selection)
+    if(myVeh) cons.push(where("requestedVehicle","==", myVeh));
+
     return query(collection(db,"rides"), ...cons, limit(30));
   }
 
