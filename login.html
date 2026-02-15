@@ -74,7 +74,22 @@
     }
     .field input::placeholder{opacity:.55}
 
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    
+    .field select{
+      width:100%;
+      padding:12px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:#fff;
+      outline:none;
+      font-weight:850;
+      appearance:none;
+      -webkit-appearance:none;
+    }
+    .field select option{color:#000}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
     .row .btn{flex:1}
 
     .btn{
@@ -132,6 +147,22 @@
         <div class="field">
           <label>العنوان (للسائق فقط)</label>
           <input id="address" type="text" placeholder="مثال: شارع ********" autocomplete="street-address" />
+        </div>
+
+
+        <div class="field">
+          <label>المحافظة (للسائق)</label>
+          <select id="driverGov">
+            <option value="">اختر المحافظة…</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>المركز / الحي (للسائق)</label>
+          <select id="driverCenter" disabled>
+            <option value="">اختر المركز…</option>
+          </select>
+          <input id="driverCenterOther" type="text" placeholder="اكتب المركز/الحي (في حال عدم وجوده)" style="display:none;margin-top:10px" autocomplete="off" />
         </div>
 
         <div class="field">
@@ -201,6 +232,13 @@
 
       const dOnly = $("driverOnlyFields");
       if(dOnly) dOnly.style.display = (role==="driver") ? "block" : "none";
+
+      // عند تفعيل السائق: جهز المحافظات/المراكز
+      if(role==="driver"){
+        fillGovs();
+        const g = govSel?.value || "";
+        if(g) fillCenters(g);
+      }
     }
 
     const urlRole = (qs("role") || "").toLowerCase();
@@ -211,6 +249,70 @@
 
     $("rolePassenger").onclick = ()=> setRole("passenger");
     $("roleDriver").onclick = ()=> setRole("driver");
+// ===== Driver governorates/centers (Egypt) =====
+const GOVS = [
+  "القاهرة","الجيزة","الإسكندرية","الدقهلية","البحر الأحمر","البحيرة","الفيوم","الغربية",
+  "الإسماعيلية","المنوفية","المنيا","القليوبية","الوادي الجديد","السويس","أسوان","أسيوط",
+  "بني سويف","بورسعيد","دمياط","الشرقية","جنوب سيناء","كفر الشيخ","مطروح","الأقصر",
+  "قنا","شمال سيناء","سوهاج"
+];
+
+// ملاحظة: المراكز هنا تغطية عملية. لو محافظة مش موجودة/قائمتها ناقصة،
+// المستخدم يكتب المركز يدويًا في خانة (اكتب المركز/الحي).
+const CENTERS = {
+  "القاهرة": ["مدينة نصر","مصر الجديدة","المعادي","حلوان","شبرا","الزيتون","عين شمس","المرج","العباسية","وسط البلد"],
+  "الجيزة": ["الهرم","الدقي","العجوزة","إمبابة","بولاق الدكرور","6 أكتوبر","الشيخ زايد","كرداسة","أوسيم","البدرشين","العياط","الصف","أطفيح","منشأة القناطر"],
+  "الإسكندرية": ["المنتزه","الرمل","سيدي جابر","مينا البصل","العجمي","العامرية","برج العرب"],
+  "الدقهلية": ["المنصورة","طلخا","ميت غمر","دكرنس","منية النصر","السنبلاوين","أجا","بلقاس","نبروه","تمي الأمديد","بني عبيد","شربين"],
+  "الشرقية": ["الزقازيق","العاشر من رمضان","بلبيس","منيا القمح","فاقوس","أبو حماد","أبو كبير","الحسينية","ههيا","الإبراهيمية","كفر صقر","مشتول السوق","أولاد صقر"],
+  "الغربية": ["طنطا","المحلة الكبرى","كفر الزيات","زفتى","السنطة","بسيون","قطور","سمنود"],
+  "المنوفية": ["شبين الكوم","منوف","تلا","أشمون","قويسنا","بركة السبع","سرس الليان","الشهداء"],
+  "القليوبية": ["بنها","شبرا الخيمة","قليوب","الخانكة","القناطر الخيرية","طوخ","كفر شكر","شبين القناطر"],
+  "البحيرة": ["دمنهور","كفر الدوار","إدكو","رشيد","أبو المطامير","حوش عيسى","شبراخيت","الدلنجات","المحمودية","إيتاي البارود","بدر","وادي النطرون"],
+  "الفيوم": ["الفيوم","سنورس","إطسا","طامية","يوسف الصديق"],
+  "بني سويف": ["بني سويف","الواسطي","ناصر","إهناسيا","ببا","سمسطا","الفشن"],
+  "المنيا": ["المنيا","مغاغة","بني مزار","مطاي","سمالوط","أبو قرقاص","ملوي","دير مواس"],
+  "أسيوط": ["أسيوط","ديروط","منفلوط","القوصية","أبنوب","أبو تيج","الغنايم","ساحل سليم","البداري","صدفا"],
+  "سوهاج": ["سوهاج","أخميم","المراغة","طهطا","المنشأة","جرجا","البلينا","دار السلام","جهينة","ساقلته","طما"],
+  "قنا": ["قنا","نجع حمادي","دشنا","قفط","قوص","نقادة","فرشوط","أبو تشت","الوقف"],
+  "الأقصر": ["الأقصر","الزينية","البياضية","القرنة","أرمنت","الطود","إسنا"],
+  "أسوان": ["أسوان","دراو","كوم أمبو","إدفو","نصر النوبة"],
+  "دمياط": ["دمياط","فارسكور","كفر سعد","الزرقا","كفر البطيخ","رأس البر","دمياط الجديدة"],
+  "بورسعيد": ["بورسعيد","بورفؤاد"],
+  "الإسماعيلية": ["الإسماعيلية","فايد","القنطرة شرق","القنطرة غرب","التل الكبير","أبو صوير","القصاصين"],
+  "السويس": ["السويس","الأربعين","عتاقة","الجناين","فيصل"],
+  "شمال سيناء": ["العريش","الشيخ زويد","رفح","بئر العبد","الحسنة","نخل"],
+  "جنوب سيناء": ["الطور","شرم الشيخ","دهب","نويبع","طابا","سانت كاترين","رأس سدر","أبو رديس","أبو زنيمة"],
+  "مطروح": ["مرسى مطروح","الحمام","العلمين","الضبعة","سيدي براني","النجيلة","السلوم","سيوة"],
+  "البحر الأحمر": ["الغردقة","سفاجا","القصير","مرسى علم","رأس غارب","الشلاتين","حلايب"],
+  "الوادي الجديد": ["الخارجة","الداخلة","الفرافرة","باريس","بلاط"],
+  "كفر الشيخ": ["كفر الشيخ","دسوق","بلطيم","سيدي سالم","الرياض","الحامول","بيلا","قلين","مطوبس","برج البرلس"]
+};
+
+const govSel = $("driverGov");
+const cenSel = $("driverCenter");
+const cenOther = $("driverCenterOther");
+
+function fillGovs(){
+  if(!govSel) return;
+  govSel.innerHTML = '<option value="">اختر المحافظة…</option>' + GOVS.map(g=>`<option value="${g}">${g}</option>`).join("");
+}
+function fillCenters(gov){
+  if(!cenSel) return;
+  const arr = CENTERS[gov] || [];
+  cenSel.innerHTML = '<option value="">اختر المركز…</option>' + arr.map(c=>`<option value="${c}">${c}</option>`).join("");
+  cenSel.disabled = arr.length === 0;
+  if(cenOther){
+    cenOther.style.display = (arr.length === 0 && gov) ? "block" : "none";
+    if(arr.length !== 0) cenOther.value = "";
+  }
+}
+
+fillGovs();
+if(govSel){
+  govSel.addEventListener("change", ()=> fillCenters(govSel.value));
+}
+
 
     function goNext(){
       location.href = (role === "driver") ? "./driver.html" : "./passenger.html";
@@ -228,6 +330,8 @@
 
       // driver-only fields (may be hidden)
       const address = clean($("address")?.value);
+      const driverGov = clean($("driverGov")?.value);
+      const driverCenter = clean($("driverCenter")?.value) || clean($("driverCenterOther")?.value);
       const driverVehicleType = ($("driverVehicleType")?.value || "").trim();
       const driverVehiclePlate = clean($("driverVehiclePlate")?.value);
 
@@ -242,8 +346,18 @@
         throw new Error("phone_required");
       }
 
-      // لو الدور سائق لازم نوع المركبة + رقمها
+      // لو الدور سائق لازم المحافظة + المركز + نوع المركبة + رقمها
       if(role === "driver"){
+        if(!driverGov){
+          msg.className="msg bad";
+          msg.textContent="❌ اختر المحافظة.";
+          throw new Error("driver_gov_required");
+        }
+        if(!driverCenter){
+          msg.className="msg bad";
+          msg.textContent="❌ اختر/اكتب المركز أو الحي.";
+          throw new Error("driver_center_required");
+        }
         if(!driverVehicleType){
           msg.className="msg bad";
           msg.textContent="❌ اختر نوع المركبة.";
@@ -266,6 +380,9 @@
         phone,
         // address للـ driver فقط
         address: (role === "driver") ? (address || null) : null,
+        // منطقة السائق للفلترة
+        governorate: (role === "driver") ? (driverGov || null) : null,
+        center: (role === "driver") ? (driverCenter || null) : null,
         // بيانات المركبة للـ driver فقط
         vehicleType: (role === "driver") ? (driverVehicleType || null) : null,
         vehiclePlate: (role === "driver") ? (driverVehiclePlate || null) : null,
@@ -289,7 +406,6 @@
 
       try{
         await emailSignIn(email, pass);
-        await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم تسجيل الدخول.";
         goNext();
@@ -321,7 +437,6 @@
 
       try{
         await emailSignUp(email, pass);
-        await postProfile();
         msg.className="msg ok";
         msg.textContent="✅ تم إنشاء الحساب.";
         goNext();
