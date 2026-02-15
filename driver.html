@@ -97,65 +97,7 @@
 
       <div class="sep"></div>
 
-      <div class="sectionTitle">منطقتك (لاختيار السائقين)</div>
-      <div class="card" id="setupCard">
-        <div class="row">
-          <div style="flex:1">
-            <div class="muted" style="margin-bottom:6px">المحافظة</div>
-            <select class="small" id="govSel">
-              <option value="">اختر المحافظة...</option>
-              <option>القاهرة</option>
-              <option>الجيزة</option>
-              <option>الإسكندرية</option>
-              <option>الدقهلية</option>
-              <option>الشرقية</option>
-              <option>الغربية</option>
-              <option>المنوفية</option>
-              <option>القليوبية</option>
-              <option>كفر الشيخ</option>
-              <option>البحيرة</option>
-              <option>دمياط</option>
-              <option>بورسعيد</option>
-              <option>الإسماعيلية</option>
-              <option>السويس</option>
-              <option>الفيوم</option>
-              <option>بني سويف</option>
-              <option>المنيا</option>
-              <option>أسيوط</option>
-              <option>سوهاج</option>
-              <option>قنا</option>
-              <option>الأقصر</option>
-              <option>أسوان</option>
-              <option>البحر الأحمر</option>
-              <option>شمال سيناء</option>
-              <option>جنوب سيناء</option>
-              <option>الوادي الجديد</option>
-              <option>مطروح</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <div class="muted" style="margin-bottom:6px">المركز</div>
-            <input class="small" id="cenInput" placeholder="اكتب المركز/المدينة..." />
-          </div>
-        </div>
-
-        <div style="height:10px"></div>
-
-        
-        <div class="note" id="vehNote">* نوع المركبة يتم تحديده أثناء التسجيل (في صفحة تسجيل الدخول).</div>
-<div style="height:10px"></div>
-
-        <div class="actions">
-          <button class="btn primary" id="saveAreaBtn" type="button">💾 حفظ المنطقة</button>
-          <button class="btn" id="clearAreaBtn" type="button">مسح</button>
-        </div>
-
-        <div class="hint" id="setupMsg"></div>
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="sectionTitle">الطلبات المتاحة</div>
+<div class="sectionTitle">الطلبات المتاحة</div>
       <div id="ridesList" class="list"></div>
       <div class="hint" id="msg"></div>
 
@@ -182,18 +124,13 @@
   // ---- UI
   const whoEl = $("who");
   const msgEl = $("msg");
-  const setupMsg = $("setupMsg");
   const ridesList = $("ridesList");
 
   const gpsChip = $("gpsChip");
   const statusChip = $("statusChip");
   const locChip = $("locChip");
   const vehChip = $("vehChip");
-
-  const govSel = $("govSel");
-  const cenInput = $("cenInput");
-
-  $("logoutBtn").addEventListener("click", doLogout);
+$("logoutBtn").addEventListener("click", doLogout);
 
   // ---- Role + Auth
   setActiveRole("driver");
@@ -207,66 +144,10 @@
   const myVeh = clean(driverProfile?.vehicleType || driverProfile?.requestedVehicle || "");
   vehChip.textContent = "مركبة: " + (myVeh || "-");
 
-  // ---- Area (gov + center only)
-  const LS_KEY = "mesh_driver_area_v2";
-  function loadArea(){
-    const raw = localStorage.getItem(LS_KEY);
-    if(!raw) return null;
-    try{ return JSON.parse(raw); }catch{ return null; }
-  }
-  function saveAreaToLS(area){
-    localStorage.setItem(LS_KEY, JSON.stringify(area));
-  }
-  function applyAreaUI(area){
-    if(!area) return;
-    govSel.value = area.gov || "";
-    cenInput.value = area.cen || "";
-    locChip.textContent = "المنطقة: " + ((area.gov||"-") + " / " + (area.cen||"-"));
-  }
-
-  const area0 = loadArea();
-  if(area0) applyAreaUI(area0);
-
-  $("saveAreaBtn").addEventListener("click", async ()=>{
-    const area = {
-      gov: clean(govSel.value),
-      cen: clean(cenInput.value),
-      updatedAt: Date.now()
-    };
-    if(!area.gov || !area.cen){
-      setupMsg.textContent = "لازم تختار محافظة + تكتب مركز/مدينة.";
-      return;
-    }
-    if(!myVeh){
-      setupMsg.textContent = "نوع المركبة غير مسجل في حسابك. ارجع لصفحة التسجيل وسجله.";
-      return;
-    }
-
-    saveAreaToLS(area);
-    applyAreaUI(area);
-    setupMsg.textContent = "✅ تم حفظ المنطقة.";
-
-    // Store in Firestore driver_status (optional but useful)
-    try{
-      await setDoc(doc(db,"driver_status",user.uid), {
-        uid: user.uid,
-        areaGov: area.gov,
-        areaCen: area.cen,
-        vehicleType: myVeh,
-        updatedAt: serverTimestamp()
-      }, { merge:true });
-    }catch(e){}
-    resubscribeRides(true);
-  });
-
-  $("clearAreaBtn").addEventListener("click", ()=>{
-    localStorage.removeItem(LS_KEY);
-    govSel.value = "";
-    cenInput.value = "";
-    setupMsg.textContent = "تم المسح.";
-    locChip.textContent = "المنطقة: -";
-    resubscribeRides(true);
-  });
+  // ---- Area (from registration profile)
+  const myGov = clean(driverProfile?.governorate || "");
+  const myCen = clean(driverProfile?.center || "");
+  locChip.textContent = "المنطقة: " + (myGov || "-") + (myCen ? (" / " + myCen) : "");
 
   // ---- Map
   let map, meMarker=null, pickupMarker=null, toMarker=null;
@@ -327,14 +208,14 @@
 
   async function pushDriverStatus(extra={}){
     try{
-      const area = loadArea();
+      
       await setDoc(doc(db,"driver_status",user.uid), {
         uid: user.uid,
         online: !!isOnline,
         lat: meLat ?? null,
         lng: meLng ?? null,
-        areaGov: area?.gov || null,
-        areaCen: area?.cen || null,
+        areaGov: myGov || null || null,
+        areaCen: myCen || null || null,
         vehicleType: myVeh || null,
         updatedAt: serverTimestamp(),
         ...extra
@@ -349,7 +230,7 @@
   }
 
   $("goOnlineBtn").addEventListener("click", async ()=>{
-    const area = loadArea();
+    
     if(!area?.gov || !area?.cen){
       msgEl.textContent = "لازم تحفظ المنطقة (محافظة/مركز) قبل ما تشتغل أونلاين.";
       return;
@@ -508,21 +389,21 @@
   }
 
   function buildRidesQuery(){
-    const area = loadArea();
     if(!isOnline) return null;
 
-    // Filter by area if selected
-    if(area?.gov){
-      const cons = [
-        where("status","==","open"),
-        where("governorate","==", area.gov),
-      ];
-      if(area?.cen){
-        cons.push(where("center","==", area.cen));
-      }
-      return query(collection(db,"rides"), ...cons, limit(30));
+    // Area is taken from the driver's registration profile (no UI here)
+    if(!myGov || !myCen){
+      msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز في صفحة التسجيل ثم أعد تسجيل الدخول.";
+      return null;
     }
-    return query(collection(db,"rides"), where("status","==","open"), limit(30));
+
+    const cons = [
+      where("status","==","open"),
+      where("governorate","==", myGov),
+      where("center","==", myCen),
+    ];
+
+    return query(collection(db,"rides"), ...cons, limit(30));
   }
 
   function resubscribeRides(){
