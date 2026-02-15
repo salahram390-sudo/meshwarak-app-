@@ -420,11 +420,21 @@ $("logoutBtn").addEventListener("click", doLogout);
   function buildRidesQuery(){
     if(!isOnline) return null;
 
-    // Area is taken from the driver's registration profile (no UI here)
+    // Area/vehicle are taken from the driver's registration profile (no UI here)
     if(!myGov || !myCen){
       msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز (في تسجيل السائق) ثم أعد تسجيل الدخول.";
       return null;
     }
+    if(!myVeh){
+      msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
+      return null;
+    }
+
+    // ✅ Minimal Firestore query (no composite indexes required):
+    // We fetch open rides then filter locally by gov/center/vehicle to guarantee correct matching.
+    return query(collection(db,"rides"), where("status","==","open"), limit(50));
+  }
+
     if(!myVeh){
       msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
       return null;
@@ -458,11 +468,16 @@ $("logoutBtn").addEventListener("click", doLogout);
       (snap)=>{
         const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
         // Filter locally by vehicle type to guarantee correctness
-        const docs = myVeh ? all.filter(r => clean(r.requestedVehicle || r.vehicleType || "") === myVeh) : all;
+        const docs = all.filter(r => {
+          const rg = clean(r.governorate || "");
+          const rc = clean(r.center || "");
+          const rv = normVeh(r.requestedVehicle || r.vehicleType || "");
+          return rg === myGov && rc === myCen && rv === myVeh;
+        });
 
         if(docs.length === 0){
           ridesList.innerHTML = "";
-          msgEl.textContent = "لا توجد طلبات الآن.";
+          msgEl.textContent = "لا توجد طلبات مطابقة الآن (نفس المحافظة + المركز + نوع المركبة).";
           return;
         }
         msgEl.textContent = "";
