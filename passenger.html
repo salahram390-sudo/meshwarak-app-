@@ -1171,12 +1171,10 @@
       clearCurrentRideUI();
       return;
     }
-
     if (currentRideId) {
       cancelRideBtn.style.display = "inline-flex";
-      setTimeout(() => startWatchRide(currentRideId), 700);
     }
-  }); // ✅ قفل onSnapshot
+}); // ✅ قفل onSnapshot
 } // ✅ قفل startWatchRide
 </script>
 
