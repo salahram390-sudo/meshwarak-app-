@@ -851,8 +851,8 @@
 
     async function createRide(){
       msg.textContent = "";
-      const governorate = govSelect.value;
-      const center = centerSelect.value;
+      const governorate = clean(govSelect.value);
+      const center = clean(centerSelect.value);
 
       if(!governorate || !center){
         msg.textContent = "❌ اختر المحافظة والمركز.";
@@ -915,8 +915,8 @@
           governorate,
           center,
 
-          requestedVehicle: vehicleType,
-          vehicleType,
+          requestedVehicle: clean(vehicleType),
+          vehicleType: clean(vehicleType),
           priceEGP: priceEGP,
           price: priceEGP,
 
