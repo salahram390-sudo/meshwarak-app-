@@ -170,7 +170,7 @@ $("logoutBtn").addEventListener("click", doLogout);
   let driverProfile = null;
   try{ driverProfile = await getUserDoc(user.uid); }catch(e){ driverProfile=null; }
 
-  const myVeh = clean(driverProfile?.vehicleType || driverProfile?.requestedVehicle || "");
+  const myVeh = normVeh(driverProfile?.vehicleType || driverProfile?.requestedVehicle || "");
   vehChip.textContent = "مركبة: " + (driverProfile?.vehicleType || myVeh || "-");
 
   // ---- Area (from registration profile)
@@ -420,7 +420,7 @@ $("logoutBtn").addEventListener("click", doLogout);
   function buildRidesQuery(){
   if(!isOnline) return null;
 
-  // بيانات السائق من البروفايل (بدون UI هنا)
+  // لازم يكون السائق مسجل المحافظة + المركز + نوع المركبة من صفحة التسجيل
   if(!myGov || !myCen){
     msgEl.textContent = "❗ أكمل بيانات المحافظة + المركز (في تسجيل السائق) ثم أعد تسجيل الدخول.";
     return null;
@@ -430,14 +430,12 @@ $("logoutBtn").addEventListener("click", doLogout);
     return null;
   }
 
-  const cons = [
+  // Query بسيط (بدون Index) ثم فلترة محلية
+  return query(
+    collection(db,"rides"),
     where("status","==","open"),
-    where("governorate","==", myGov),
-    where("center","==", myCen),
-    where("requestedVehicle","==", myVeh),
-  ];
-
-  return query(collection(db,"rides"), ...cons, limit(30));
+    limit(60)
+  );
 }
   function resubscribeRides(){
     if(unsubRides){ unsubRides(); unsubRides=null; }
