@@ -430,11 +430,6 @@ $("logoutBtn").addEventListener("click", doLogout);
       return null;
     }
 
-    // ✅ Minimal Firestore query (no composite indexes required):
-    // We fetch open rides then filter locally by gov/center/vehicle to guarantee correct matching.
-    return query(collection(db,"rides"), where("status","==","open"), limit(50));
-  }
-
     if(!myVeh){
       msgEl.textContent = "❗ أكمل بيانات نوع المركبة (في تسجيل السائق) ثم أعد تسجيل الدخول.";
       return null;
